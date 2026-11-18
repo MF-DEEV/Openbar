@@ -37,6 +37,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
     }
     if let Ok(folder) = app.path().app_config_dir() {
         hook_records::init(&folder);
+        crate::hooks::page::init(&folder);
     }
     let os = os();
     log::info(
@@ -408,6 +409,7 @@ fn agent_name(provider: Provider) -> &'static str {
         Provider::Vibe => "Mistral Vibe",
         Provider::Devin => "Devin CLI",
         Provider::Antigravity => "Google Antigravity",
+        Provider::Custom => "Other tool",
     }
 }
 

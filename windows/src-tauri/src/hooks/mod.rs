@@ -5,6 +5,8 @@
 //! settings.json entries that run it.
 
 pub mod installer;
+pub mod page;
+pub mod page_service;
 pub mod transport;
 
 /// The app id in the hook's marker and endpoint, so a second build can install beside this one.
@@ -41,7 +43,7 @@ fn current_command() -> Result<String, String> {
 /// Every Claude account's settings file, each once: two folders whose
 /// settings are one linked file share it (#216). `shown` leaves hidden
 /// accounts out, as installing does; removing covers them all.
-fn account_files(shown: bool) -> Vec<(crate::sessions::accounts::Account, PathBuf)> {
+pub(crate) fn account_files(shown: bool) -> Vec<(crate::sessions::accounts::Account, PathBuf)> {
     let Some(home) = installer::home_dir() else {
         return vec![];
     };

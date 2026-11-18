@@ -775,6 +775,11 @@ pub fn watch_page_visible<R: Runtime>(app: AppHandle<R>, visible: bool) {
     inner.page_visible = visible;
 }
 
+/// A system notification, where the app can post one: false when it was not posted.
+pub fn toast(title: &str, body: &str) -> bool {
+    platform::toast(title, body)
+}
+
 /// A Windows notification for a watch that ended while the island couldn't
 /// show its notice (hidden in a full-screen app). Needs the app's package
 /// identity; false when it was not posted.

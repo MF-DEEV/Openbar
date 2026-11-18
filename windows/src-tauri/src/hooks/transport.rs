@@ -208,10 +208,12 @@ pub fn run_hook(app: &str) -> ! {
     };
     let agent = value("--agent");
     let event = value("--event").unwrap_or_default();
+    // The config folder or tool a hook from the Hooks page was written for (#236).
+    let via = value("--via");
     // Gemini CLI, Copilot CLI and Cursor: their input goes in the island's
     // envelope, naming the agent and the hook (sessions::hook_agents).
     if let Some(agent) = &agent {
-        input = envelope(agent, &event, &input).unwrap_or_default();
+        input = envelope(agent, &event, via.as_deref(), &input).unwrap_or_default();
     }
     if let Some(answer) = agent.as_deref().and_then(|a| fixed_answer(a, &event)) {
         // Google Antigravity refuses a tool call whose hook prints nothing,
@@ -256,18 +258,22 @@ pub fn fixed_answer(agent: &str, event: &str) -> Option<&'static str> {
     })
 }
 
-/// The agent's input inside the island's envelope; None for input that is
-/// not one JSON object.
-pub fn envelope(agent: &str, event: &str, input: &[u8]) -> Option<Vec<u8>> {
+/// The agent's input inside the island's envelope, with the folder's tag or
+/// tool's id the hook names, when it is one the island makes; None for
+/// input that is not one JSON object.
+pub fn envelope(agent: &str, event: &str, via: Option<&str>, input: &[u8]) -> Option<Vec<u8>> {
     let payload: serde_json::Value = serde_json::from_slice(input).ok()?;
     payload.is_object().then_some(())?;
-    serde_json::to_vec(&serde_json::json!({
+    let mut message = serde_json::json!({
         "openbar": agent,
         "hook": event,
         "pid": std::process::id(),
         "event": payload,
-    }))
-    .ok()
+    });
+    if let Some(via) = via.filter(|v| crate::sessions::hook_agents::is_tag(v)) {
+        message["via"] = serde_json::json!(via);
+    }
+    serde_json::to_vec(&message).ok()
 }
 
 fn ask(app: &str, input: &[u8]) -> Option<Vec<u8>> {
@@ -388,6 +394,25 @@ mod platform {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_envelope_carries_a_valid_via_only() {
+        let input = br#"{"session_id":"s"}"#;
+        let with: serde_json::Value = serde_json::from_slice(
+            &envelope("codex", "Stop", Some("a1b2c3d4e5f6"), input).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(with["via"], "a1b2c3d4e5f6");
+        assert_eq!(with["openbar"], "codex");
+        assert_eq!(with["event"]["session_id"], "s");
+        for bad in ["", "a b", "x\"y", &"a".repeat(41)] {
+            let without: serde_json::Value =
+                serde_json::from_slice(&envelope("codex", "Stop", Some(bad), input).unwrap())
+                    .unwrap();
+            assert!(without.get("via").is_none(), "{bad}");
+        }
+        assert!(envelope("gemini", "Stop", None, b"[1]").is_none());
+    }
 
     #[test]
     fn completeness_waits_for_a_whole_object() {

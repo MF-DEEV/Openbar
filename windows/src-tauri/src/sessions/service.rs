@@ -349,6 +349,7 @@ impl Service {
             let _ = wake_tx.send(());
         });
         *service.codex.lock().unwrap() = Some(codex);
+        hooks::page_service::set_app(service.app.clone());
         let hook_side = service.clone();
         if let Err(e) = hooks::transport::serve(hooks::APP_ID, move |connection| {
             hook_side.on_hook(connection)
@@ -375,6 +376,8 @@ impl Service {
                         Err(_) => {
                             let busy = ticker.tick();
                             Service::list_background_jobs(&ticker, false);
+                            // Hooks lost at launch or since come back (#236).
+                            hooks::page_service::tick();
                             next = std::time::Instant::now()
                                 + if busy { ACTIVE_TICK } else { QUIET_TICK };
                         }
@@ -987,7 +990,12 @@ impl Service {
             }
         }
         if let Some(home) = hooks::installer::home_dir() {
-            let labels = super::accounts::labels(&sessions, &inner.accounts, &home);
+            let mut labels = super::accounts::labels(&sessions, &inner.accounts, &home);
+            // A second Codex home and a tool added by hand say which they are (#236).
+            let page = hooks::page::settings();
+            for (id, label) in hooks::page::labels(&sessions, &page.folders, &page.tools) {
+                labels.entry(id).or_insert(label);
+            }
             for session in &mut sessions {
                 session.account_label = labels.get(&session.id).cloned();
             }
@@ -1036,10 +1044,7 @@ impl Service {
         }
         // Codex is heard through its app-server, not hooks: what the
         // diagnostics journal keeps of it is each thread's change of state.
-        for session in sessions
-            .iter()
-            .filter(|s| s.provider == models::Provider::Codex)
-        {
+        for session in sessions.iter().filter(|s| s.codex_server()) {
             let before = inner
                 .sessions
                 .iter()
@@ -1705,9 +1710,10 @@ impl Service {
         // Mistral Vibe's and Devin CLI's terminal UIs read a console's keys,
         // as Codex's does, so a paste's markers would reach them as text:
         // their reply goes in as plain keys and one Return.
+        // Codex heard through a second home's hooks runs its own terminal UI (#236).
         let plain = matches!(
             entry.provider,
-            models::Provider::Vibe | models::Provider::Devin
+            models::Provider::Vibe | models::Provider::Devin | models::Provider::Codex
         ) && matches!(
             located.host,
             hosts::Host::WindowsTerminal { .. } | hosts::Host::Conhost
@@ -1824,7 +1830,7 @@ impl Service {
             inner
                 .sessions
                 .iter()
-                .find(|s| s.id == session && s.provider == models::Provider::Codex)
+                .find(|s| s.id == session && s.codex_server())
                 .map(|s| {
                     (
                         s.name.clone(),
@@ -1832,9 +1838,7 @@ impl Service {
                         inner
                             .sessions
                             .iter()
-                            .filter(|other| {
-                                other.id != session && other.provider == models::Provider::Codex
-                            })
+                            .filter(|other| other.id != session && other.codex_server())
                             .map(|other| other.cwd.clone())
                             .collect::<Vec<_>>(),
                     )
@@ -2579,8 +2583,12 @@ static AGENT_HOOK_FAILURES: Mutex<BTreeMap<&'static str, String>> = Mutex::new(B
 static AGENT_HOOK_SYNC: Mutex<()> = Mutex::new(());
 
 /// Keeps every agent's hooks in step, with no button to press
-/// (ClaudeSessionService.syncAgentHooks).
-fn sync_agent_hooks(hidden: &HashSet<models::Provider>) {
+/// (ClaudeSessionService.syncAgentHooks). Hooks the island put in that
+/// someone took out come back only while "Put lost hooks back" is on, hooks
+/// changed by hand are the person's, and an agent the person pressed Remove
+/// for on the Hooks page is left as it is (#236).
+pub(crate) fn sync_agent_hooks(hidden: &HashSet<models::Provider>) {
+    use crate::diagnostics::hook_records::{self, State as Derived};
     let _one = AGENT_HOOK_SYNC.lock().unwrap();
     let (Some(home), Ok(exe)) = (hooks::installer::home_dir(), hooks::current_program()) else {
         return;
@@ -2590,21 +2598,48 @@ fn sync_agent_hooks(hidden: &HashSet<models::Provider>) {
         .into_iter()
         .filter(|p| hook_agents::installer::is_present(*p, &home))
         .collect();
-    let (install, remove) = hook_agents::installer::plan(&found, hidden, |p| {
-        hook_agents::installer::state(p, &home, &exe, &endpoint, hooks::APP_ID)
-    });
+    let records = hook_records::all();
+    let states: HashMap<models::Provider, Derived> = models::Provider::HOOK_AGENTS
+        .into_iter()
+        .map(|p| {
+            let base = hook_agents::installer::state(p, &home, &exe, &endpoint, hooks::APP_ID);
+            (
+                p,
+                hook_records::agent_state(p, base, &home, hooks::APP_ID, &records),
+            )
+        })
+        .collect();
+    let opted_out = hooks::page::opted_out_agents(&hooks::page::opt_out());
+    let (install, remove) = hook_agents::installer::plan_with(
+        &found,
+        hidden,
+        |p| states.get(&p).copied().unwrap_or(Derived::Missing),
+        &opted_out,
+        hooks::page::settings().auto_repair,
+    );
+    // Hooks someone took out come back a few times a run at most, and are said once.
+    let lost = |p: &models::Provider| states.get(p) == Some(&Derived::RemovedByHand);
+    let install: Vec<models::Provider> = install
+        .into_iter()
+        .filter(|p| !lost(p) || hooks::page_service::note_repair(&hook_records::agent_id(*p)))
+        .collect();
+    let mut put_back = Vec::new();
     for (provider, on) in install
         .into_iter()
         .map(|p| (p, true))
         .chain(remove.into_iter().map(|p| (p, false)))
     {
         let result = change_agent_hooks(provider, on, &home, &exe, &endpoint);
+        if on && result.is_ok() && lost(&provider) {
+            put_back.push(hooks::page::display_name(provider).to_owned());
+        }
         let mut failures = AGENT_HOOK_FAILURES.lock().unwrap();
         match result {
             Ok(()) => failures.remove(provider.key()),
             Err(e) => failures.insert(provider.key(), e),
         };
     }
+    hooks::page_service::announce(&put_back);
 }
 
 /// One agent's hooks put in or taken out, kept for a diagnostics file

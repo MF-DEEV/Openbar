@@ -236,7 +236,7 @@ pub fn installing_marked(settings: &Value, command: &str, marker: &str) -> Value
 }
 
 /// What the file holds, None when there is no file at all.
-fn contents(path: &Path) -> Result<Option<Vec<u8>>, Failure> {
+pub fn contents(path: &Path) -> Result<Option<Vec<u8>>, Failure> {
     match fs::symlink_metadata(path) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(_) => return Err(Failure::Unreadable),
@@ -352,35 +352,105 @@ pub fn update_text(
     Err(Failure::Busy)
 }
 
-/// Writes `data` over the file, keeping a copy of `original` beside it first.
-fn write_with_backup(path: &Path, original: Option<&[u8]>, data: &[u8]) -> Result<(), Failure> {
-    {
-        let folder = path.parent().map(Path::to_path_buf).unwrap_or_default();
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        fs::create_dir_all(&folder).map_err(|e| Failure::Unwritable(e.to_string()))?;
-        if let Some(original) = original {
-            let stamp = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
-            let backup = folder.join(format!("{name}.openbar-{stamp}.bak"));
-            write_private(&backup, original).map_err(|_| Failure::NoBackup)?;
-            prune(&folder, &name);
-        }
-        let temporary = folder.join(format!(".{name}.openbar-{}", std::process::id()));
-        fs::write(&temporary, data).map_err(|e| Failure::Unwritable(e.to_string()))?;
-        if let Ok(meta) = fs::metadata(path) {
-            let _ = fs::set_permissions(&temporary, meta.permissions());
-        }
-        if let Err(e) = replace(&temporary, path) {
-            let _ = fs::remove_file(&temporary);
-            return Err(Failure::Unwritable(e.to_string()));
-        }
-        Ok(())
+/// Writes `data` over the file, keeping a copy of `original` beside it
+/// first; no copy, no change. The first time the island touches a file it
+/// also keeps the file as it was before the island, or a note that there was
+/// none, for Remove everything (#236).
+pub fn write_with_backup(path: &Path, original: Option<&[u8]>, data: &[u8]) -> Result<(), Failure> {
+    let folder = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    super::page::note_made(&folder);
+    fs::create_dir_all(&folder).map_err(|e| Failure::Unwritable(e.to_string()))?;
+    keep_original(original, path);
+    if let Some(original) = original {
+        keep_copy(original, path)?;
     }
+    let temporary = folder.join(format!(".{name}.openbar-{}", std::process::id()));
+    fs::write(&temporary, data).map_err(|e| Failure::Unwritable(e.to_string()))?;
+    if let Ok(meta) = fs::metadata(path) {
+        let _ = fs::set_permissions(&temporary, meta.permissions());
+    }
+    if let Err(e) = replace(&temporary, path) {
+        let _ = fs::remove_file(&temporary);
+        return Err(Failure::Unwritable(e.to_string()));
+    }
+    Ok(())
+}
+
+/// A dated copy of what the file held, the owner's alone, beside it; two
+/// changes in one second keep both copies.
+pub fn keep_copy(original: &[u8], path: &Path) -> Result<(), Failure> {
+    let folder = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let mut stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let mut backup = folder.join(format!("{name}.openbar-{stamp}.bak"));
+    while backup.exists() {
+        stamp += 1;
+        backup = folder.join(format!("{name}.openbar-{stamp}.bak"));
+    }
+    write_private(&backup, original).map_err(|_| Failure::NoBackup)?;
+    prune(&folder, &name);
+    Ok(())
+}
+
+// MARK: The file before the island (#236)
+
+fn beside(path: &Path, suffix: &str) -> PathBuf {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    path.with_file_name(format!("{name}.openbar-{suffix}"))
+}
+
+/// The file as it was before the island first wrote into it.
+pub fn original_copy(path: &Path) -> PathBuf {
+    beside(path, "original.bak")
+}
+
+/// Says the file did not exist before the island made it.
+pub fn absent_note(path: &Path) -> PathBuf {
+    beside(path, "original.none")
+}
+
+/// Any island's hook, this build's or another's, old name or new.
+pub const ANY_MARKERS: [&str; 2] = ["openbar-hook", "vorssaint-hook"];
+
+/// Keeps the file as it was before the island, once: only when neither note
+/// exists yet, and only when what is there holds no island's hook (an older
+/// Openbar wrote it otherwise, and the file before is unknown).
+fn keep_original(original: Option<&[u8]>, path: &Path) {
+    let copy = original_copy(path);
+    let absent = absent_note(path);
+    if copy.exists() || absent.exists() {
+        return;
+    }
+    match original {
+        None => {
+            let _ = write_private(&absent, b"");
+        }
+        Some(data) => {
+            let text = String::from_utf8_lossy(data);
+            if !ANY_MARKERS.iter().any(|m| text.contains(m)) {
+                let _ = write_private(&copy, data);
+            }
+        }
+    }
+}
+
+/// Forgets what the file was before the island, as once it is put back.
+pub fn forget_original(path: &Path) {
+    let _ = fs::remove_file(original_copy(path));
+    let _ = fs::remove_file(absent_note(path));
 }
 
 /// Settings can hold tokens: the copy is the owner's alone (0600 on Unix;
@@ -407,7 +477,8 @@ fn replace(from: &Path, to: &Path) -> io::Result<()> {
     fs::rename(from, to)
 }
 
-/// Keeps the newest copies only, by the number in their names.
+/// Keeps the newest copies only, by the number in their names; the copy
+/// from before the island has none, so it stays.
 fn prune(folder: &Path, name: &str) {
     let prefix = format!("{name}.openbar-");
     let Ok(entries) = fs::read_dir(folder) else {
@@ -554,9 +625,19 @@ mod tests {
                     .file_name()
                     .to_string_lossy()
                     .ends_with(".bak")
+                    && !e
+                        .as_ref()
+                        .unwrap()
+                        .file_name()
+                        .to_string_lossy()
+                        .contains("original")
             })
             .count();
         assert_eq!(backups, 3);
+        assert_eq!(
+            fs::read(original_copy(&file)).unwrap(),
+            b"{\"z\":1,\"a\":{\"y\":2,\"b\":3}}"
+        );
         assert!(!dir.join("settings.json.openbar-100.bak").exists());
         let _ = fs::remove_dir_all(&dir);
     }

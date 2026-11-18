@@ -56,9 +56,25 @@ impl State {
 static FILE: OnceLock<PathBuf> = OnceLock::new();
 static LOCK: Mutex<()> = Mutex::new(());
 
+thread_local! {
+    /// A test's own records, so tests running side by side never share them.
+    static TEST_FILE: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
 /// Where the records are kept; set once at start.
 pub fn init(config_dir: &Path) {
     let _ = FILE.set(config_dir.join("hook-records.json"));
+}
+
+#[cfg(test)]
+pub fn set_test_file(path: Option<PathBuf>) {
+    TEST_FILE.with(|f| *f.borrow_mut() = path);
+}
+
+fn file() -> Option<PathBuf> {
+    TEST_FILE
+        .with(|f| f.borrow().clone())
+        .or_else(|| FILE.get().cloned())
 }
 
 pub fn agent_id(provider: Provider) -> String {
@@ -80,7 +96,7 @@ pub fn claude_id(settings: &Path) -> String {
 // MARK: Store
 
 pub fn all() -> BTreeMap<String, Record> {
-    FILE.get().map(|f| all_in(f)).unwrap_or_default()
+    file().map(|f| all_in(&f)).unwrap_or_default()
 }
 
 pub fn all_in(file: &Path) -> BTreeMap<String, Record> {
@@ -92,8 +108,8 @@ pub fn all_in(file: &Path) -> BTreeMap<String, Record> {
 
 /// Notes what Openbar just wrote into `config`.
 pub fn note_installed(id: &str, config: &Path, marker: &str, own_name: Option<&str>, whole: bool) {
-    if let Some(file) = FILE.get() {
-        note_installed_in(file, id, config, marker, own_name, whole);
+    if let Some(file) = file() {
+        note_installed_in(&file, id, config, marker, own_name, whole);
     }
 }
 
@@ -129,8 +145,8 @@ pub fn note_installed_in(
 
 /// Openbar took its hooks out itself: nothing to miss any more.
 pub fn forget(id: &str) {
-    if let Some(file) = FILE.get() {
-        forget_in(file, id);
+    if let Some(file) = file() {
+        forget_in(&file, id);
     }
 }
 
@@ -255,7 +271,7 @@ pub fn hook_file(provider: Provider, home: &Path, app: &str) -> Option<(PathBuf,
         Provider::Vibe => (agents::vibe_hooks(home), false),
         Provider::Devin => (agents::devin_config(home), false),
         Provider::Antigravity => (agents::antigravity_hooks(home), false),
-        Provider::Claude | Provider::Codex => return None,
+        Provider::Claude | Provider::Codex | Provider::Custom => return None,
     })
 }
 

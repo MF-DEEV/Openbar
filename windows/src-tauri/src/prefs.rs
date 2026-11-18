@@ -180,6 +180,8 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
             && !notifications_hidden,
     );
     crate::calendar::apply(app, before, value);
+    // Folders and tools on the Hooks page, and putting lost hooks back (#236).
+    crate::hooks::page::set_settings(crate::hooks::page::settings_from_prefs(value));
     let previews = value
         .pointer("/sessions/previews")
         .and_then(Value::as_bool)
@@ -235,7 +237,7 @@ pub async fn prefs_set<R: Runtime>(app: AppHandle<R>, patch: Value) -> Result<Va
         .map_err(|e| e.to_string())?
 }
 
-fn save_patch<R: Runtime>(app: &AppHandle<R>, patch: Value) -> Result<Value, String> {
+pub(crate) fn save_patch<R: Runtime>(app: &AppHandle<R>, patch: Value) -> Result<Value, String> {
     let _update = UPDATES.lock().unwrap();
     let prefs = app.state::<Prefs>();
     let before = prefs.get();
