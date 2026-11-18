@@ -901,6 +901,12 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [10, false],
     [12, false],
   ],
+  grok: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -1003,6 +1009,19 @@ export const ANTIGRAVITY_BODY = [
   "ccc.......ccc",
 ];
 
+/** Grok CLI's figure: a round body with the slash of its mark (A) coming
+ * out at its top right and bottom left (NotchClawdSprite.swift). */
+export const GROK_BODY = [
+  "...CCCCCCC...",
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  ".cCCCCCCCCCc.",
+  "...ccccccc...",
+];
+
 function compose(
   costume: ClawdCostume,
   p: ClawdPose,
@@ -1070,6 +1089,12 @@ function compose(
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else if (character === "antigravity") {
     put(s(0, 0, ANTIGRAVITY_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "grok") {
+    // The slash goes first: the body hides its middle, a hat its top.
+    put(s(10, -2, ["..A", ".A.", "A.."]));
+    put(s(1, 7, [".A", "A."]));
+    put(s(0, 0, GROK_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));

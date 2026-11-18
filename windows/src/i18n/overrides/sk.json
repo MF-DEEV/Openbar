@@ -653,6 +653,7 @@
   "windows.settings.sessions.showAgent": "Zobraziť %@ v Reláciách",
   "windows.settings.sessions.agentHintGemini": "Hooky v .gemini\\settings.json, vedľa tvojich. Na žiadosti o povolenie od Gemini CLI odpovedáš v jeho termináli; odpovede sa píšu tam.",
   "windows.settings.sessions.agentHintAntigravity": "Hooky v .gemini\\config\\hooks.json, vedľa tvojich, pre aplikáciu Antigravity, jej IDE a agy. Schválenia zostávajú v Antigravity; Otvoriť ťa tam presunie.",
+  "windows.settings.sessions.agentHintGrok": "Hooky vo vlastnom súbore ostrova v .grok\\hooks. Povoliť a Zamietnuť stlačia Enter alebo Ctrl+C pri výzve Grok CLI v jeho konzole, vo WezTerm alebo zellij; inde odpovedáš v Grok CLI. Na jeho otázky sa odpovedá tam a odpovede sa píšu do jeho terminálu.",
   "windows.settings.sessions.agentHintCopilot": "Vlastný súbor hookov ostrova v .copilot\\hooks. Na žiadosti o povolenie od Copilot CLI odpovedáš v jeho termináli; odpovede sa píšu tam.",
   "windows.settings.sessions.agentHintOpencode": "Vlastný plugin ostrova v .config\\opencode\\plugins. Povoľuj alebo zamietaj žiadosti OpenCode a posielaj odpovede priamo z ostrova.",
   "windows.settings.sessions.agentHintCursor": "Hooky v .cursor\\hooks.json, vedľa tvojich, pre agenta Cursoru a cursor-agent. Schválenia zostávajú v Cursore; Otvoriť ťa tam presunie.",

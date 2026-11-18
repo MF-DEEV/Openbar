@@ -56,6 +56,7 @@ export interface SessionPrefs extends SessionSoundPrefs {
   agentVibe: boolean;
   agentDevin: boolean;
   agentAntigravity: boolean;
+  agentGrok: boolean;
   /** A microphone in the reply field; speech is recognized on this PC only. */
   voiceReplies: boolean;
   /** The language voice replies are heard in; empty follows the app. */
@@ -133,6 +134,7 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   agentVibe: true,
   agentDevin: true,
   agentAntigravity: true,
+  agentGrok: true,
   voiceReplies: true,
   voiceLanguage: "",
   voiceSendOnStop: false,

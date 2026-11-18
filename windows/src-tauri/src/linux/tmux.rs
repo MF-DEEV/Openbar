@@ -99,6 +99,16 @@ fn send_with(
     Ok(())
 }
 
+/// Presses Ctrl-C in the pane, as a key (Grok CLI's no, #243).
+pub fn interrupt(socket: &str, pane: &str, terminal: Option<&str>) -> Result<(), ()> {
+    if !holds_with("tmux", socket, pane, terminal) {
+        return Err(());
+    }
+    tmux_with("tmux", socket, &["send-keys", "-t", pane, "C-c"], None)
+        .map(|_| ())
+        .ok_or(())
+}
+
 /// Whether the pane is the one its tmux shows (#210): the active pane of the
 /// active window, in a session a terminal is attached to. Ok gives the pid
 /// of that terminal's tmux client, used last, whose own terminal decides the

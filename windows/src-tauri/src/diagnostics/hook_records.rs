@@ -271,6 +271,7 @@ pub fn hook_file(provider: Provider, home: &Path, app: &str) -> Option<(PathBuf,
         Provider::Vibe => (agents::vibe_hooks(home), false),
         Provider::Devin => (agents::devin_config(home), false),
         Provider::Antigravity => (agents::antigravity_hooks(home), false),
+        Provider::Grok => (agents::grok_hooks(home, app), true),
         Provider::Claude | Provider::Codex | Provider::Custom => return None,
     })
 }

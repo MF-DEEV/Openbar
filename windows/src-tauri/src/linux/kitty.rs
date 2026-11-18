@@ -89,6 +89,22 @@ fn is_focused(json: &str, window: u32) -> Option<bool> {
 }
 
 /// Types the reply into the window. Err when kitty or the window is gone, or the window does not list `pid`.
+/// Presses Ctrl-C in the window, as a key (Grok CLI's no, #243).
+pub fn interrupt(listen: &str, window: u32, pid: u32) -> Result<(), ()> {
+    if !holds_with("kitten", listen, window, pid) {
+        return Err(());
+    }
+    let target = format!("id:{window}");
+    kitten(
+        "kitten",
+        listen,
+        &["send-key", "--match", &target, "ctrl+c"],
+        None,
+    )
+    .map(|_| ())
+    .ok_or(())
+}
+
 pub fn send(listen: &str, window: u32, pid: u32, text: &str, images: &[String]) -> Result<(), ()> {
     send_with("kitten", listen, window, pid, text, images)
 }

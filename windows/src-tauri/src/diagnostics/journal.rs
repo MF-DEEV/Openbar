@@ -138,6 +138,7 @@ pub fn agent_label(kind: &Kind) -> (&'static str, Option<String>) {
         Kind::Reply(_) => ("reply", None),
         Kind::Stopped { failed, .. } => ("stopped", failed.then(|| "failed".to_string())),
         Kind::Model(_) => ("model", None),
+        Kind::MayAsk(_) => ("mayAsk", None),
         Kind::Title(_) => ("title", None),
         Kind::Usage { .. } => ("usage", None),
     }

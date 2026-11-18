@@ -1240,6 +1240,7 @@ pub fn display_name(provider: Provider) -> &'static str {
         Provider::Vibe => "Mistral Vibe",
         Provider::Devin => "Devin CLI",
         Provider::Antigravity => "Google Antigravity",
+        Provider::Grok => "Grok CLI",
         Provider::Custom => "Other tool",
     }
 }

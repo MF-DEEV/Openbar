@@ -399,7 +399,8 @@ fn extra_folders() {
             Provider::Gemini,
             Provider::Copilot,
             Provider::Pi,
-            Provider::Vibe
+            Provider::Vibe,
+            Provider::Grok
         ]
     );
     assert_eq!(
@@ -628,6 +629,7 @@ fn tools_with_claude_style_hooks() {
         ContentPolicy { previews: true },
         |_| hook_agents::Place {
             host: HostKind::Unknown,
+            takes_keys: false,
             accepts_replies: false,
             host_name: None,
         },

@@ -757,6 +757,25 @@ impl Service {
                     .map(|m| m.cwd)
                     .filter(|c| !c.is_empty());
             }
+            // Grok's hooks name the model only for xAI's own: its session's summary names any.
+            if provider == models::Provider::Grok
+                && matches!(
+                    event.kind,
+                    hook_agents::Kind::Prompt(_) | hook_agents::Kind::Stopped { .. }
+                )
+                && inner
+                    .hook_agents
+                    .entry(&event.id())
+                    .is_none_or(|e| e.model().is_none())
+                && let Some(model) = decoded
+                    .transcript
+                    .as_deref()
+                    .and_then(|path| hook_agents::grok_model(Path::new(path)))
+            {
+                let mut named = event.clone();
+                named.kind = hook_agents::Kind::Model(model);
+                inner.hook_agents.ingest(named, t);
+            }
             // Vibe's hooks carry no reply: with previews on, its session's log tells the last one.
             if provider == models::Provider::Vibe
                 && previews
@@ -939,6 +958,7 @@ impl Service {
                     };
                     hook_agents::Place {
                         host: kind,
+                        takes_keys: host.is_some_and(|l| hosts::takes_keys(&l.host)),
                         accepts_replies: accepts,
                         host_name: host.and_then(|l| l.host.display_name()),
                     }
@@ -1244,9 +1264,11 @@ impl Service {
         if hook_agents::is_envelope(&connection.payload) {
             return self.on_agent(connection);
         }
-        // Devin CLI runs the hooks in Claude Code's settings too; its sessions
-        // are heard through hooks of their own, so these are let go unanswered.
-        if hook_agents::is_devin_payload(&connection.payload)
+        // Devin CLI and Grok CLI run the hooks in Claude Code's settings too;
+        // their sessions are heard through hooks of their own, so these are
+        // let go unanswered.
+        if hook_agents::is_grok_payload(&connection.payload)
+            || hook_agents::is_devin_payload(&connection.payload)
             || connection
                 .peer_pid
                 .and_then(hosts::process::ancestors)
@@ -1382,6 +1404,33 @@ impl Service {
                         && !inner.inspection.allows(session, p, revision, token))
                 {
                     return false;
+                }
+                // Grok's prompt takes Return for the yes it has picked and
+                // Ctrl-C for no; its hooks tell when it moves on (#243).
+                if let Some(entry) = inner
+                    .hook_agents
+                    .entry(session)
+                    .filter(|e| e.provider == models::Provider::Grok)
+                    .cloned()
+                {
+                    let key = match decision {
+                        Decision::Allow => hosts::Key::Enter,
+                        Decision::Deny => hosts::Key::Interrupt,
+                        _ => return false,
+                    };
+                    let Some(located) = inner.hosts.get(&entry.pid).cloned() else {
+                        return false;
+                    };
+                    drop(inner);
+                    if hosts::press(entry.pid as u32, &located, key).is_err() {
+                        return false;
+                    }
+                    let mut inner = self.inner.lock().unwrap();
+                    let t = now();
+                    inner.hook_agents.resolve(session, request);
+                    inner.hook_agents.acknowledge(session, t);
+                    self.publish(&mut inner, t);
+                    return true;
                 }
                 // OpenCode's plugin waits for the answer; the other agents ask in their own terminal.
                 if !matches!(decision, Decision::Deny)
@@ -1707,13 +1756,16 @@ impl Service {
             return Some(Some("unreachable"));
         };
         drop(inner);
-        // Mistral Vibe's and Devin CLI's terminal UIs read a console's keys,
+        // Mistral Vibe's, Devin CLI's and Grok CLI's terminal UIs read a console's keys,
         // as Codex's does, so a paste's markers would reach them as text:
         // their reply goes in as plain keys and one Return.
         // Codex heard through a second home's hooks runs its own terminal UI (#236).
         let plain = matches!(
             entry.provider,
-            models::Provider::Vibe | models::Provider::Devin | models::Provider::Codex
+            models::Provider::Vibe
+                | models::Provider::Devin
+                | models::Provider::Codex
+                | models::Provider::Grok
         ) && matches!(
             located.host,
             hosts::Host::WindowsTerminal { .. } | hosts::Host::Conhost

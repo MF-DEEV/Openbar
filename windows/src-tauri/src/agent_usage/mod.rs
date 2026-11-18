@@ -27,6 +27,7 @@ pub(crate) fn agent_executable(name: &str) -> Option<std::path::PathBuf> {
         let dirs = [
             home.join(".local").join("bin"),
             home.join(".opencode").join("bin"),
+            home.join(".grok").join("bin"),
         ];
         candidates.extend(cli::in_dirs(&dirs, name, &exts));
     }

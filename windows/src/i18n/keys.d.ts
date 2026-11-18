@@ -4345,6 +4345,7 @@ export type CatalogKey =
   | "windows.settings.sessions.agentConnected"
   | "windows.settings.sessions.agentConnecting"
   | "windows.settings.sessions.agentHintAntigravity"
+  | "windows.settings.sessions.agentHintGrok"
   | "windows.settings.sessions.agentHintCopilot"
   | "windows.settings.sessions.agentHintCursor"
   | "windows.settings.sessions.agentHintDevin"

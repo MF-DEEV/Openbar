@@ -178,6 +178,23 @@ pub fn send(
     Ok(())
 }
 
+/// Presses Ctrl-C in the pane, as a key, not a paste (#243).
+pub fn interrupt(gui_pid: u32, pane: u32, socket: &str) -> Result<(), ()> {
+    let cli = cli(gui_pid).ok_or(())?;
+    if !listed(&cli, socket, pane) {
+        return Err(());
+    }
+    let id = pane.to_string();
+    run(
+        &cli,
+        socket,
+        &["send-text", "--pane-id", &id, "--no-paste"],
+        Some("\u{3}"),
+    )
+    .map(|_| ())
+    .ok_or(())
+}
+
 /// Shows the pane's tab, then the pane in it; the caller raises the
 /// window. Activating the pane alone leaves another tab in front.
 pub fn focus(gui_pid: u32, pane: u32, socket: &str) -> bool {

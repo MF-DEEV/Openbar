@@ -384,7 +384,7 @@ fn model() -> Option<String> {
 
 // MARK: Agents
 
-const AGENTS: [Provider; 10] = [
+const AGENTS: [Provider; 11] = [
     Provider::Claude,
     Provider::Codex,
     Provider::Gemini,
@@ -395,6 +395,7 @@ const AGENTS: [Provider; 10] = [
     Provider::Vibe,
     Provider::Devin,
     Provider::Antigravity,
+    Provider::Grok,
 ];
 
 fn agent_name(provider: Provider) -> &'static str {
@@ -409,6 +410,7 @@ fn agent_name(provider: Provider) -> &'static str {
         Provider::Vibe => "Mistral Vibe",
         Provider::Devin => "Devin CLI",
         Provider::Antigravity => "Google Antigravity",
+        Provider::Grok => "Grok CLI",
         Provider::Custom => "Other tool",
     }
 }

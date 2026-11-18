@@ -49,7 +49,7 @@ export interface HookRow {
 export const HOOK_PAGE_ORDER: readonly Provider[] = ["claude", "codex", ...HOOK_AGENTS];
 
 /** The agents whose config folder can be added by hand, beside Claude Code's accounts. */
-export const FOLDERS_BY_HAND: readonly Provider[] = ["codex", "gemini", "copilot", "pi", "vibe"];
+export const FOLDERS_BY_HAND: readonly Provider[] = ["codex", "gemini", "copilot", "pi", "vibe", "grok"];
 
 const SKIPS: Record<HookSkip, StringKey> = {
   folderMissing: "windows.hooks.skipFolderMissing",
