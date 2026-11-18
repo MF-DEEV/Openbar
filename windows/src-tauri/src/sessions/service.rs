@@ -660,11 +660,21 @@ impl Service {
             .into_iter()
             .map(|e| (e.pid, e.name))
             .collect();
-        let pid = if decoded.from_proxy {
+        let mut pid = if decoded.from_proxy {
             0
         } else {
             hook_agents::agent_process(&chain, decoded.pid)
         };
+        // Grok CLI's hook may outlive the shell that ran it (Windows'
+        // PowerShell doesn't wait for this app): Grok names its own process.
+        if provider == models::Provider::Grok
+            && pid == decoded.pid
+            && let Some(path) = decoded.transcript.as_deref()
+            && let Some(session) = decoded.events.first().map(|e| e.session_id.clone())
+            && let Some(own) = hook_agents::grok_session_pid(Path::new(path), &session)
+        {
+            pid = own;
+        }
         if let Some(attached) = &decoded.attached {
             if let Some(proxy) = connection.peer_pid {
                 inner

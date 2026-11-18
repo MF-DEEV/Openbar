@@ -1156,6 +1156,32 @@ pub fn is_grok_payload(data: &[u8]) -> bool {
     })
 }
 
+/// The process of a Grok CLI session, from the `active_sessions.json` Grok
+/// keeps in its folder (`<GROK_HOME>/sessions/<folder>/<id>/updates.jsonl` is
+/// the transcript its hooks name). On Windows Grok runs a hook through
+/// `powershell -Command`, which doesn't wait for this app (a windowed
+/// program), so the hook's parent is gone by the time the island reads it
+/// and the agent can't be found above the hook.
+pub fn grok_session_pid(transcript: &Path, session: &str) -> Option<i32> {
+    let home = transcript.parent()?.parent()?.parent()?.parent()?;
+    let path = home.join("active_sessions.json");
+    if std::fs::metadata(&path).ok()?.len() > 1024 * 1024 {
+        return None;
+    }
+    grok_session_pid_in(&std::fs::read(path).ok()?, session)
+}
+
+pub fn grok_session_pid_in(data: &[u8], session: &str) -> Option<i32> {
+    let list: Vec<Value> = serde_json::from_slice(data).ok()?;
+    list.iter()
+        .rev()
+        .find(|e| e.get("session_id").and_then(Value::as_str) == Some(session))
+        .and_then(|e| e.get("pid"))
+        .and_then(Value::as_i64)
+        .and_then(|p| i32::try_from(p).ok())
+        .filter(|p| *p > 0)
+}
+
 /// The model of a Grok CLI session, from the summary Grok keeps beside the
 /// conversation its hooks name (`…/sessions/<folder>/<id>/updates.jsonl`).
 pub fn grok_model(transcript: &Path) -> Option<String> {
@@ -5492,5 +5518,9 @@ mod tests {
             Some("grok-code-fast")
         );
         assert_eq!(grok_model_in(br#"{"current_model_id":" "}"#), None);
+        let active = br#"[{"session_id":"a","pid":11,"cwd":"C:/w"},{"session_id":"b","pid":22,"cwd":"C:/w"}]"#;
+        assert_eq!(grok_session_pid_in(active, "b"), Some(22));
+        assert_eq!(grok_session_pid_in(active, "c"), None);
+        assert_eq!(grok_session_pid_in(b"{}", "a"), None);
     }
 }
