@@ -3063,17 +3063,11 @@
   height: 22px;
   border-radius: 7px;
   color: rgba(255, 255, 255, 0.5);
-  transition:
-    color 0.15s,
-    transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1);
+  transition: color 0.15s;
 }
 
 .s-grouping button:hover {
   color: rgba(255, 255, 255, 0.85);
-}
-
-.s-grouping button:active {
-  transform: scale(0.92);
 }
 
 .s-grouping button.is-on {
