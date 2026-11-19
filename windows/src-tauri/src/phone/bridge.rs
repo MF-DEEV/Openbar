@@ -68,6 +68,9 @@ pub trait Host: Send + Sync {
     fn save(&self, stored: &Stored);
     fn save_token(&self, token: Option<&str>) -> bool;
     fn qr(&self, text: &str) -> Option<String>;
+    /// Writes the switch to the prefs, as Settings shows it. Called with the
+    /// bridge's state let go: the prefs come back through `set_settings`.
+    fn set_enabled(&self, on: bool);
 }
 
 /// The linked chat: only its person, in a private chat with the bot.
@@ -142,6 +145,8 @@ enum Job {
 enum Effect {
     Decide { key: String, session: String, request: String, decision: Decision, revision: Option<String>, outcome: Outcome },
     AutoAllow(String),
+    /// Linking turns the switch on.
+    Enable,
     Reply { session: String, text: String, name: String, chat: i64 },
 }
 
@@ -432,8 +437,12 @@ impl Bridge {
         state.ends_ready = false;
         self.host.save_token(None);
         self.host.save(&Stored::default());
+        state.settings.enabled = false;
         self.refresh(&mut state);
-        self.status_of(&state)
+        let status = self.status_of(&state);
+        drop(state);
+        self.host.set_enabled(false);
+        status
     }
 
     pub fn send_test(&self) {
@@ -570,6 +579,8 @@ impl Bridge {
                 state.ends_ready = false;
                 self.host.save(&Stored { bot: state.bot.clone(), link: state.link.clone() });
                 self.say(chat_id, &messages::linked(&self.host.computer()));
+                self.refresh(state);
+                return vec![Effect::Enable];
             } else {
                 let tries = state.linking.as_mut().map_or(0, |l| {
                     l.tries += 1;
@@ -777,6 +788,7 @@ impl Bridge {
     fn perform(&self, effect: Effect) {
         match effect {
             Effect::AutoAllow(session) => self.host.auto_allow(&session),
+            Effect::Enable => self.host.set_enabled(true),
             Effect::Decide { key, session, request, decision, revision, outcome } => {
                 let sent = self.host.decide(&session, &request, decision, revision.as_deref());
                 let mut state = self.state.lock().unwrap();
@@ -1140,6 +1152,7 @@ mod tests {
         decided: StdMutex<Vec<(String, String, Decision, Option<String>)>>,
         auto: StdMutex<Vec<String>>,
         idle: StdMutex<f64>,
+        enabled: StdMutex<Option<bool>>,
     }
 
     impl Host for FakeHost {
@@ -1175,6 +1188,9 @@ mod tests {
         }
         fn qr(&self, _: &str) -> Option<String> {
             None
+        }
+        fn set_enabled(&self, on: bool) {
+            *self.enabled.lock().unwrap() = Some(on);
         }
     }
 
@@ -1315,7 +1331,7 @@ mod tests {
     fn linking_takes_only_the_right_code() {
         let transport = Arc::new(FakeTransport::default());
         let host = Arc::new(FakeHost::default());
-        let bridge = Bridge::new(host, Arc::new(FakeApi(transport.clone())), Stored::default(), None, Settings::default());
+        let bridge = Bridge::new(host.clone(), Arc::new(FakeApi(transport.clone())), Stored::default(), None, Settings::default());
         bridge.state.lock().unwrap().running = true;
         assert_eq!(bridge.use_token("nope").problem.as_deref(), Some("invalidToken"));
         let status = bridge.use_token(TOKEN);
@@ -1330,6 +1346,10 @@ mod tests {
         bridge.handle(&message(&format!("/start {code}"), "private"));
         assert_eq!(bridge.status().linked.as_deref(), Some("@me"));
         assert!(bridge.state.lock().unwrap().active());
+        assert_eq!(*host.enabled.lock().unwrap(), Some(true), "Settings shows the switch on");
+        bridge.unlink();
+        assert_eq!(*host.enabled.lock().unwrap(), Some(false));
+        assert!(bridge.status().linked.is_none() && bridge.status().bot.is_none());
     }
 
     #[test]

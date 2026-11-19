@@ -1835,6 +1835,8 @@ select {
 /* Phone approvals through Telegram (#214, PhoneApprovals.tsx): what leaves
  * the PC, the BotFather steps, and the code with its QR while linking. */
 .st-phone-privacy {
+  box-sizing: border-box;
+  margin-right: 16px;
   padding-left: 10px;
   border-left: 2px solid color-mix(in srgb, var(--st-warn) 55%, transparent);
 }
@@ -1863,8 +1865,15 @@ select {
 .st-phone-token {
   max-width: 280px;
 }
+.st-phone-quiet {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 10px 50px;
+}
 .st-phone-time {
-  width: 96px;
+  width: 132px;
+  max-width: 132px;
 }
 .st-phone-link {
   display: flex;

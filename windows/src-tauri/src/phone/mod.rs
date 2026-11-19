@@ -110,6 +110,12 @@ mod host {
                 None => super::secret::delete(&self.identifier),
             }
         }
+        fn set_enabled(&self, on: bool) {
+            let app = self.app.clone();
+            std::thread::spawn(move || {
+                let _ = crate::prefs::save_patch(&app, serde_json::json!({"sessions": {"phoneEnabled": on}}));
+            });
+        }
         fn qr(&self, text: &str) -> Option<String> {
             let code = qrcode::QrCode::new(text.as_bytes()).ok()?;
             Some(

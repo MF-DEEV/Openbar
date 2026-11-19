@@ -166,35 +166,37 @@ export function PhoneApprovals() {
             title={t("windows.settings.sessions.phoneQuietHours")}
             caption={t("windows.settings.sessions.phoneQuietHint")}
           >
-            <input
-              className="ag-st-input st-phone-time"
-              type="time"
-              aria-label={`${t("windows.settings.sessions.phoneQuietHours")} 1`}
-              value={timeText(prefs.phoneQuietFrom)}
-              disabled={!prefs.phoneQuietHours}
-              onChange={(e) => {
-                const m = timeMinutes(e.target.value);
-                if (m !== null) set("phoneQuietFrom", m);
-              }}
-            />
-            <span aria-hidden="true">–</span>
-            <input
-              className="ag-st-input st-phone-time"
-              type="time"
-              aria-label={`${t("windows.settings.sessions.phoneQuietHours")} 2`}
-              value={timeText(prefs.phoneQuietTo)}
-              disabled={!prefs.phoneQuietHours}
-              onChange={(e) => {
-                const m = timeMinutes(e.target.value);
-                if (m !== null) set("phoneQuietTo", m);
-              }}
-            />
             <Toggle
               label={t("windows.settings.sessions.phoneQuietHours")}
               checked={prefs.phoneQuietHours}
               onChange={(on) => set("phoneQuietHours", on)}
             />
           </SubRow>
+          {prefs.phoneQuietHours ? (
+            <div className="st-phone-quiet">
+              <input
+                className="ag-st-input st-phone-time"
+                type="time"
+                aria-label={`${t("windows.settings.sessions.phoneQuietHours")} 1`}
+                value={timeText(prefs.phoneQuietFrom)}
+                onChange={(e) => {
+                  const m = timeMinutes(e.target.value);
+                  if (m !== null) set("phoneQuietFrom", m);
+                }}
+              />
+              <span aria-hidden="true">–</span>
+              <input
+                className="ag-st-input st-phone-time"
+                type="time"
+                aria-label={`${t("windows.settings.sessions.phoneQuietHours")} 2`}
+                value={timeText(prefs.phoneQuietTo)}
+                onChange={(e) => {
+                  const m = timeMinutes(e.target.value);
+                  if (m !== null) set("phoneQuietTo", m);
+                }}
+              />
+            </div>
+          ) : null}
           <SubRow
             title={t("windows.settings.sessions.phoneHideCode")}
             caption={t("windows.settings.sessions.phoneHideCodeHint")}
