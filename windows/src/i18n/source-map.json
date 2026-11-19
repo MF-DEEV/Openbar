@@ -8516,5 +8516,281 @@
     "key": "windows.sessions.riskUnfamiliar",
     "english": "Unfamiliar tool",
     "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneTitle",
+    "english": "Phone approvals (Telegram)",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneCaption",
+    "english": "When you're away from the computer, sessions that need you message your phone through a Telegram bot, and you can allow, deny or reply from there. Off until you link a bot.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phonePrivacy",
+    "english": "Of all Openbar's features, only this one sends data off your computer. Messages pass through Telegram's servers and hold the agent, the project and the request: the command, file names and a short diff, a question, or a plan. With Don't send code on, they hold only the agent, the project and the kind of request.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneStep1",
+    "english": "In Telegram, open BotFather and send /newbot.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneStep2",
+    "english": "Give the bot a name. BotFather replies with a token.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneStep3",
+    "english": "Paste the token here. Openbar keeps it in Windows Credential Manager.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneOpenBotFather",
+    "english": "Open BotFather",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneToken",
+    "english": "Bot token",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneUseToken",
+    "english": "Use token",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneCodeIntro",
+    "english": "Send this code to @%@ in Telegram, or scan it with your phone to open the chat with the code filled in.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneCodeExpires",
+    "english": "The code works for 10 minutes.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneOpenInTelegram",
+    "english": "Open in Telegram",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneCopyCode",
+    "english": "Copy code",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneLinkPhone",
+    "english": "Link a phone",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneForgetBot",
+    "english": "Forget bot",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneBotReady",
+    "english": "Bot @%@ is ready to link.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneLinked",
+    "english": "Linked to %1$@ through @%2$@.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneSendTest",
+    "english": "Send a test message",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneUnlink",
+    "english": "Unlink",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneUnlinkTitle",
+    "english": "Unlink your phone?",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneUnlinkMessage",
+    "english": "Openbar stops sending and reading messages right away and removes the bot's token from Credential Manager. The bot stays in Telegram; delete it in BotFather if you no longer need it.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneEnable",
+    "english": "Send requests to my phone",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneAwayAfter",
+    "english": "Send after",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneMinutes",
+    "english": "%@ min without input",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneAwayHint",
+    "english": "Messages also go out as soon as the screen locks.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneSendAlways",
+    "english": "Send even while I'm at the computer",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneQuietHours",
+    "english": "Quiet hours",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneQuietHint",
+    "english": "Messages still arrive, just without a sound.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneHideCode",
+    "english": "Don't send code",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneHideCodeHint",
+    "english": "Messages carry only the agent, the project and the kind of request. Allow and Deny still work.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneTellEnds",
+    "english": "Tell me when a session finishes or stops on an error",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneProblemInvalidToken",
+    "english": "That isn't a working bot token. Copy the whole token BotFather sent.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneProblemCredentialFailed",
+    "english": "Openbar couldn't save the token in Credential Manager.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneProblemOffline",
+    "english": "Can't reach Telegram right now. Openbar keeps trying.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneProblemConflict",
+    "english": "Something else is reading this bot's messages: a webhook, or Openbar on another computer. Use a separate bot for each computer.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneProblemRevoked",
+    "english": "Telegram no longer accepts this bot's token. Unlink and set the bot up again.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneProblemCodeExpired",
+    "english": "The code expired. Make a new one.",
+    "source": null
+  },
+  {
+    "file": "src/settings/PhoneApprovals.tsx",
+    "key": "windows.settings.sessions.phoneProblemTooManyTries",
+    "english": "Too many wrong codes were sent to the bot. Make a new one.",
+    "source": null
+  },
+  {
+    "file": "src/sessions/PhoneAnswers.tsx",
+    "key": "windows.sessions.phoneTitle",
+    "english": "From your phone",
+    "source": null
+  },
+  {
+    "file": "src/sessions/PhoneAnswers.tsx",
+    "key": "windows.sessions.phoneAllowed",
+    "english": "Allowed",
+    "source": null
+  },
+  {
+    "file": "src/sessions/PhoneAnswers.tsx",
+    "key": "windows.sessions.phoneAlways",
+    "english": "Always allowed",
+    "source": null
+  },
+  {
+    "file": "src/sessions/PhoneAnswers.tsx",
+    "key": "windows.sessions.phoneDenied",
+    "english": "Denied",
+    "source": null
+  },
+  {
+    "file": "src/sessions/PhoneAnswers.tsx",
+    "key": "windows.sessions.phonePlanApproved",
+    "english": "Plan approved",
+    "source": null
+  },
+  {
+    "file": "src/sessions/PhoneAnswers.tsx",
+    "key": "windows.sessions.phoneKeptPlanning",
+    "english": "Kept planning",
+    "source": null
+  },
+  {
+    "file": "src/sessions/PhoneAnswers.tsx",
+    "key": "windows.sessions.phoneAnswered",
+    "english": "Answered",
+    "source": null
+  },
+  {
+    "file": "src/sessions/PhoneAnswers.tsx",
+    "key": "windows.sessions.phoneSkipped",
+    "english": "Skipped",
+    "source": null
   }
 ]

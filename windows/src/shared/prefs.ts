@@ -105,6 +105,18 @@ export interface SessionPrefs extends SessionSoundPrefs {
   grouping: Grouping;
   /** Groups the person folded, by their key (sessions/groups.ts). */
   collapsedGroups: string[];
+  /** Phone approvals through a Telegram bot (#214; phone/ in Rust): on once
+   * a bot is linked; the minutes without input before requests go out,
+   * or always; quiet hours (minutes of the day) without a sound; messages
+   * without code; and a message when a session finishes or stops. */
+  phoneEnabled: boolean;
+  phoneAwayMinutes: number;
+  phoneSendAlways: boolean;
+  phoneQuietHours: boolean;
+  phoneQuietFrom: number;
+  phoneQuietTo: number;
+  phoneHideCode: boolean;
+  phoneTellEnds: boolean;
 }
 
 export const GROUPINGS = ["none", "project", "agent"] as const;
@@ -166,6 +178,14 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   alwaysProceedVibe: false,
   grouping: "none",
   collapsedGroups: [],
+  phoneEnabled: false,
+  phoneAwayMinutes: 5,
+  phoneSendAlways: false,
+  phoneQuietHours: false,
+  phoneQuietFrom: 22 * 60,
+  phoneQuietTo: 7 * 60,
+  phoneHideCode: false,
+  phoneTellEnds: true,
 };
 
 /** What is stored: only what differs from the defaults. */

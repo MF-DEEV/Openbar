@@ -326,9 +326,20 @@ export interface Session {
   origin?: SessionOrigin;
   /** Permissions the island allowed without asking, newest last (#234). */
   letThrough?: LetThrough[];
+  /** Requests answered from the phone, newest last (#214). */
+  phoneAnswers?: PhoneAnswer[];
 }
 
 /** One permission the island allowed without asking (#234; sessions/auto_mode.rs). */
+/** A request answered from the phone (#214; phone/answers.rs). */
+export interface PhoneAnswer {
+  id: string;
+  tool: string;
+  summary?: string;
+  at: number;
+  verdict: "allowed" | "always" | "denied" | "planApproved" | "keptPlanning" | "answered" | "skipped";
+}
+
 export interface LetThrough {
   id: string;
   tool: string;

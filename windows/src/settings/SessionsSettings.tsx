@@ -33,6 +33,7 @@ import { T } from "./strings";
 import { SessionSounds } from "./SessionSounds";
 import { SessionReminders } from "./SessionReminders";
 import { SessionAutoMode } from "./SessionAutoMode";
+import { PhoneApprovals } from "./PhoneApprovals";
 import { DiagnosticsSubRow } from "./DiagnosticsDialog";
 
 /** Accounts for designing the page in a plain browser. */
@@ -860,6 +861,7 @@ export function SessionsOptions() {
       ) : null}
       {voiceHeard() ? <VoiceReplies prefs={prefs} set={set} /> : null}
       <RemoteHosts />
+      <PhoneApprovals />
       <DiagnosticsSubRow />
     </>
   );

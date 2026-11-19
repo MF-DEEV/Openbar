@@ -59,6 +59,7 @@ import {
   WorktreeBar,
 } from "./Background";
 import { AutoMark, LetThroughList } from "./AutoMode";
+import { PhoneAnswerList } from "./PhoneAnswers";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { setPrefs } from "../shared/prefs";
@@ -375,6 +376,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
               {session.letThrough?.length ? (
                 <LetThroughList key={`${session.id}:let`} session={session} enlarged={enlarged} />
               ) : null}
+              {session.phoneAnswers?.length ? <PhoneAnswerList key={`${session.id}:phone`} session={session} /> : null}
             </aside>
           </div>
 
