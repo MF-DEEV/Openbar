@@ -1,0 +1,208 @@
+{
+  "about": "Phone approvals (#214): shared by the Mac tests (Tests/PhoneApprovalTests.swift) and the Rust tests (phone/messages.rs). Message text is Telegram HTML.",
+  "away": [
+    { "awayMinutes": 5, "sendAlways": false, "locked": false, "idle": 120, "expect": false },
+    { "awayMinutes": 5, "sendAlways": false, "locked": false, "idle": 300, "expect": true },
+    { "awayMinutes": 5, "sendAlways": false, "locked": true, "idle": 0, "expect": true },
+    { "awayMinutes": 5, "sendAlways": true, "locked": false, "idle": 0, "expect": true },
+    { "awayMinutes": 1, "sendAlways": false, "locked": false, "idle": 59, "expect": false },
+    { "awayMinutes": 1, "sendAlways": false, "locked": false, "idle": 60, "expect": true }
+  ],
+  "quiet": [
+    { "on": true, "from": 1320, "to": 420, "minute": 1380, "expect": true },
+    { "on": true, "from": 1320, "to": 420, "minute": 300, "expect": true },
+    { "on": true, "from": 1320, "to": 420, "minute": 420, "expect": false },
+    { "on": true, "from": 1320, "to": 420, "minute": 1319, "expect": false },
+    { "on": true, "from": 780, "to": 840, "minute": 800, "expect": true },
+    { "on": true, "from": 780, "to": 840, "minute": 840, "expect": false },
+    { "on": false, "from": 0, "to": 1439, "minute": 600, "expect": false },
+    { "on": true, "from": 600, "to": 600, "minute": 600, "expect": false }
+  ],
+  "codes": [
+    { "text": "/start ABCD2345", "expect": "ABCD2345" },
+    { "text": "abcd-2345", "expect": "ABCD2345" },
+    { "text": " ABCD 2345 ", "expect": "ABCD2345" },
+    { "text": "/start@openbar_bot ABCD2345", "expect": "ABCD2345" },
+    { "text": "/start", "expect": null },
+    { "text": "ABCD1234", "expect": null },
+    { "text": "ABCD23456", "expect": null },
+    { "text": "hello there", "expect": null }
+  ],
+  "callbacks": [
+    { "data": "k3x9ab:7", "run": "k3x9ab", "number": 7 },
+    { "data": "k3x9ab:0", "run": "k3x9ab", "number": 0 },
+    { "data": "k3x9ab:x", "run": null },
+    { "data": ":7", "run": null },
+    { "data": "a:b:7", "run": null },
+    { "data": "k3x9ab:-1", "run": null }
+  ],
+  "escape": [
+    { "text": "a<b>&c", "expect": "a&lt;b&gt;&amp;c" },
+    { "text": "plain \"quotes\" 'too'", "expect": "plain \"quotes\" 'too'" }
+  ],
+  "clip": [
+    { "text": "hello", "limit": 10, "shown": "hello", "left": 0 },
+    { "text": "hello", "limit": 3, "shown": "hel", "left": 2 },
+    { "text": "😀😀", "limit": 3, "shown": "😀", "left": 1 }
+  ],
+  "messages": [
+    {
+      "name": "command",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": { "tool": "Bash", "detail": "rm -rf build", "offersAlways": true },
+      "hideCode": false,
+      "text": "<b>Claude Code</b> · web\n\nWants to run a command.\n\n<pre>rm -rf build</pre>",
+      "buttons": [["Deny", "Always", "Allow"]]
+    },
+    {
+      "name": "escaped command in a named session",
+      "session": { "provider": "claude", "project": "web", "name": "Fix login" },
+      "ask": { "tool": "Bash", "detail": "echo '<a>' && ls", "offersAlways": false },
+      "hideCode": false,
+      "text": "<b>Claude Code</b> · web\n<i>Fix login</i>\n\nWants to run a command.\n\n<pre>echo '&lt;a&gt;' &amp;&amp; ls</pre>",
+      "buttons": [["Deny", "Allow"]]
+    },
+    {
+      "name": "code hidden",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": { "tool": "Bash", "detail": "rm -rf build", "offersAlways": true },
+      "hideCode": true,
+      "text": "<b>Claude Code</b> · web\n\nWants to run a command.\n\n<i>Hidden because Don’t send code is on.</i>",
+      "buttons": [["Deny", "Always", "Allow"]]
+    },
+    {
+      "name": "Codex command: Always for the turn",
+      "session": { "provider": "codex", "project": "api", "name": "api" },
+      "ask": { "tool": "Command", "detail": "cargo test", "offersAlways": false },
+      "hideCode": false,
+      "text": "<b>Codex</b> · api\n\nWants to run a command.\n\n<pre>cargo test</pre>",
+      "buttons": [["Deny", "Always", "Allow"]]
+    },
+    {
+      "name": "another tool",
+      "session": { "provider": "claude", "project": "web", "name": "" },
+      "ask": { "tool": "WebFetch", "detail": "https://example.com", "offersAlways": false },
+      "hideCode": false,
+      "text": "<b>Claude Code</b> · web\n\nWants to use WebFetch.\n\n<pre>https://example.com</pre>",
+      "buttons": [["Deny", "Allow"]]
+    },
+    {
+      "name": "file change",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": {
+        "tool": "Edit", "detail": "a.txt", "offersAlways": true,
+        "diffs": [{ "path": "a.txt", "change": "update", "lines": [["removed", "old"], ["added", "new"], ["context", "same"]] }]
+      },
+      "hideCode": false,
+      "text": "<b>Claude Code</b> · web\n\nWants to change a file.\n\n<pre>edit a.txt\n- old\n+ new\n  same</pre>",
+      "buttons": [["Deny", "Always", "Allow"]]
+    },
+    {
+      "name": "one question",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": {
+        "tool": "AskUserQuestion", "detail": "", "offersAlways": false,
+        "questions": [{ "question": "Which color?", "multiSelect": false, "options": [{ "label": "Red" }, { "label": "Blue", "description": "Calm" }] }]
+      },
+      "hideCode": false,
+      "text": "<b>Claude Code</b> · web\n\nAsks you a question.\n\n<b>Which color?</b>\n• Red\n• Blue — Calm\n<i>Or reply to this message with your own answer.</i>",
+      "buttons": [["Red"], ["Blue"], ["Skip"]]
+    },
+    {
+      "name": "one question, code hidden",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": {
+        "tool": "AskUserQuestion", "detail": "", "offersAlways": false,
+        "questions": [{ "question": "Which color?", "multiSelect": false, "options": [{ "label": "Red" }] }]
+      },
+      "hideCode": true,
+      "text": "<b>Claude Code</b> · web\n\nAsks you a question.\n\n<i>Don’t send code is on, so answer this one on the computer.</i>",
+      "buttons": [["Skip"]]
+    },
+    {
+      "name": "two questions, some picked",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": {
+        "tool": "AskUserQuestion", "detail": "", "offersAlways": false,
+        "questions": [
+          { "question": "Color?", "multiSelect": false, "options": [{ "label": "Red" }, { "label": "Blue" }] },
+          { "question": "Sizes?", "multiSelect": true, "options": [{ "label": "S" }, { "label": "L" }] }
+        ]
+      },
+      "picked": { "0": [1], "1": [0] },
+      "hideCode": false,
+      "text": "<b>Claude Code</b> · web\n\nAsks you 2 questions.\n\n<b>1. Color?</b>\n• Red\n• Blue\n<b>2. Sizes?</b>\n• S\n• L\n<i>Pick any, then Send.</i>\n<i>Or reply to this message with your own answer.</i>",
+      "buttons": [["1. Red"], ["✓ 1. Blue"], ["✓ 2. S"], ["2. L"], ["Skip", "Send"]],
+      "answers": { "Color?": ["Blue"], "Sizes?": ["S"] }
+    },
+    {
+      "name": "two questions, none picked",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": {
+        "tool": "AskUserQuestion", "detail": "", "offersAlways": false,
+        "questions": [
+          { "question": "Color?", "multiSelect": false, "options": [{ "label": "Red" }] },
+          { "question": "Sizes?", "multiSelect": true, "options": [{ "label": "S" }] }
+        ]
+      },
+      "hideCode": false,
+      "buttons": [["1. Red"], ["2. S"], ["Skip"]]
+    },
+    {
+      "name": "plan with modes",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": { "tool": "ExitPlanMode", "detail": "# Plan\nDo <it>", "offersAlways": false, "planModes": ["auto", "acceptEdits"] },
+      "hideCode": false,
+      "text": "<b>Claude Code</b> · web\n\nHas a plan for you to review.\n\n# Plan\nDo &lt;it&gt;",
+      "buttons": [["Keep planning"], ["Approve · Auto mode"], ["Accept edits"]]
+    },
+    {
+      "name": "plan without modes",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": { "tool": "ExitPlanMode", "detail": "Do it", "offersAlways": false },
+      "hideCode": true,
+      "text": "<b>Claude Code</b> · web\n\nHas a plan for you to review.\n\n<i>Hidden because Don’t send code is on.</i>",
+      "buttons": [["Keep planning", "Approve"]]
+    },
+    {
+      "name": "long command",
+      "session": { "provider": "claude", "project": "web", "name": "web" },
+      "ask": { "tool": "Bash", "detail": "x", "repeat": 5000, "offersAlways": true },
+      "hideCode": false,
+      "contains": ["<pre>xxxx", "more characters. The full request is on the computer.</i>"],
+      "maxLength": 3700,
+      "buttons": [["Deny", "Always", "Allow"]]
+    }
+  ],
+  "outcomes": [
+    { "outcome": "allowed", "minute": 845, "expect": "<b>Allowed from your phone</b> · 14:05" },
+    { "outcome": "always", "minute": 845, "expect": "<b>Always allowed from your phone</b> · 14:05" },
+    { "outcome": "denied", "minute": 61, "expect": "<b>Denied from your phone</b> · 01:01" },
+    { "outcome": "planApproved", "mode": "Auto mode", "minute": 845, "expect": "<b>Plan approved from your phone</b> · Auto mode · 14:05" },
+    { "outcome": "keptPlanning", "minute": 845, "expect": "<b>Kept planning, from your phone</b> · 14:05" },
+    { "outcome": "answered", "answers": ["Red", "<b>"], "minute": 845, "expect": "<b>Answered from your phone</b>: Red, &lt;b&gt; · 14:05" },
+    { "outcome": "skipped", "minute": 845, "expect": "<b>Skipped from your phone</b> · 14:05" },
+    { "outcome": "answeredElsewhere", "minute": 845, "expect": "<i>Answered on the computer.</i> · 14:05" },
+    { "outcome": "gone", "minute": 845, "expect": "<i>No longer waiting.</i> · 14:05" },
+    { "outcome": "changed", "minute": 845, "expect": "<i>The request changed. Look at it on the computer.</i> · 14:05" },
+    { "outcome": "failed", "minute": 845, "expect": "<i>That didn’t reach the session. Look at it on the computer.</i> · 14:05" }
+  ],
+  "ended": [
+    {
+      "kind": "finished", "session": { "provider": "claude", "project": "web", "name": "web" }, "lastText": "All <done>", "hideCode": false,
+      "expect": "<b>Claude Code</b> · web\n\nFinished.\n\n<blockquote>All &lt;done&gt;</blockquote>\n\n<i>Reply to this message to send it your next prompt.</i>"
+    },
+    {
+      "kind": "finished", "session": { "provider": "claude", "project": "web", "name": "web" }, "lastText": "All done", "hideCode": true,
+      "expect": "<b>Claude Code</b> · web\n\nFinished.\n\n<i>Reply to this message to send it your next prompt.</i>"
+    },
+    {
+      "kind": "error", "session": { "provider": "codex", "project": "api", "name": "api" }, "lastText": null, "hideCode": false,
+      "expect": "<b>Codex</b> · api\n\nStopped on an error.\n\n<i>Reply to this message to send it your next prompt.</i>"
+    },
+    {
+      "kind": "limit", "session": { "provider": "claude", "project": "web", "name": "web" }, "lastText": "x", "hideCode": false,
+      "expect": "<b>Claude Code</b> · web\n\nStopped at its usage limit.\n\n<i>Reply to this message to send it your next prompt.</i>"
+    }
+  ]
+}
