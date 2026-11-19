@@ -29,7 +29,7 @@ import { queueNotification } from "../notifications/delivery";
 import "../notifications/notifications.css";
 import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
 import { DownloadsLeading, DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
-import { bridge, type AttentionContext } from "../shared/bridge";
+import { bridge, inTauri, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention, noticeLeavesWhenBusy } from "../sessions/attention";
 import { inView, SessionSoundEvents, SessionSoundQueue, terminalSound } from "../sessions/waitingSound";
 import { soundsMuted } from "../sessions/soundPreferences";
@@ -114,6 +114,11 @@ activityViews.downloads = DownloadStrip;
 void subscribeDownloads();
 activityViews.sessions = SessionsStrip;
 subscribeAutoAllow();
+// Codex's Always tapped on the phone allows the rest of the turn too (#214).
+if (inTauri)
+  void import("@tauri-apps/api/event").then(({ listen }) =>
+    listen<string>("phone://auto-allow", (e) => useSessions.getState().enableAutoAllow(e.payload)),
+  );
 startAwayWatcher();
 
 /** The share the strip was last measured with. */

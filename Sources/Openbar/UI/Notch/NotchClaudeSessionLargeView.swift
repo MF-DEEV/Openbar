@@ -383,6 +383,10 @@ struct NotchClaudeSessionLargeView: View {
                     ForEach(entries.prefix(allLetThrough ? entries.count : Self.foldedRows)) { letThroughRow($0) }
                 }
             }
+            if !session.phoneAnswers.isEmpty {
+                // What was answered from the phone (#214).
+                NotchSessionPhoneAnswerList(session: session, large: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

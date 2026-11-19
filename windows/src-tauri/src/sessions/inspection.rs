@@ -177,6 +177,18 @@ impl Gate {
         revision: Option<&str>,
         token: Option<&str>,
     ) -> bool {
+        self.allows_from(session, p, revision, token, Origin::Island)
+    }
+    /// The phone (#214) answers what its message showed, by that message's
+    /// revision, and never opens the full command viewer: it needs no token.
+    pub fn allows_from(
+        &self,
+        session: &str,
+        p: &Permission,
+        revision: Option<&str>,
+        token: Option<&str>,
+        origin: Origin,
+    ) -> bool {
         let Some(content) = &p.content else {
             return false;
         };
@@ -184,7 +196,7 @@ impl Gate {
         if revision != Some(meta.revision.as_str()) || !meta.complete {
             return false;
         }
-        if !meta.requires_inspection {
+        if !meta.requires_inspection || origin == Origin::Phone {
             return true;
         }
         meta.available
@@ -205,6 +217,14 @@ impl Gate {
     pub fn retain(&mut self, live: &[(String, String)]) {
         self.grants.retain(|_, grant| live.contains(grant));
     }
+}
+
+/// Where an answer to a request came from (#214).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Origin {
+    #[default]
+    Island,
+    Phone,
 }
 
 #[cfg(test)]

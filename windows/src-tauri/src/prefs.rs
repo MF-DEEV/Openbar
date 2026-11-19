@@ -214,6 +214,8 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
             .inner()
             .set_remote_hosts(crate::sessions::remote::hosts_from_prefs(value));
     }
+    // Phone approvals through Telegram (#214).
+    crate::phone::apply(value);
     crate::clipboard::apply_prefs(app, before, value);
     crate::audio::apply_prefs(app, value);
     // Also applies Show in screenshots, which a watched display region overrides.

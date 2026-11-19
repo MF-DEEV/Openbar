@@ -1450,6 +1450,7 @@ fn session(
         account_id: None,
         auto_mode: crate::sessions::auto_mode::is_auto_codex(thread.approval_policy.as_deref()),
         let_through: Vec::new(),
+        phone_answers: Vec::new(),
         via: None,
         later_asks: pending
             .iter()

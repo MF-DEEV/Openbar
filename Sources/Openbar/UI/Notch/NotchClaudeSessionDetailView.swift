@@ -87,6 +87,7 @@ struct NotchClaudeSessionDetailView: View {
                     if !session.timeline.isEmpty { timeline }
                     if !session.subagents.isEmpty { subagents(now: context.date) }
                     if !session.letThrough.isEmpty { NotchSessionLetThroughList(session: session, text: text) }
+                    if !session.phoneAnswers.isEmpty { NotchSessionPhoneAnswerList(session: session) }
                     lastReply
                 }
                 .padding(.bottom, 6)

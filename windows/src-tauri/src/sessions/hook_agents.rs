@@ -2389,6 +2389,7 @@ fn session(
         account_id: None,
         auto_mode: false,
         let_through: Vec::new(),
+        phone_answers: Vec::new(),
         later_asks: Vec::new(),
         via: via_of(entry.provider, &entry.session_id).map(str::to_owned),
         origin: None,

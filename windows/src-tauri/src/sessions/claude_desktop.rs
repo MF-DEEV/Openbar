@@ -906,6 +906,7 @@ fn session(
         account_id: None,
         auto_mode: false,
         let_through: Vec::new(),
+        phone_answers: Vec::new(),
         via: None,
         origin: Some(Origin::Cowork),
     }

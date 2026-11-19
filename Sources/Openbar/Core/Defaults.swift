@@ -968,6 +968,25 @@ enum DefaultsKey {
     static let notchSessionsLastAccount = "notchSessionsLastAccount"
     /// Replies spoken into a session's reply field, recognized on this Mac only.
     static let notchSessionsVoiceReplies = "notchSessionsVoiceReplies"
+    /// Phone approvals through a Telegram bot (#214); off until the person
+    /// links a bot. The bot's token is in the keychain, never here.
+    static let notchSessionsPhoneEnabled = "notchSessionsPhoneEnabled"
+    /// Minutes without input before requests go to the phone.
+    static let notchSessionsPhoneAwayMinutes = "notchSessionsPhoneAwayMinutes"
+    /// Requests go to the phone even while the person is at the Mac.
+    static let notchSessionsPhoneSendAlways = "notchSessionsPhoneSendAlways"
+    /// Quiet hours, as minutes of the day: messages arrive without a sound.
+    static let notchSessionsPhoneQuietHours = "notchSessionsPhoneQuietHours"
+    static let notchSessionsPhoneQuietFrom = "notchSessionsPhoneQuietFrom"
+    static let notchSessionsPhoneQuietTo = "notchSessionsPhoneQuietTo"
+    /// Messages carry only the agent, the project and the kind of request.
+    static let notchSessionsPhoneHideCode = "notchSessionsPhoneHideCode"
+    /// A message when a session finishes or stops on an error.
+    static let notchSessionsPhoneTellEnds = "notchSessionsPhoneTellEnds"
+    /// The linked chat, as JSON `{"chat", "user", "name"}` (PhoneLink), and
+    /// the bot's @name; this Mac's, never exported.
+    static let notchSessionsPhoneLink = "notchSessionsPhoneLink"
+    static let notchSessionsPhoneBot = "notchSessionsPhoneBot"
     /// Sessions on machines reached over SSH (issue #189); off until turned on.
     static let notchSessionsRemoteHostsEnabled = "notchSessionsRemoteHostsEnabled"
     /// The hosts, as JSON: `[{"alias": "<ssh config alias>"}]`.
@@ -1646,6 +1665,14 @@ enum Defaults {
         DefaultsKey.notchSessionsCollapsedGroups: "",
         DefaultsKey.notchSessionsAwayCard: true,
         DefaultsKey.notchSessionsAwayMinutes: 10,
+        DefaultsKey.notchSessionsPhoneEnabled: false,
+        DefaultsKey.notchSessionsPhoneAwayMinutes: 5,
+        DefaultsKey.notchSessionsPhoneSendAlways: false,
+        DefaultsKey.notchSessionsPhoneQuietHours: false,
+        DefaultsKey.notchSessionsPhoneQuietFrom: 22 * 60,
+        DefaultsKey.notchSessionsPhoneQuietTo: 7 * 60,
+        DefaultsKey.notchSessionsPhoneHideCode: false,
+        DefaultsKey.notchSessionsPhoneTellEnds: true,
         DefaultsKey.notchSessionsRemindPermission: false,
         DefaultsKey.notchSessionsRemindQuestion: false,
         DefaultsKey.notchSessionsRemindFinished: false,

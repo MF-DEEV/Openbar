@@ -148,13 +148,18 @@ struct ClaudeHookMessage {
     static let denyMessage = "Denied from the Dynamic Island."
     static let skipMessage = "The user skipped the question from the Dynamic Island without answering."
     static let planDenyMessage = "The user did not approve the plan from the Dynamic Island. Stay in plan mode and ask what to change."
+    /// The same, answered from the phone (#214), so the session's own
+    /// history tells where the answer came from.
+    static let phoneDenyMessage = "Denied from the phone, through Openbar."
+    static let phoneSkipMessage = "The user skipped the question from their phone, through Openbar, without answering."
+    static let phonePlanDenyMessage = "The user did not approve the plan from their phone, through Openbar. Stay in plan mode and ask what to change."
 
     /// What the hook prints for Claude Code. Always adds the rules Claude Code
     /// offered, so it stops asking for the same thing. Answers go back in the
     /// question's own input, unchanged but for them. A tool that runs only
     /// with its input handed back, as a plan, gets it back unchanged.
     static func reply(_ decision: Decision, suggestions: Any?, input: [String: Any]? = nil,
-                      approved: [String: Any]? = nil) -> Data {
+                      approved: [String: Any]? = nil, origin: DecisionOrigin = .island) -> Data {
         var body: [String: Any]
         switch decision {
         case .allow: body = ["behavior": "allow"]
@@ -167,8 +172,11 @@ struct ClaudeHookMessage {
             body = ["behavior": "allow"]
             if let suggestions { body["updatedPermissions"] = suggestions }
         case .deny:
+            let phone = origin == .phone
             body = ["behavior": "deny",
-                    "message": input != nil ? skipMessage : approved != nil ? planDenyMessage : denyMessage]
+                    "message": input != nil ? (phone ? phoneSkipMessage : skipMessage)
+                        : approved != nil ? (phone ? phonePlanDenyMessage : planDenyMessage)
+                        : (phone ? phoneDenyMessage : denyMessage)]
         case .answer(let answers):
             guard var updated = input else { return Data() }
             // One answer goes as text; several, for a question that takes

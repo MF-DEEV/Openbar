@@ -74,6 +74,15 @@ struct PermissionInspection {
     let text: String
 }
 
+/// Where an answer to a request came from (#214). The phone answers what
+/// its message showed, by that message's revision, and never opens the full
+/// command viewer, so it needs no inspection token: the person chose to be
+/// able to allow from the phone what the message could only show in part.
+enum DecisionOrigin: Equatable {
+    case island
+    case phone
+}
+
 /// Owned by the service/client, accessed only on its queue/under its lock.
 /// Neither a disabled button nor a frontend inspection flag is authorization.
 final class PermissionInspectionGate {
@@ -85,11 +94,12 @@ final class PermissionInspectionGate {
         grants[token] = (session, revision)
         return PermissionInspection(revision: revision, token: token, text: PermissionContent.display(content.full))
     }
-    func allows(_ session: String, _ permission: ClaudePermission, revision: String?, token: String?) -> Bool {
+    func allows(_ session: String, _ permission: ClaudePermission, revision: String?, token: String?,
+                origin: DecisionOrigin = .island) -> Bool {
         guard let content = permission.content else { return false }
         let current = content.revision(permission)
         guard content.complete, revision == current else { return false }
-        if !content.requiresInspection { return true }
+        if !content.requiresInspection || origin == .phone { return true }
         guard content.available, let token, let grant = grants[token] else { return false }
         return grant.session == session && grant.revision == current
     }

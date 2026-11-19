@@ -157,7 +157,9 @@ struct MetricsTests {
                 ClaudeFileDiffTests.run(suite)
                 VoiceReplyTests.run(suite)
                 LegacyIdentityTests.run(suite)
+                PhoneApprovalTests.run(suite)
             }),
+            ("phone-approvals", { PhoneApprovalTests.run(suite) }),
             ("permission-security", {
                 PermissionInspectionTests.run(suite)
                 PermissionRiskTests.run(suite)

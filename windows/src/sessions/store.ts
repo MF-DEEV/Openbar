@@ -44,6 +44,8 @@ interface SessionsState {
   /** Explicit opt-in for the current Codex turn; cleared when it ends. */
   autoAllow: Record<string, boolean>;
   toggleAutoAllow(id: string): void;
+  /** Codex's Always tapped on the phone (#214): on for the turn, never toggled off. */
+  enableAutoAllow(id: string): void;
   /** The section's preferences (Settings › Content › Sessions). */
   prefs: SessionPrefs;
   /** Outfits changed in the wardrobe, by session (or subagent) key. */
@@ -112,6 +114,10 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   wardrobe: false,
   away: null,
   autoAllow: {},
+  enableAutoAllow(id) {
+    if (get().autoAllow[id]) return;
+    get().toggleAutoAllow(id);
+  },
   toggleAutoAllow(id) {
     if (
       !get().snapshot.sessions.some(

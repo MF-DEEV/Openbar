@@ -26,6 +26,7 @@ use super::codex::state::Answer as CodexAnswer;
 use super::engine::Engine;
 use super::hook_agents::{self, Tracker as HookAgents};
 use super::hook_message::{self, Decision, HookMessage};
+use super::inspection::Origin;
 use super::models::{
     self, ContentPolicy, HookEvent, HostKind, Session, SessionCounts, SessionEvent, SessionRecord,
     Time,
@@ -1099,6 +1100,9 @@ impl Service {
         let listed: HashSet<String> = sessions.iter().map(|s| s.id.clone()).collect();
         super::auto_mode::LOG.prune(&listed, t);
         super::auto_mode::LOG.decorate(&mut sessions);
+        // What was answered from the phone (#214).
+        crate::phone::answers::LOG.prune(&listed, t);
+        crate::phone::answers::LOG.decorate(&mut sessions);
         inner.risks.assess(&mut sessions, t);
         let live = sessions
             .iter()
@@ -1127,6 +1131,8 @@ impl Service {
             hooks_installed: inner.hooks_installed,
         };
         let _ = self.app.emit("sessions://snapshot", &published);
+        // Requests reach the phone while the person is away (#214).
+        crate::phone::publish(&sessions);
         for event in &snapshot.events {
             let _ = self.app.emit::<&SessionEvent>("sessions://event", event);
         }
@@ -1458,7 +1464,49 @@ impl Service {
     // MARK: Actions
 
     fn answer(&self, session: &str, request: &str, decision: Decision) -> bool {
-        self.answer_inspected(session, request, decision, None, None)
+        self.answer_inspected(session, request, decision, None, None, Origin::Island)
+    }
+
+    /// Answers a request from the phone (#214), as the island would, by the
+    /// revision its message showed; an answer that went out is listed on
+    /// the session's page.
+    pub(crate) fn phone_decide(
+        &self,
+        session: &str,
+        request: &str,
+        decision: Decision,
+        revision: Option<&str>,
+    ) -> bool {
+        let asked = {
+            let inner = self.inner.lock().unwrap();
+            inner
+                .sessions
+                .iter()
+                .find(|s| s.id == session)
+                .and_then(|s| {
+                    s.permission
+                        .iter()
+                        .chain(&s.later_asks)
+                        .find(|p| p.request_id == request)
+                        .cloned()
+                })
+        };
+        let entry =
+            crate::phone::answers::PhoneAnswer::new(asked.as_ref(), request, &decision, now());
+        let sent = self.answer_inspected(session, request, decision, revision, None, Origin::Phone);
+        if sent {
+            crate::phone::answers::LOG.add(entry, session);
+            let mut inner = self.inner.lock().unwrap();
+            let t = now();
+            self.publish(&mut inner, t);
+        }
+        sent
+    }
+
+    /// A reply typed on the phone, into the session as if typed in the island.
+    pub(crate) fn phone_reply(&self, session: &str, text: &str) -> Option<&'static str> {
+        let text: String = text.trim().chars().take(4000).collect();
+        self.reply(session, &text, &[])
     }
 
     fn answer_inspected(
@@ -1468,6 +1516,7 @@ impl Service {
         decision: Decision,
         revision: Option<&str>,
         token: Option<&str>,
+        origin: Origin,
     ) -> bool {
         {
             let mut inner = self.inner.lock().unwrap();
@@ -1481,7 +1530,9 @@ impl Service {
                 };
                 if p.request_id != request
                     || (!matches!(decision, Decision::Deny | Decision::Answer(_))
-                        && !inner.inspection.allows(session, p, revision, token))
+                        && !inner
+                            .inspection
+                            .allows_from(session, p, revision, token, origin))
                 {
                     return false;
                 }
@@ -1574,7 +1625,7 @@ impl Service {
                 Decision::Deny => CodexAnswer::Deny,
                 Decision::Answer(map) => CodexAnswer::Questions(map.into_iter().collect()),
             };
-            let ok = codex.answer_inspected(session, request, answer, revision, token);
+            let ok = codex.answer_inspected(session, request, answer, revision, token, origin);
             if ok {
                 codex.acknowledge(session, now());
             }
@@ -1591,7 +1642,9 @@ impl Service {
         };
         if p.request_id != request
             || (!matches!(decision, Decision::Deny | Decision::Answer(_))
-                && !inner.inspection.allows(session, p, revision, token))
+                && !inner
+                    .inspection
+                    .allows_from(session, p, revision, token, origin))
         {
             return false;
         }
@@ -1637,11 +1690,12 @@ impl Service {
                 .map_or(decision, |first| Decision::ApprovePlan(*first)),
             other => other,
         };
-        let body = hook_message::reply(
+        let body = hook_message::reply_from(
             &decision,
             pending.suggestions.as_ref(),
             pending.question_input.as_ref(),
             pending.approval_input.as_ref(),
+            origin,
         );
         let sent = !body.is_empty() && pending.connection.reply(&body).is_ok();
         inner.engine.resolve_permission(request);
@@ -2575,6 +2629,7 @@ pub fn sessions_decide(
         decision,
         revision.as_deref(),
         inspection_token.as_deref(),
+        Origin::Island,
     )
 }
 
