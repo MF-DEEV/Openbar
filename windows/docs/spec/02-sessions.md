@@ -869,6 +869,8 @@ Goals: the same UX for (a) Windows Terminal, (b) VS Code / Cursor / Antigravity 
 | `notchSessionsSidebarHidden` | false | enlarged sidebar folded | `:906, 1503` |
 | `notchSessionsNames` | `{}` | custom names by sessionId (≤ 100, ≤ 60 chars), excluded from backups | `:898` |
 | `notchSessionsCostumes` | `{}` | costume codes by sessionId (≤ 100), excluded from backups | `:904` |
+| `notchSessionsClaudeDesktop` (Windows `sessions.claudeDesktop`) | true | Claude Desktop's Code tab sessions listed, with a Desktop label (#246); off lets their hooks go unanswered | `ClaudeDesktop.swift`, `sessions/claude_desktop.rs` |
+| `notchSessionsClaudeCowork` (Windows `sessions.claudeCowork`) | **false** | read Cowork's `local_<id>.json` and `audit.jsonl`, never written, to list its sessions (#246) | same |
 
 Settings UI (`NotchClaudeSessionsSettingsControls.swift`): the description text; four switches (live activity, auto-expand + hint, previews + hint, buddies + hint with 3 sample Clawds, dimmed when off); a divider; "Claude Code hooks" (Installed / Not installed + Install Hooks / Remove Hooks, hint text, error line); "Antigravity extension" (Install / Update, hint, error). Opening the settings re-checks the hooks and the extension.
 
