@@ -233,6 +233,7 @@ pub fn ended_session(job: &Job, ended: Time, branch: Option<String>) -> Session 
         let_through: Vec::new(),
         via: None,
         later_asks: Vec::new(),
+        origin: None,
     }
 }
 

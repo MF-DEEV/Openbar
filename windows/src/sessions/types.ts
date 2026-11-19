@@ -322,6 +322,8 @@ export interface Session {
   via?: string;
   /** It runs in its agent's no-ask mode: bypass permissions, Codex with approvals off (#234). */
   autoMode?: boolean;
+  /** The Claude app runs it, in its Code tab or Cowork, not a terminal (#246). */
+  origin?: SessionOrigin;
   /** Permissions the island allowed without asking, newest last (#234). */
   letThrough?: LetThrough[];
 }
@@ -464,3 +466,9 @@ export type WorktreeRemoval = { kind: "done" } | { kind: "unsaved" } | { kind: "
  * through; a Codex session heard through hooks is not (#236). */
 export const codexServer = (session: Pick<Session, "provider" | "via">): boolean =>
   session.provider === "codex" && !session.via;
+
+/** Where a Claude session runs when not in a terminal (#246). */
+export type SessionOrigin = "desktop" | "cowork";
+
+/** The Claude app's name, the same in every language. */
+export const CLAUDE_DESKTOP = "Claude Desktop";

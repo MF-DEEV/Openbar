@@ -399,6 +399,7 @@ pub fn run() {
             island_shortcut::shortcut_registered,
             sessions::service::sessions_reply,
             sessions::service::sessions_open,
+            sessions::service::sessions_claude_desktop_installed,
             sessions::service::sessions_attach,
             sessions::service::sessions_terminal_shown,
             sessions::service::sessions_background_stop,

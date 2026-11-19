@@ -50,6 +50,7 @@ import { MessageImages } from "./MessageImages";
 import { useNow } from "./useNow";
 import {
   AccountMark,
+  OriginMark,
   BackgroundBar,
   BackgroundLogs,
   RemoteHostMark,
@@ -63,7 +64,7 @@ import { useSessions } from "./store";
 import { setPrefs } from "../shared/prefs";
 import { bridge } from "../shared/bridge";
 import { IMAGE_LIMIT, imageDataUrl, imageFiles, isImagePasteShortcut } from "./paste";
-import { codexServer, isWaiting, isWorking, type ReplyFailure, type Session } from "./types";
+import { CLAUDE_DESKTOP, codexServer, isWaiting, isWorking, type ReplyFailure, type Session } from "./types";
 import { VoiceButton, VoiceProblem } from "./VoiceReply";
 import { isActive as voiceActive, showsMicrophone, useVoice, voiceWanted } from "./voice";
 
@@ -243,6 +244,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
             </div>
             <div className="s-row-line2">
               {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
+              {session.origin ? <OriginMark origin={session.origin} /> : null}
               {multiplexerOf(session) ? (
                 <MultiplexerMark
                   name={multiplexerOf(session)!}
@@ -661,6 +663,8 @@ function unavailable(session: Session): string | null {
   if (session.background?.ended) return S.replyEnded;
   if (!session.acceptsReplies) {
     if (session.provider === "cursor") return S.replyIn(session.provider);
+    // The Claude app has no terminal to type into (#246).
+    if (session.origin) return tf("windows.sessions.replyInAgent", CLAUDE_DESKTOP);
     if (session.remote) return S.replyNeedsTmux;
     return session.hostName ? S.replyUnavailableIn(session.hostName) : S.replyUnavailable;
   }

@@ -23,7 +23,7 @@ import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
 import { canRemoveBackground, canStopBackground, problemText } from "./format";
 import { S } from "./strings";
-import type { ClaudeAccount, NewSessionModel, Provider, Session, WorktreeRemoval } from "./types";
+import type { ClaudeAccount, NewSessionModel, Provider, Session, SessionOrigin, WorktreeRemoval } from "./types";
 import { isOwnWorktree, worktreeName } from "./worktree";
 
 /** Says a session runs in the background, in words, on its row. */
@@ -73,6 +73,42 @@ export function MultiplexerMark({ name, detached = false }: { name: string; deta
         <path d="M8 2.8v10.4" stroke="currentColor" strokeWidth="1.5" />
       </svg>
       {detached ? `${name} · ${S.detachedMark}` : name}
+    </span>
+  );
+}
+
+/** The Claude app's Code tab or Cowork, beside the name of a session it runs,
+ * so it never passes for one in a terminal (#246). */
+export function OriginMark({ origin }: { origin: SessionOrigin }) {
+  useLocale();
+  const help = S.originHelp(origin);
+  return (
+    <span className="s-remote-mark s-origin-mark" title={help} aria-label={help}>
+      <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden>
+        {origin === "cowork" ? (
+          <path
+            d="M1.8 4.2c0-.6.5-1.1 1.1-1.1h3.3l1.5 1.6h5.4c.6 0 1.1.5 1.1 1.1v6.3c0 .6-.5 1.1-1.1 1.1H2.9c-.6 0-1.1-.5-1.1-1.1z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+        ) : (
+          <>
+            <rect
+              x="1.8"
+              y="2.6"
+              width="12.4"
+              height="10.8"
+              rx="2"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+            />
+            <path d="M1.8 5.6h12.4" stroke="currentColor" strokeWidth="1.4" />
+          </>
+        )}
+      </svg>
+      {S.originMark(origin)}
     </span>
   );
 }

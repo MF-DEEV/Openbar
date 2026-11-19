@@ -190,6 +190,17 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
         service.set_previews(previews);
         // Gemini CLI, Copilot CLI, OpenCode and Cursor each have a switch.
         service.set_hidden_agents(hidden_agents(value));
+        // The Claude app's Code tab and Cowork (#246).
+        service.set_claude_desktop(
+            value
+                .pointer("/sessions/claudeDesktop")
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
+            value
+                .pointer("/sessions/claudeCowork")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+        );
         // Sessions that run without asking, and Always proceed (#234).
         crate::sessions::auto_mode::set_settings(crate::sessions::auto_mode::settings_from_prefs(
             value,

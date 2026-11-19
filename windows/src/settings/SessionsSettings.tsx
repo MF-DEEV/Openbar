@@ -9,7 +9,7 @@
 // hooks or plugin on Install (docs/more-session-agents.md).
 
 import { useLocale, t, tf } from "../i18n";
-import { type ClaudeAccount, HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
+import { CLAUDE_DESKTOP, type ClaudeAccount, HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
 import { type HookRow, linkCaption, summary } from "./hooks";
 import { openSettingsPage } from "./navigation";
 import { ProviderMark } from "../sessions/glyphs";
@@ -321,6 +321,53 @@ function MoreAgents() {
           />
         </SubRow>
       ))}
+    </>
+  );
+}
+
+/** The Claude app's two switches (#246): its Code tab's sessions, heard
+ * through Claude Code's hooks, and Cowork's, read from its files only once
+ * turned on. Shown only where the app is installed. */
+function ClaudeDesktopAgent() {
+  useLocale();
+  const prefs = useSettings((s) => s.prefs.sessions);
+  const set = useSettings((s) => s.sessions);
+  const [installed, setInstalled] = useState(!inTauri);
+  useEffect(() => {
+    if (!inTauri) return;
+    void invoke<boolean>("sessions_claude_desktop_installed")
+      .then(setInstalled)
+      .catch(() => setInstalled(false));
+  }, []);
+  if (!installed) return null;
+  return (
+    <>
+      <SubRow title={CLAUDE_DESKTOP}>
+        <span className="st-agent-mark" aria-hidden>
+          <ProviderMark provider="claude" size={14} />
+        </span>
+      </SubRow>
+      <SubRow
+        title={t("windows.settings.sessions.claudeDesktopCodeTab")}
+        caption={t("windows.settings.sessions.claudeDesktopCodeTabCaption")}
+      >
+        <Toggle
+          label={t("windows.settings.sessions.claudeDesktopCodeTab")}
+          checked={prefs.claudeDesktop}
+          onChange={(on) => set("claudeDesktop", on)}
+        />
+      </SubRow>
+      <SubRow
+        title={t("windows.settings.sessions.claudeDesktopCowork")}
+        caption={t("windows.settings.sessions.claudeDesktopCoworkCaption")}
+      >
+        <Toggle
+          label={t("windows.settings.sessions.claudeDesktopCowork")}
+          checked={prefs.claudeCowork && prefs.claudeDesktop}
+          disabled={!prefs.claudeDesktop}
+          onChange={(on) => set("claudeCowork", on)}
+        />
+      </SubRow>
     </>
   );
 }
@@ -755,6 +802,7 @@ export function SessionsOptions() {
         ) : null}
       </SubRow>
       <MoreAgents />
+      <ClaudeDesktopAgent />
       <SubRow title={T.sessions.live} caption={T.sessions.liveCaption}>
         <Toggle label={T.sessions.live} checked={prefs.live} onChange={(on) => set("live", on)} />
       </SubRow>

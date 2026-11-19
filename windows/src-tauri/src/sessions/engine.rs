@@ -754,6 +754,9 @@ fn session(
         let_through: Vec::new(),
         via: None,
         later_asks: entry.permissions.iter().skip(1).cloned().collect(),
+        origin: (record.remote.is_none()
+            && super::claude_desktop::is_code_tab(record.entrypoint.as_deref()))
+        .then_some(super::claude_desktop::Origin::Desktop),
     }
 }
 
@@ -1226,6 +1229,7 @@ mod tests {
             name_source: None,
             job: None,
             remote: None,
+            entrypoint: None,
         }
     }
 

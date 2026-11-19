@@ -90,7 +90,7 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
           {/* A file change only the agent can answer still shows what it changes. */}
           {session.waitingDiffs?.length ? <FileDiffView diffs={session.waitingDiffs} /> : null}
           <div className="s-card-terminal">
-            <span>{S.answerIn(session.provider)}</span>
+            <span>{S.answerInSession(session)}</span>
             <button type="button" className="s-button is-secondary" onClick={onOpen}>
               {S.open}
             </button>

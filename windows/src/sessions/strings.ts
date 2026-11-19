@@ -5,7 +5,16 @@
 // language (NotchClaudeSessionStrings.swift); Mac-only wording is swapped
 // for Windows here.
 
-import { isHookAgent, PROVIDER_NAMES, type PermissionRisk, type PlanMode, type Provider } from "./types";
+import {
+  CLAUDE_DESKTOP,
+  isHookAgent,
+  PROVIDER_NAMES,
+  type PermissionRisk,
+  type PlanMode,
+  type Provider,
+  type Session,
+  type SessionOrigin,
+} from "./types";
 import { t, tf } from "../i18n";
 import { onLinux } from "../shared/platform";
 import { EXPAND_STEP } from "./diffGaps";
@@ -335,6 +344,14 @@ export const S = {
       ? tf("windows.sessions.answerInAgent", PROVIDER_NAMES[provider])
       : this.answerInTerminal;
   },
+  /** The same for one session: the Claude app for its own sessions (#246). */
+  answerInSession(session: Pick<Session, "provider" | "origin">) {
+    return session.origin ? tf("windows.sessions.answerInAgent", CLAUDE_DESKTOP) : this.answerIn(session.provider);
+  },
+  /** The label on a Claude app session's row, a product name in every language. */
+  originMark: (origin: SessionOrigin) => (origin === "cowork" ? "Cowork" : "Desktop"),
+  originHelp: (origin: SessionOrigin) =>
+    t(origin === "cowork" ? "windows.sessions.originHelpCowork" : "windows.sessions.originHelpDesktop"),
   /** Cursor's app keeps its own chat. */
   replyIn(provider: Provider) {
     return tf("windows.sessions.replyInAgent", PROVIDER_NAMES[provider]);
