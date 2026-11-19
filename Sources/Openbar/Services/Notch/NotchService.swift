@@ -4330,6 +4330,8 @@ final class NotchService: ObservableObject {
             ClaudeSessionService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showSessionEvent($0) }
                 .store(in: &subscriptions)
+            // Requests reach the phone while the person is away (#214).
+            Task { @MainActor in TelegramBridge.shared.start() }
             // The sessions themselves tell what waits, so a request whose
             // event came before launch or was missed still takes its turn.
             ClaudeSessionService.shared.$sessions
@@ -4367,6 +4369,7 @@ final class NotchService: ObservableObject {
                 .store(in: &subscriptions)
         }
         if !NotchSupport.routes(.sessions) {
+            Task { @MainActor in TelegramBridge.shared.stop() }
             // Nothing follows the requests any more, so the keys go back now.
             sessionKeysWork?.cancel(); sessionKeysWork = nil
             sessionAllowKey.unregister()

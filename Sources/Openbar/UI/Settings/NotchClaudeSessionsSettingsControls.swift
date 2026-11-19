@@ -53,6 +53,8 @@ struct NotchClaudeSessionsSettingsControls: View {
             agents
             bridge
             RemoteHostsSettings()
+            Divider()
+            PhoneApprovalsSettings()
         }
         .onAppear {
             service.checkHooks()

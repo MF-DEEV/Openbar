@@ -545,6 +545,8 @@ struct ClaudeSession: Equatable, Identifiable {
     var origin: ClaudeSessionOrigin? = nil
     /// Permissions the island allowed without asking, newest last (#234).
     var letThrough: [ClaudeLetThrough] = []
+    /// Requests answered from the phone, newest last (#214).
+    var phoneAnswers: [ClaudePhoneAnswer] = []
 
     /// Codex heard through its app-server, which the island answers and
     /// replies through; a Codex session heard through hooks is not (#236).

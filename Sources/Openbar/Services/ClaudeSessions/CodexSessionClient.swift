@@ -195,14 +195,15 @@ final class CodexSessionClient {
 
     /// Answers the request with this island id, the session's own or one
     /// of its subagents'; false when it is gone or of another kind.
-    func answer(_ session: String, requestID: String, answer: CodexAnswer, revision: String? = nil, inspectionToken: String? = nil) -> Bool {
+    func answer(_ session: String, requestID: String, answer: CodexAnswer, revision: String? = nil, inspectionToken: String? = nil,
+                origin: DecisionOrigin = .island) -> Bool {
         lock.withLock {
             // Any request the row holds: the queue answers them in any order (#269).
             guard let pending = state.answerable(session: session, requestID: requestID)?.pending,
                   let body = CodexSessionState.result(pending, answer) else { return false }
             let permission = CodexSessionState.permission(pending)
             let expected = revision ?? permission.content.map { $0.revision(permission) }
-            guard (!(answer == .allow || answer == .allowForSession) || inspection.allows(session, permission, revision: expected, token: inspectionToken)),
+            guard (!(answer == .allow || answer == .allowForSession) || inspection.allows(session, permission, revision: expected, token: inspectionToken, origin: origin)),
                   state.takePending(thread: session, requestID: requestID) != nil else { return false }
             if let inspectionToken { inspection.close(inspectionToken) }
             send(["id": pending.rpcID.json, "result": body])

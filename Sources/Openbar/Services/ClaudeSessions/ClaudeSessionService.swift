@@ -331,6 +331,7 @@ final class ClaudeSessionService: ObservableObject {
             autoAllowWork = [:]
             publishedAutoAllow = []
             SessionAutoMode.log.clear()
+            PhoneAnswerLog.shared.clear()
             readers = [:]
             transcripts = [:]
             subagentMeta = []
@@ -449,33 +450,46 @@ final class ClaudeSessionService: ObservableObject {
 
     /// Answers the permission the session waits on, if its hook still waits.
     /// Answers the request the person saw, and only that one: a newer request
-    /// for the same session, or one already settled, is left alone.
-    func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision, revision: String? = nil, inspectionToken: String? = nil, autoAllowTurn: Bool = false) {
+    /// for the same session, or one already settled, is left alone. The
+    /// completion, on the main thread, tells whether the answer went out; the
+    /// phone (#214) waits for it to say so in its message.
+    func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision, revision: String? = nil, inspectionToken: String? = nil,
+                autoAllowTurn: Bool = false, origin: DecisionOrigin = .island, completion: ((Bool) -> Void)? = nil) {
+        let done: (Bool) -> Void = { sent in
+            guard let completion else { return }
+            DispatchQueue.main.async { completion(sent) }
+        }
         // Deny waits the same moment, so a ⌘N meant for the request before cannot deny this one.
-        guard settled(id, request: request) else { return }
+        guard settled(id, request: request) else { return done(false) }
         let revision = revision ?? sessions.first(where: { $0.id == id })?.ask(request)
             .flatMap { p in p.content.map { $0.revision(p) } }
         queue.async { [self] in
-            if id == ClaudeSessionSample.id { return answerSample(request: request, decision) }
+            if id == ClaudeSessionSample.id {
+                answerSample(request: request, decision)
+                return done(true)
+            }
             // Codex takes its answer through its own server; the first answer wins there.
             if let codex = codexOwner(id) {
-                if codex.answer(id, requestID: request, answer: CodexAnswer(decision), revision: revision, inspectionToken: inspectionToken) {
+                let sent = codex.answer(id, requestID: request, answer: CodexAnswer(decision), revision: revision,
+                                        inspectionToken: inspectionToken, origin: origin)
+                if sent {
                     codex.acknowledge(id, now: Date())
                     if autoAllowTurn, case .allow = decision {
                         _ = autoAllow.set(id, on: true, session: latest.first { $0.id == id }, now: Date())
                     }
+                    if origin == .phone { phoneAnswered(id, request: request, decision) }
                 }
                 publish(now: Date())
-                return
+                return done(sent)
             }
             // Any ask the session holds, not only the first: the queue
             // answers them in any order (#269).
             let current = hookAgents.owns(id) ? hookAgents.entry(id)?.permission : engine.permission(request, of: id)
-            guard let current, current.requestID == request else { return }
+            guard let current, current.requestID == request else { return done(false) }
             switch decision {
             case .deny, .answer: break
             default:
-                guard inspection.allows(id, current, revision: revision, token: inspectionToken) else { return }
+                guard inspection.allows(id, current, revision: revision, token: inspectionToken, origin: origin) else { return done(false) }
             }
             if hookAgents.owns(id), hookAgents.entry(id)?.provider == .grok {
                 // Grok's prompt takes Return for the yes it has picked and
@@ -484,15 +498,17 @@ final class ClaudeSessionService: ObservableObject {
                 switch decision {
                 case .allow: keys = [.enter]
                 case .deny: keys = [.interrupt]
-                default: return
+                default: return done(false)
                 }
-                guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host) else { return }
+                guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host) else { return done(false) }
                 actions.async { [self] in
-                    guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
+                    guard ClaudeTerminalReply.press(keys, to: session) == nil else { return done(false) }
                     queue.async { [self] in
                         hookAgents.resolve(id, request: request)
                         hookAgents.acknowledge(id, now: Date())
+                        if origin == .phone { phoneAnswered(id, request: request, decision, tool: current) }
                         publish(now: Date())
+                        done(true)
                     }
                 }
                 return
@@ -503,48 +519,58 @@ final class ClaudeSessionService: ObservableObject {
                 if vibe {
                     // A question is answered or skipped, never allowed; answers go only to a question.
                     switch decision {
-                    case .allow, .allowAlways, .approvePlan: if current.asksQuestions { return }
-                    case .answer: if !current.asksQuestions { return }
+                    case .allow, .allowAlways, .approvePlan: if current.asksQuestions { return done(false) }
+                    case .answer: if !current.asksQuestions { return done(false) }
                     case .deny: break
                     }
                 }
                 guard let asked = agentPending[request], asked.session == id,
                       let reply = vibe ? AgentHookMessage.vibeReply(decision, questions: current.questions)
-                        : AgentHookMessage.opencodeReply(decision) else { return }
+                        : AgentHookMessage.opencodeReply(decision) else { return done(false) }
                 if case .deny = decision {} else {
-                    guard !asked.connection.isClosed, Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return }
+                    guard !asked.connection.isClosed, Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return done(false) }
                 }
                 agentPending[request] = nil
                 asked.connection.finish(reply)
                 hookAgents.resolve(id, request: request)
                 hookAgents.acknowledge(id, now: Date())
+                if origin == .phone { phoneAnswered(id, request: request, decision, tool: current) }
                 publish(now: Date())
-                return
+                return done(true)
             }
-            guard engine.holds(request, for: id), let asked = pending[request] else { return }
+            guard engine.holds(request, for: id), let asked = pending[request] else { return done(false) }
             if case .deny = decision {} else {
-                guard !asked.connection.peerIsGone, Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return }
+                guard !asked.connection.peerIsGone, Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return done(false) }
             }
             // A question is answered or skipped, never allowed as it stands;
             // answers go only to a question, and a mode only to a plan.
             var decision = decision
             switch decision {
             case .allow, .allowAlways:
-                guard asked.question == nil else { return }
+                guard asked.question == nil else { return done(false) }
                 // A plain approval of a plan, from a shortcut or the list,
                 // picks the mode the card puts first.
                 if asked.approved != nil, let first = asked.planModes.first { decision = .approvePlan(first) }
-            case .approvePlan(let mode): guard asked.approved != nil, asked.planModes.contains(mode) else { return }
-            case .answer: guard asked.question != nil else { return }
+            case .approvePlan(let mode): guard asked.approved != nil, asked.planModes.contains(mode) else { return done(false) }
+            case .answer: guard asked.question != nil else { return done(false) }
             case .deny: break
             }
             pending[request] = nil
             asked.connection.finish(ClaudeHookMessage.reply(decision, suggestions: asked.suggestions, input: asked.question,
-                                                                   approved: asked.approved))
+                                                            approved: asked.approved, origin: origin))
             engine.resolvePermission(requestID: request)
             engine.acknowledge(id, now: Date())
+            if origin == .phone { phoneAnswered(id, request: request, decision, tool: current) }
             publish(now: Date())
+            done(true)
         }
+    }
+
+    /// Lists a request answered from the phone on its session's page (#214).
+    /// On the service's queue.
+    private func phoneAnswered(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision, tool: ClaudePermission? = nil) {
+        let permission = tool ?? latest.first { $0.id == id }?.ask(request)
+        PhoneAnswerLog.shared.add(ClaudePhoneAnswer(permission, request: request, decision: decision, at: Date()), to: id)
     }
 
     /// Allows every ask of the queue that looks safe and has been on screen
@@ -2100,12 +2126,13 @@ final class ClaudeSessionService: ObservableObject {
             return hosts[pid] ?? .unknown
         }, branch: { [self] folder in branches.branch(of: folder, now: now) })
         let agentSessions = fromAgents.sessions.filter { shownAgents.contains($0.provider) }
-        let sorted = SessionAutoMode.log.decorate(NotchClaudeSessionsSupport.sorted(
+        let sorted = PhoneAnswerLog.shared.decorate(SessionAutoMode.log.decorate(NotchClaudeSessionsSupport.sorted(
             withBackground(claude, now: now) + codexSessions + agentSessions + fromCowork.sessions + (sample.map { [$0] } ?? [])
-        ).map { withLiveBranch($0, now: now) })
+        ).map { withLiveBranch($0, now: now) }))
         let assessed = risks.assess(sorted, now: now)
         inspection.retain(assessed)
         SessionAutoMode.log.prune(listed: Set(assessed.map(\.id)), now: now)
+        PhoneAnswerLog.shared.prune(listed: Set(assessed.map(\.id)), now: now)
         let shown = autoAllowing(assessed, now: now)
         let allowed = autoAllow.sessions
         let hidden = Set(assessed.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }
