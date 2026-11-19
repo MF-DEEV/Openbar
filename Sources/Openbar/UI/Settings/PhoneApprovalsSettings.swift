@@ -131,13 +131,14 @@ struct PhoneApprovalsSettings: View {
 
     private func linked(_ link: PhoneLink) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+            // The names keep their whole width; the actions sit below them.
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Circle().fill(enabled ? Color.green : Color.secondary).frame(width: 7, height: 7).accessibilityHidden(true)
                 Text(String(format: PhoneApprovalStrings.linkedFormat, link.name, bridge.bot ?? "bot"))
                     .font(.callout)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer(minLength: 8)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 8) {
                 Button(PhoneApprovalStrings.sendTest) { bridge.sendTest() }.controlSize(.small)
                 Button(PhoneApprovalStrings.unlink) { confirmingUnlink = true }.controlSize(.small)
             }
