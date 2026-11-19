@@ -46,6 +46,7 @@ mod notification_history;
 mod notifications;
 mod ocr;
 mod onboarding;
+mod phone;
 mod power_saver;
 mod prefs;
 mod recorder;
@@ -384,6 +385,12 @@ pub fn run() {
             prefs::launch_at_login_get,
             prefs::launch_at_login_set,
             sessions::service::sessions_decide,
+            phone::phone_status,
+            phone::phone_use_token,
+            phone::phone_start_link,
+            phone::phone_cancel_link,
+            phone::phone_unlink,
+            phone::phone_test,
             sessions::service::sessions_inspect_command,
             sessions::service::sessions_close_inspection,
             sessions::service::sessions_show_sample,
@@ -586,6 +593,8 @@ pub fn run() {
             );
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
+            // Requests reach the phone while the person is away (#214).
+            phone::start(app.handle().clone());
             tray::create(app.handle())?;
             onboarding::start(app.handle());
             updater::restore_windows(app.handle());

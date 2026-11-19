@@ -765,6 +765,9 @@ pub struct Session {
     /// Permissions the island allowed without asking, newest last (#234).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub let_through: Vec<super::auto_mode::LetThrough>,
+    /// Requests answered from the phone, newest last (#214).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub phone_answers: Vec<crate::phone::answers::PhoneAnswer>,
     /// For a session heard through the hooks of a config folder or tool the
     /// person added on the Hooks page, that folder's tag or the tool's id
     /// (#236): a Codex session from a second Codex home, not Codex's server.
@@ -1534,6 +1537,7 @@ mod tests {
             account_id: None,
             auto_mode: false,
             let_through: Vec::new(),
+            phone_answers: Vec::new(),
             via: None,
             later_asks: Vec::new(),
             origin: None,

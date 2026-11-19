@@ -752,6 +752,7 @@ fn session(
         account_id: None,
         auto_mode: super::auto_mode::is_auto_claude(entry.mode.as_ref().map(|(m, _)| m.as_str())),
         let_through: Vec::new(),
+        phone_answers: Vec::new(),
         via: None,
         later_asks: entry.permissions.iter().skip(1).cloned().collect(),
         origin: (record.remote.is_none()

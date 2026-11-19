@@ -61,6 +61,10 @@ zbus = "5"
 # which doesn't cross-build for Arm64 Windows from a Mac.
 tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "system-proxy"] }
 uds_windows = "1"
+# Phone approvals through Telegram (#214): the Bot API over Windows' own TLS,
+# as the updater does, and the linking link as a QR code.
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "native-tls", "system-proxy"] }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 # Voice replies: speech recognized on this PC (src/voice). Cross-builds from a
 # Mac need cmake/xwin-toolchain.cmake; see docs/voice-replies.md.
 whisper-rs = "0.16"
@@ -116,6 +120,8 @@ windows = { version = "0.62", features = [
   "Win32_NetworkManagement_Ndis",
   "Win32_Security",
   "Win32_Security_Authorization",
+  "Win32_Security_Credentials",
+  "Win32_Security_Cryptography",
   "Win32_Storage_FileSystem",
   "Win32_Storage_Xps",
   "Win32_System_Com",

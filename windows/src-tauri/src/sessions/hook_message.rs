@@ -263,6 +263,12 @@ pub enum Decision {
 pub const DENY_MESSAGE: &str = "Denied from the Dynamic Island.";
 pub const SKIP_MESSAGE: &str =
     "The user skipped the question from the Dynamic Island without answering.";
+/// The same, answered from the phone (#214), so the session's own history
+/// tells where the answer came from.
+pub const PHONE_DENY_MESSAGE: &str = "Denied from the phone, through Openbar.";
+pub const PHONE_SKIP_MESSAGE: &str =
+    "The user skipped the question from their phone, through Openbar, without answering.";
+pub const PHONE_PLAN_DENY_MESSAGE: &str = "The user did not approve the plan from their phone, through Openbar. Stay in plan mode and ask what to change.";
 pub const PLAN_DENY_MESSAGE: &str = "The user did not approve the plan from the Dynamic Island. Stay in plan mode and ask what to change.";
 
 /// What the hook prints for Claude Code, with sorted keys. Always adds the
@@ -278,6 +284,18 @@ pub fn reply(
     input: Option<&Map<String, Value>>,
     approved: Option<&Map<String, Value>>,
 ) -> Vec<u8> {
+    reply_from(decision, suggestions, input, approved, super::inspection::Origin::Island)
+}
+
+/// `reply`, with the deny messages of where the answer came from.
+pub fn reply_from(
+    decision: &Decision,
+    suggestions: Option<&Value>,
+    input: Option<&Map<String, Value>>,
+    approved: Option<&Map<String, Value>>,
+    origin: super::inspection::Origin,
+) -> Vec<u8> {
+    let phone = origin == super::inspection::Origin::Phone;
     let mut body = match decision {
         Decision::Allow => json!({"behavior": "allow"}),
         // Claude Code's plan dialog answers the same way: the plan's input
@@ -295,12 +313,13 @@ pub fn reply(
             Value::Object(body)
         }
         Decision::Deny => {
-            let message = if input.is_some() {
-                SKIP_MESSAGE
-            } else if approved.is_some() {
-                PLAN_DENY_MESSAGE
-            } else {
-                DENY_MESSAGE
+            let message = match (input.is_some(), approved.is_some(), phone) {
+                (true, _, false) => SKIP_MESSAGE,
+                (true, _, true) => PHONE_SKIP_MESSAGE,
+                (false, true, false) => PLAN_DENY_MESSAGE,
+                (false, true, true) => PHONE_PLAN_DENY_MESSAGE,
+                (false, false, false) => DENY_MESSAGE,
+                (false, false, true) => PHONE_DENY_MESSAGE,
             };
             json!({"behavior": "deny", "message": message})
         }
