@@ -52,7 +52,13 @@ pub trait Api: Send + Sync {
 /// What the bridge needs from the app and the system.
 pub trait Host: Send + Sync {
     /// Answers a request as the island would, from the phone.
-    fn decide(&self, session: &str, request: &str, decision: Decision, revision: Option<&str>) -> bool;
+    fn decide(
+        &self,
+        session: &str,
+        request: &str,
+        decision: Decision,
+        revision: Option<&str>,
+    ) -> bool;
     /// Types a reply into a session: None when it went, else why not.
     fn reply(&self, session: &str, text: &str) -> Option<&'static str>;
     /// Codex's Always: every request of the turn under way is allowed.
@@ -137,17 +143,37 @@ struct Sent {
 }
 
 enum Job {
-    Send { body: Value, serial: Option<u64>, key: Option<String>, session: Option<String> },
-    Call { method: &'static str, body: Value },
+    Send {
+        body: Value,
+        serial: Option<u64>,
+        key: Option<String>,
+        session: Option<String>,
+    },
+    Call {
+        method: &'static str,
+        body: Value,
+    },
 }
 
 /// What a handled update leaves to do once the state is let go.
 enum Effect {
-    Decide { key: String, session: String, request: String, decision: Decision, revision: Option<String>, outcome: Outcome },
+    Decide {
+        key: String,
+        session: String,
+        request: String,
+        decision: Decision,
+        revision: Option<String>,
+        outcome: Outcome,
+    },
     AutoAllow(String),
     /// Linking turns the switch on.
     Enable,
-    Reply { session: String, text: String, name: String, chat: i64 },
+    Reply {
+        session: String,
+        text: String,
+        name: String,
+        chat: i64,
+    },
 }
 
 struct State {
@@ -184,7 +210,10 @@ impl State {
         self.settings.enabled && self.token.is_some() && self.link.is_some() && !self.revoked
     }
     fn listens(&self) -> bool {
-        self.running && self.token.is_some() && !self.revoked && (self.active() || self.linking.is_some())
+        self.running
+            && self.token.is_some()
+            && !self.revoked
+            && (self.active() || self.linking.is_some())
     }
 }
 
@@ -221,7 +250,11 @@ fn person(user: &Value) -> String {
         .flatten()
         .collect::<Vec<_>>()
         .join(" ");
-    if name.is_empty() { "Telegram".into() } else { name }
+    if name.is_empty() {
+        "Telegram".into()
+    } else {
+        name
+    }
 }
 
 fn message_body(chat: i64, text: &str, buttons: Value) -> Value {
@@ -232,11 +265,21 @@ fn message_body(chat: i64, text: &str, buttons: Value) -> Value {
 
 fn display_name(session: &Session) -> String {
     let name = session.name.trim();
-    if name.is_empty() { session.project.clone() } else { name.to_owned() }
+    if name.is_empty() {
+        session.project.clone()
+    } else {
+        name.to_owned()
+    }
 }
 
 impl Bridge {
-    pub fn new(host: Arc<dyn Host>, api: Arc<dyn Api>, stored: Stored, token: Option<String>, settings: Settings) -> Arc<Self> {
+    pub fn new(
+        host: Arc<dyn Host>,
+        api: Arc<dyn Api>,
+        stored: Stored,
+        token: Option<String>,
+        settings: Settings,
+    ) -> Arc<Self> {
         let started = host.now();
         let transport = token.as_deref().map(|t| api.connect(t));
         Arc::new(Bridge {
@@ -287,11 +330,20 @@ impl Bridge {
             self.refresh(&mut state);
         }
         let me = self.clone();
-        thread::Builder::new().name("phone-updates".into()).spawn(move || me.read_updates()).ok();
+        thread::Builder::new()
+            .name("phone-updates".into())
+            .spawn(move || me.read_updates())
+            .ok();
         let me = self.clone();
-        thread::Builder::new().name("phone-send".into()).spawn(move || me.send_jobs()).ok();
+        thread::Builder::new()
+            .name("phone-send".into())
+            .spawn(move || me.send_jobs())
+            .ok();
         let me = self.clone();
-        thread::Builder::new().name("phone-look".into()).spawn(move || me.look_loop()).ok();
+        thread::Builder::new()
+            .name("phone-look".into())
+            .spawn(move || me.look_loop())
+            .ok();
     }
 
     // MARK: From the app
@@ -333,7 +385,12 @@ impl Bridge {
             linking: state.linking.as_ref().and_then(|l| {
                 let bot = state.bot.as_deref()?;
                 let link = messages::link(bot, &l.code);
-                Some(LinkingStatus { code: l.code.clone(), qr: self.host.qr(&link), link, expires: l.expires })
+                Some(LinkingStatus {
+                    code: l.code.clone(),
+                    qr: self.host.qr(&link),
+                    link,
+                    expires: l.expires,
+                })
             }),
             problem: state.problem.clone(),
             checking: state.checking,
@@ -348,7 +405,8 @@ impl Bridge {
             state.listen_epoch += 1;
         }
         state.listening = listens;
-        self.copies.store(state.running && state.active(), Ordering::Relaxed);
+        self.copies
+            .store(state.running && state.active(), Ordering::Relaxed);
         self.poll_wake.notify_all();
         self.host.changed(&self.status_of(state));
     }
@@ -380,7 +438,10 @@ impl Bridge {
                     state.link = None;
                     state.revoked = false;
                     state.problem = None;
-                    self.host.save(&Stored { bot: state.bot.clone(), link: None });
+                    self.host.save(&Stored {
+                        bot: state.bot.clone(),
+                        link: None,
+                    });
                     state.linking = Some(Linking {
                         code: messages::make_code(),
                         expires: self.host.now() + messages::CODE_VALID_FOR,
@@ -448,7 +509,10 @@ impl Bridge {
     pub fn send_test(&self) {
         let state = self.state.lock().unwrap();
         if let Some(link) = &state.link {
-            self.enqueue(Job::Call { method: "sendMessage", body: message_body(link.chat, messages::TEST, json!([])) });
+            self.enqueue(Job::Call {
+                method: "sendMessage",
+                body: message_body(link.chat, messages::TEST, json!([])),
+            });
         }
     }
 
@@ -463,13 +527,23 @@ impl Bridge {
                 while !state.listens() {
                     state = self.poll_wake.wait(state).unwrap();
                 }
-                let Some(transport) = state.transport.clone() else { continue };
+                let Some(transport) = state.transport.clone() else {
+                    continue;
+                };
                 (transport, state.listen_epoch, state.offset)
             };
             if epoch != drained {
-                match transport.call("getUpdates", &json!({"offset": -1, "timeout": 0}), Duration::from_secs(20)) {
+                match transport.call(
+                    "getUpdates",
+                    &json!({"offset": -1, "timeout": 0}),
+                    Duration::from_secs(20),
+                ) {
                     Ok(last) => {
-                        if let Some(id) = last.as_array().and_then(|l| l.last()).and_then(|u| int(&u["update_id"])) {
+                        if let Some(id) = last
+                            .as_array()
+                            .and_then(|l| l.last())
+                            .and_then(|u| int(&u["update_id"]))
+                        {
                             let mut state = self.state.lock().unwrap();
                             state.offset = state.offset.max(id + 1);
                         }
@@ -558,26 +632,41 @@ impl Bridge {
     fn handle_message(&self, state: &mut State, message: &Value) -> Vec<Effect> {
         let chat = &message["chat"];
         let from = &message["from"];
-        let (Some(chat_id), Some(user_id)) = (int(&chat["id"]), int(&from["id"])) else { return Vec::new() };
+        let (Some(chat_id), Some(user_id)) = (int(&chat["id"]), int(&from["id"])) else {
+            return Vec::new();
+        };
         if chat["type"].as_str() != Some("private") || from["is_bot"].as_bool() == Some(true) {
             return Vec::new();
         }
         let text = message["text"].as_str().unwrap_or("");
         if state.link.is_none() && state.linking.is_some() {
-            let Some(code) = messages::code_in(text) else { return Vec::new() };
+            let Some(code) = messages::code_in(text) else {
+                return Vec::new();
+            };
             let now = self.host.now();
-            let (expected, expires) = state.linking.as_ref().map(|l| (l.code.clone(), l.expires)).unwrap();
+            let (expected, expires) = state
+                .linking
+                .as_ref()
+                .map(|l| (l.code.clone(), l.expires))
+                .unwrap();
             if now > expires {
                 state.linking = None;
                 state.problem = Some("codeExpired".into());
             } else if code == expected {
-                let link = Link { chat: chat_id, user: user_id, name: person(from) };
+                let link = Link {
+                    chat: chat_id,
+                    user: user_id,
+                    name: person(from),
+                };
                 state.link = Some(link);
                 state.linking = None;
                 state.problem = None;
                 state.settings.enabled = true;
                 state.ends_ready = false;
-                self.host.save(&Stored { bot: state.bot.clone(), link: state.link.clone() });
+                self.host.save(&Stored {
+                    bot: state.bot.clone(),
+                    link: state.link.clone(),
+                });
                 self.say(chat_id, &messages::linked(&self.host.computer()));
                 self.refresh(state);
                 return vec![Effect::Enable];
@@ -596,7 +685,9 @@ impl Bridge {
             return Vec::new();
         }
         // Anyone but the linked person, or a group, is not answered at all.
-        let Some(link) = state.link.clone() else { return Vec::new() };
+        let Some(link) = state.link.clone() else {
+            return Vec::new();
+        };
         if !state.active() || chat_id != link.chat || user_id != link.user {
             return Vec::new();
         }
@@ -608,7 +699,13 @@ impl Bridge {
         self.typed(state, text, reply_to, &link)
     }
 
-    fn typed(&self, state: &mut State, raw: &str, reply_to: Option<i64>, link: &Link) -> Vec<Effect> {
+    fn typed(
+        &self,
+        state: &mut State,
+        raw: &str,
+        reply_to: Option<i64>,
+        link: &Link,
+    ) -> Vec<Effect> {
         let text: String = raw.trim().chars().take(4000).collect();
         if text.is_empty() {
             return Vec::new();
@@ -622,25 +719,42 @@ impl Bridge {
         let sessions = state.sessions.clone();
         // A reply to a question's message is the person's own answer.
         if let Some(reply_to) = reply_to {
-            let found = state.sent.iter().find(|(_, s)| s.message == Some(reply_to)).map(|(k, _)| k.clone());
+            let found = state
+                .sent
+                .iter()
+                .find(|(_, s)| s.message == Some(reply_to))
+                .map(|(k, _)| k.clone());
             if let Some(k) = found {
                 let entry = state.sent.get_mut(&k).unwrap();
                 let ask = sessions
                     .iter()
                     .find(|s| s.id == entry.session)
-                    .and_then(|s| s.permission.iter().chain(&s.later_asks).find(|p| p.request_id == entry.request))
+                    .and_then(|s| {
+                        s.permission
+                            .iter()
+                            .chain(&s.later_asks)
+                            .find(|p| p.request_id == entry.request)
+                    })
                     .cloned();
                 if let Some(ask) = ask.filter(|a| !a.questions.is_empty())
                     && !entry.settled
                     && !entry.answering
                 {
                     let open = (0..ask.questions.len())
-                        .find(|q| entry.picked.get(q).is_none_or(|p| p.is_empty()) && !entry.typed.contains_key(q))
+                        .find(|q| {
+                            entry.picked.get(q).is_none_or(|p| p.is_empty())
+                                && !entry.typed.contains_key(q)
+                        })
                         .unwrap_or(0);
                     entry.typed.insert(open, text);
                     if let Some(answers) = messages::answers(&ask, &entry.picked, &entry.typed) {
                         let labels = messages::labels(&answers, &ask);
-                        return self.answer(state, &k, Decision::Answer(answers), Outcome::Answered(labels));
+                        return self.answer(
+                            state,
+                            &k,
+                            Decision::Answer(answers),
+                            Outcome::Answered(labels),
+                        );
                     }
                     self.say(link.chat, messages::PICK_THE_REST);
                     return Vec::new();
@@ -657,18 +771,37 @@ impl Bridge {
             },
             None => messages::reply_target(None, &sessions),
         };
-        let Some(session) = target.and_then(|id| sessions.iter().find(|s| s.id == id).cloned()) else {
+        let Some(session) = target.and_then(|id| sessions.iter().find(|s| s.id == id).cloned())
+        else {
             let any = sessions.iter().any(messages::can_reply);
-            self.say(link.chat, if any { messages::WHICH_SESSION } else { messages::NO_SESSION });
+            self.say(
+                link.chat,
+                if any {
+                    messages::WHICH_SESSION
+                } else {
+                    messages::NO_SESSION
+                },
+            );
             return Vec::new();
         };
-        vec![Effect::Reply { name: display_name(&session), session: session.id, text, chat: link.chat }]
+        vec![Effect::Reply {
+            name: display_name(&session),
+            session: session.id,
+            text,
+            chat: link.chat,
+        }]
     }
 
     fn handle_tap(&self, state: &mut State, query: &Value) -> Vec<Effect> {
-        let Some(id) = query["id"].as_str().map(str::to_owned) else { return Vec::new() };
-        let Some(link) = state.link.clone() else { return Vec::new() };
-        if int(&query["from"]["id"]) != Some(link.user) || int(&query["message"]["chat"]["id"]) != Some(link.chat) {
+        let Some(id) = query["id"].as_str().map(str::to_owned) else {
+            return Vec::new();
+        };
+        let Some(link) = state.link.clone() else {
+            return Vec::new();
+        };
+        if int(&query["from"]["id"]) != Some(link.user)
+            || int(&query["message"]["chat"]["id"]) != Some(link.chat)
+        {
             return Vec::new();
         }
         let Some((run, number)) = query["data"].as_str().and_then(messages::parse_callback) else {
@@ -685,8 +818,17 @@ impl Bridge {
             if entry.settled || entry.answering || !state.active() {
                 return None;
             }
-            let session = state.sessions.iter().find(|s| s.id == entry.session)?.clone();
-            let ask = session.permission.iter().chain(&session.later_asks).find(|p| p.request_id == entry.request)?.clone();
+            let session = state
+                .sessions
+                .iter()
+                .find(|s| s.id == entry.session)?
+                .clone();
+            let ask = session
+                .permission
+                .iter()
+                .chain(&session.later_asks)
+                .find(|p| p.request_id == entry.request)?
+                .clone();
             Some((k.clone(), action.clone(), session, ask))
         });
         let Some((k, action, session, ask)) = live else {
@@ -696,7 +838,11 @@ impl Bridge {
         self.answer_tap(state, &id, None);
         match action {
             Action::Allow => {
-                let outcome = if messages::is_plan(&ask) { Outcome::PlanApproved(None) } else { Outcome::Allowed };
+                let outcome = if messages::is_plan(&ask) {
+                    Outcome::PlanApproved(None)
+                } else {
+                    Outcome::Allowed
+                };
                 self.answer(state, &k, Decision::Allow, outcome)
             }
             Action::Always if session.codex_server() => {
@@ -720,9 +866,16 @@ impl Bridge {
                 }
                 if messages::answers_on_tap(&ask) {
                     let picked = Picked::from([(q, [o].into())]);
-                    let Some(answers) = messages::answers(&ask, &picked, &BTreeMap::new()) else { return Vec::new() };
+                    let Some(answers) = messages::answers(&ask, &picked, &BTreeMap::new()) else {
+                        return Vec::new();
+                    };
                     let labels = messages::labels(&answers, &ask);
-                    return self.answer(state, &k, Decision::Answer(answers), Outcome::Answered(labels));
+                    return self.answer(
+                        state,
+                        &k,
+                        Decision::Answer(answers),
+                        Outcome::Answered(labels),
+                    );
                 }
                 let hide = state.settings.hide_code;
                 let entry = state.sent.get_mut(&k).unwrap();
@@ -753,15 +906,24 @@ impl Bridge {
             }
             Action::Send => {
                 let entry = &state.sent[&k];
-                let Some(answers) = messages::answers(&ask, &entry.picked, &entry.typed) else { return Vec::new() };
+                let Some(answers) = messages::answers(&ask, &entry.picked, &entry.typed) else {
+                    return Vec::new();
+                };
                 let labels = messages::labels(&answers, &ask);
-                self.answer(state, &k, Decision::Answer(answers), Outcome::Answered(labels))
+                self.answer(
+                    state,
+                    &k,
+                    Decision::Answer(answers),
+                    Outcome::Answered(labels),
+                )
             }
         }
     }
 
     fn answer_tap(&self, state: &State, id: &str, text: Option<&str>) {
-        let Some(transport) = state.transport.clone() else { return };
+        let Some(transport) = state.transport.clone() else {
+            return;
+        };
         let mut body = json!({"callback_query_id": id});
         if let Some(text) = text {
             body["text"] = json!(text);
@@ -772,8 +934,16 @@ impl Bridge {
     }
 
     /// Marks the request as being answered; the answer goes out once the state is let go.
-    fn answer(&self, state: &mut State, k: &str, decision: Decision, outcome: Outcome) -> Vec<Effect> {
-        let Some(entry) = state.sent.get_mut(k) else { return Vec::new() };
+    fn answer(
+        &self,
+        state: &mut State,
+        k: &str,
+        decision: Decision,
+        outcome: Outcome,
+    ) -> Vec<Effect> {
+        let Some(entry) = state.sent.get_mut(k) else {
+            return Vec::new();
+        };
         entry.answering = true;
         vec![Effect::Decide {
             key: k.to_owned(),
@@ -789,10 +959,21 @@ impl Bridge {
         match effect {
             Effect::AutoAllow(session) => self.host.auto_allow(&session),
             Effect::Enable => self.host.set_enabled(true),
-            Effect::Decide { key, session, request, decision, revision, outcome } => {
-                let sent = self.host.decide(&session, &request, decision, revision.as_deref());
+            Effect::Decide {
+                key,
+                session,
+                request,
+                decision,
+                revision,
+                outcome,
+            } => {
+                let sent = self
+                    .host
+                    .decide(&session, &request, decision, revision.as_deref());
                 let mut state = self.state.lock().unwrap();
-                let Some(entry) = state.sent.get_mut(&key) else { return };
+                let Some(entry) = state.sent.get_mut(&key) else {
+                    return;
+                };
                 entry.answering = false;
                 let outcome = if sent {
                     outcome
@@ -801,13 +982,27 @@ impl Bridge {
                         .sessions
                         .iter()
                         .find(|s| s.id == session)
-                        .and_then(|s| s.permission.iter().chain(&s.later_asks).find(|p| p.request_id == request))
+                        .and_then(|s| {
+                            s.permission
+                                .iter()
+                                .chain(&s.later_asks)
+                                .find(|p| p.request_id == request)
+                        })
                         .map(revision_of);
-                    if now.is_some_and(|r| r != revision) { Outcome::Changed } else { Outcome::Failed }
+                    if now.is_some_and(|r| r != revision) {
+                        Outcome::Changed
+                    } else {
+                        Outcome::Failed
+                    }
                 };
                 self.settle(&mut state, &key, outcome);
             }
-            Effect::Reply { session, text, name, chat } => {
+            Effect::Reply {
+                session,
+                text,
+                name,
+                chat,
+            } => {
                 let host = self.host.clone();
                 let me = self.state.lock().unwrap().transport.clone();
                 thread::spawn(move || {
@@ -817,7 +1012,11 @@ impl Bridge {
                         Some(why) => messages::reply_failed(why, &name),
                     };
                     if let Some(transport) = me {
-                        let _ = transport.call("sendMessage", &message_body(chat, &words, json!([])), Duration::from_secs(20));
+                        let _ = transport.call(
+                            "sendMessage",
+                            &message_body(chat, &words, json!([])),
+                            Duration::from_secs(20),
+                        );
                     }
                 });
             }
@@ -861,7 +1060,10 @@ impl Bridge {
         }
         let sessions = state.sessions.clone();
         let mut live: HashMap<String, (&Session, &Permission)> = HashMap::new();
-        for session in sessions.iter().filter(|s| s.id != crate::sessions::sample::ID) {
+        for session in sessions
+            .iter()
+            .filter(|s| s.id != crate::sessions::sample::ID)
+        {
             for ask in session.permission.iter().chain(&session.later_asks) {
                 live.insert(key(&session.id, &ask.request_id), (session, ask));
             }
@@ -884,7 +1086,15 @@ impl Bridge {
                 None => {
                     if !entry.settled {
                         let here = sessions.iter().any(|s| s.id == entry.session);
-                        self.settle(&mut state, &k, if here { Outcome::AnsweredElsewhere } else { Outcome::Gone });
+                        self.settle(
+                            &mut state,
+                            &k,
+                            if here {
+                                Outcome::AnsweredElsewhere
+                            } else {
+                                Outcome::Gone
+                            },
+                        );
                     }
                     state.sent.remove(&k);
                 }
@@ -918,13 +1128,23 @@ impl Bridge {
             return;
         }
         let mut current = HashSet::new();
-        for session in sessions.iter().filter(|s| s.id != crate::sessions::sample::ID) {
-            let Some((end, at)) = messages::terminal(session) else { continue };
+        for session in sessions
+            .iter()
+            .filter(|s| s.id != crate::sessions::sample::ID)
+        {
+            let Some((end, at)) = messages::terminal(session) else {
+                continue;
+            };
             // One message a turn: its end can still move a moment.
             let turn = session.turn_started.unwrap_or(at);
             let id = format!("{}\u{1}{turn}", session.id);
             if state.ends_ready && away && !state.ends.contains(&id) {
-                let message = messages::ended(end, session, &display_name(session), state.settings.hide_code);
+                let message = messages::ended(
+                    end,
+                    session,
+                    &display_name(session),
+                    state.settings.hide_code,
+                );
                 self.post(&state, message, &session.id);
             }
             current.insert(id);
@@ -937,8 +1157,16 @@ impl Bridge {
     }
 
     fn send_ask(&self, state: &mut State, k: &str, session: &Session, ask: &Permission) {
-        let Some(link) = state.link.clone() else { return };
-        let message = messages::ask(ask, session, &display_name(session), state.settings.hide_code, &Picked::new());
+        let Some(link) = state.link.clone() else {
+            return;
+        };
+        let message = messages::ask(
+            ask,
+            session,
+            &display_name(session),
+            state.settings.hide_code,
+            &Picked::new(),
+        );
         state.serial += 1;
         let serial = state.serial;
         state.sent.insert(
@@ -960,21 +1188,35 @@ impl Bridge {
         let keyboard = self.issue(state, &message.buttons, k);
         let mut body = message_body(link.chat, &message.text, keyboard);
         body["disable_notification"] = json!(messages::quiet(&state.settings, self.host.minute()));
-        self.enqueue(Job::Send { body, serial: Some(serial), key: Some(k.to_owned()), session: Some(session.id.clone()) });
+        self.enqueue(Job::Send {
+            body,
+            serial: Some(serial),
+            key: Some(k.to_owned()),
+            session: Some(session.id.clone()),
+        });
     }
 
     fn post(&self, state: &State, message: Message, session: &str) {
         let Some(link) = &state.link else { return };
         let mut body = message_body(link.chat, &message.text, json!([]));
         body["disable_notification"] = json!(messages::quiet(&state.settings, self.host.minute()));
-        self.enqueue(Job::Send { body, serial: None, key: None, session: Some(session.to_owned()) });
+        self.enqueue(Job::Send {
+            body,
+            serial: None,
+            key: None,
+            session: Some(session.to_owned()),
+        });
     }
 
     /// Ends a request's message with how it went, and takes its buttons away.
     fn settle(&self, state: &mut State, k: &str, outcome: Outcome) {
         let minute = self.host.minute();
-        let Some(chat) = state.link.as_ref().map(|l| l.chat) else { return };
-        let Some(entry) = state.sent.get_mut(k) else { return };
+        let Some(chat) = state.link.as_ref().map(|l| l.chat) else {
+            return;
+        };
+        let Some(entry) = state.sent.get_mut(k) else {
+            return;
+        };
         if entry.settled {
             return;
         }
@@ -990,7 +1232,10 @@ impl Bridge {
             Some(id) => {
                 let mut body = message_body(chat, &text, json!([]));
                 body["message_id"] = json!(id);
-                self.enqueue(Job::Call { method: "editMessageText", body });
+                self.enqueue(Job::Call {
+                    method: "editMessageText",
+                    body,
+                });
             }
             None => {
                 state.owed.insert(serial, text);
@@ -1023,7 +1268,10 @@ impl Bridge {
     }
 
     fn say(&self, chat: i64, text: &str) {
-        self.enqueue(Job::Call { method: "sendMessage", body: message_body(chat, text, json!([])) });
+        self.enqueue(Job::Call {
+            method: "sendMessage",
+            body: message_body(chat, text, json!([])),
+        });
     }
 
     fn enqueue(&self, job: Job) {
@@ -1047,8 +1295,14 @@ impl Bridge {
     }
 
     fn run_job(&self, job: Job) {
-        let Some(transport) = self.state.lock().unwrap().transport.clone() else { return };
-        let call = |method: &str, body: &Value| match transport.call(method, body, Duration::from_secs(20)) {
+        let Some(transport) = self.state.lock().unwrap().transport.clone() else {
+            return;
+        };
+        let call = |method: &str, body: &Value| match transport.call(
+            method,
+            body,
+            Duration::from_secs(20),
+        ) {
             Err(Failure::TooMany(wait)) => {
                 thread::sleep(Duration::from_secs(wait));
                 transport.call(method, body, Duration::from_secs(20))
@@ -1064,20 +1318,31 @@ impl Bridge {
                     self.refresh(&mut state);
                 }
             }
-            Job::Send { body, serial, key, session } => {
+            Job::Send {
+                body,
+                serial,
+                key,
+                session,
+            } => {
                 let result = call("sendMessage", &body);
                 let mut state = self.state.lock().unwrap();
                 let Ok(sent) = result else {
                     // Not sent: the next look tries again.
                     if let (Some(serial), Some(k)) = (serial, key) {
                         state.owed.remove(&serial);
-                        if state.sent.get(&k).is_some_and(|e| e.serial == serial && !e.settled) {
+                        if state
+                            .sent
+                            .get(&k)
+                            .is_some_and(|e| e.serial == serial && !e.settled)
+                        {
                             state.sent.remove(&k);
                         }
                     }
                     return;
                 };
-                let Some(id) = int(&sent["message_id"]) else { return };
+                let Some(id) = int(&sent["message_id"]) else {
+                    return;
+                };
                 if let Some(session) = session {
                     state.message_sessions.insert(id, session);
                     state.order.push_back(id);
@@ -1088,7 +1353,10 @@ impl Bridge {
                     }
                 }
                 let Some(serial) = serial else { return };
-                if let Some(entry) = key.and_then(|k| state.sent.get_mut(&k)).filter(|e| e.serial == serial) {
+                if let Some(entry) = key
+                    .and_then(|k| state.sent.get_mut(&k))
+                    .filter(|e| e.serial == serial)
+                {
                     entry.message = Some(id);
                 }
                 if let Some(text) = state.owed.remove(&serial)
@@ -1110,11 +1378,15 @@ fn revision_of(ask: &Permission) -> Option<String> {
 
 /// A token as BotFather hands it out: the bot's number, a colon, a secret.
 pub fn valid_token(token: &str) -> bool {
-    let Some((id, secret)) = token.split_once(':') else { return false };
+    let Some((id, secret)) = token.split_once(':') else {
+        return false;
+    };
     (3..=20).contains(&id.len())
         && id.chars().all(|c| c.is_ascii_digit())
         && (30..=100).contains(&secret.len())
-        && secret.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        && secret
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 #[cfg(test)]
@@ -1131,10 +1403,15 @@ mod tests {
 
     impl Transport for FakeTransport {
         fn call(&self, method: &str, body: &Value, _: Duration) -> Result<Value, Failure> {
-            self.calls.lock().unwrap().push((method.to_owned(), body.clone()));
+            self.calls
+                .lock()
+                .unwrap()
+                .push((method.to_owned(), body.clone()));
             match method {
                 "getMe" => Ok(json!({"username": "openbar_test_bot"})),
-                "sendMessage" => Ok(json!({"message_id": 100 + self.calls.lock().unwrap().len() as i64})),
+                "sendMessage" => {
+                    Ok(json!({"message_id": 100 + self.calls.lock().unwrap().len() as i64}))
+                }
                 _ => Ok(json!(true)),
             }
         }
@@ -1147,17 +1424,31 @@ mod tests {
         }
     }
 
+    /// Session, request, decision and revision of an answer.
+    type Decided = (String, String, Decision, Option<String>);
+
     #[derive(Default)]
     struct FakeHost {
-        decided: StdMutex<Vec<(String, String, Decision, Option<String>)>>,
+        decided: StdMutex<Vec<Decided>>,
         auto: StdMutex<Vec<String>>,
         idle: StdMutex<f64>,
         enabled: StdMutex<Option<bool>>,
     }
 
     impl Host for FakeHost {
-        fn decide(&self, session: &str, request: &str, decision: Decision, revision: Option<&str>) -> bool {
-            self.decided.lock().unwrap().push((session.into(), request.into(), decision, revision.map(Into::into)));
+        fn decide(
+            &self,
+            session: &str,
+            request: &str,
+            decision: Decision,
+            revision: Option<&str>,
+        ) -> bool {
+            self.decided.lock().unwrap().push((
+                session.into(),
+                request.into(),
+                decision,
+                revision.map(Into::into),
+            ));
             true
         }
         fn reply(&self, _: &str, _: &str) -> Option<&'static str> {
@@ -1198,12 +1489,22 @@ mod tests {
         let transport = Arc::new(FakeTransport::default());
         let host = Arc::new(FakeHost::default());
         *host.idle.lock().unwrap() = idle;
-        let link = Link { chat: 555, user: 555, name: "@me".into() };
-        let settings = Settings { enabled: true, ..Default::default() };
+        let link = Link {
+            chat: 555,
+            user: 555,
+            name: "@me".into(),
+        };
+        let settings = Settings {
+            enabled: true,
+            ..Default::default()
+        };
         let bridge = Bridge::new(
             host.clone(),
             Arc::new(FakeApi(transport.clone())),
-            Stored { bot: Some("openbar_test_bot".into()), link: Some(link) },
+            Stored {
+                bot: Some("openbar_test_bot".into()),
+                link: Some(link),
+            },
             Some(TOKEN.into()),
             settings,
         );
@@ -1217,7 +1518,11 @@ mod tests {
         s.id = "s1".into();
         s.project = "web".into();
         s.name = "web".into();
-        s.provider = if codex { crate::sessions::models::Provider::Codex } else { crate::sessions::models::Provider::Claude };
+        s.provider = if codex {
+            crate::sessions::models::Provider::Codex
+        } else {
+            crate::sessions::models::Provider::Claude
+        };
         s.via = None;
         let mut p = Permission::new("r1", "Bash", Some("ls"), true, 0.0);
         p.set_content("ls", true, Some(2));
@@ -1239,7 +1544,14 @@ mod tests {
     }
 
     fn sent_messages(transport: &FakeTransport) -> Vec<Value> {
-        transport.calls.lock().unwrap().iter().filter(|(m, _)| m == "sendMessage").map(|(_, b)| b.clone()).collect()
+        transport
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(m, _)| m == "sendMessage")
+            .map(|(_, b)| b.clone())
+            .collect()
     }
 
     fn tap(bridge: &Bridge, from: i64, title: &str, transport: &FakeTransport) {
@@ -1252,8 +1564,10 @@ mod tests {
             .find(|b| b["text"] == title)
             .unwrap()["callback_data"]
             .clone();
-        bridge.handle(&json!({"update_id": 1, "callback_query": {"id": "q", "from": {"id": from},
-            "message": {"message_id": 101, "chat": {"id": 555, "type": "private"}}, "data": data}}));
+        bridge.handle(
+            &json!({"update_id": 1, "callback_query": {"id": "q", "from": {"id": from},
+            "message": {"message_id": 101, "chat": {"id": 555, "type": "private"}}, "data": data}}),
+        );
     }
 
     #[test]
@@ -1283,8 +1597,20 @@ mod tests {
         assert_eq!(decided[0].2, Decision::Allow);
         assert!(decided[0].3.is_some(), "the message's revision goes along");
         flush(&bridge);
-        let edits: Vec<Value> = transport.calls.lock().unwrap().iter().filter(|(m, _)| m == "editMessageText").map(|(_, b)| b.clone()).collect();
-        assert!(edits.last().unwrap()["text"].as_str().unwrap().ends_with("<b>Allowed from your phone</b> · 10:00"));
+        let edits: Vec<Value> = transport
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(m, _)| m == "editMessageText")
+            .map(|(_, b)| b.clone())
+            .collect();
+        assert!(
+            edits.last().unwrap()["text"]
+                .as_str()
+                .unwrap()
+                .ends_with("<b>Allowed from your phone</b> · 10:00")
+        );
         // A second tap is too late.
         tap(&bridge, 555, "Deny", &transport);
         assert_eq!(host.decided.lock().unwrap().len(), 1);
@@ -1312,8 +1638,20 @@ mod tests {
         bridge.publish(&[answered]);
         bridge.sync();
         flush(&bridge);
-        let edits: Vec<Value> = transport.calls.lock().unwrap().iter().filter(|(m, _)| m == "editMessageText").map(|(_, b)| b.clone()).collect();
-        assert!(edits[0]["text"].as_str().unwrap().contains("Answered on the computer."));
+        let edits: Vec<Value> = transport
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(m, _)| m == "editMessageText")
+            .map(|(_, b)| b.clone())
+            .collect();
+        assert!(
+            edits[0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Answered on the computer.")
+        );
         assert_eq!(edits[0]["reply_markup"]["inline_keyboard"], json!([]));
     }
 
@@ -1322,8 +1660,10 @@ mod tests {
         let (bridge, _, host) = bridge(400.0);
         bridge.publish(&[waiting(false)]);
         bridge.sync();
-        bridge.handle(&json!({"update_id": 1, "callback_query": {"id": "q", "from": {"id": 555},
-            "message": {"message_id": 101, "chat": {"id": 555}}, "data": "zzzzzz:1"}}));
+        bridge.handle(
+            &json!({"update_id": 1, "callback_query": {"id": "q", "from": {"id": 555},
+            "message": {"message_id": 101, "chat": {"id": 555}}, "data": "zzzzzz:1"}}),
+        );
         assert!(host.decided.lock().unwrap().is_empty());
     }
 
@@ -1331,14 +1671,25 @@ mod tests {
     fn linking_takes_only_the_right_code() {
         let transport = Arc::new(FakeTransport::default());
         let host = Arc::new(FakeHost::default());
-        let bridge = Bridge::new(host.clone(), Arc::new(FakeApi(transport.clone())), Stored::default(), None, Settings::default());
+        let bridge = Bridge::new(
+            host.clone(),
+            Arc::new(FakeApi(transport.clone())),
+            Stored::default(),
+            None,
+            Settings::default(),
+        );
         bridge.state.lock().unwrap().running = true;
-        assert_eq!(bridge.use_token("nope").problem.as_deref(), Some("invalidToken"));
+        assert_eq!(
+            bridge.use_token("nope").problem.as_deref(),
+            Some("invalidToken")
+        );
         let status = bridge.use_token(TOKEN);
         assert_eq!(status.bot.as_deref(), Some("openbar_test_bot"));
         let code = status.linking.unwrap().code;
-        let message = |text: &str, chat_type: &str| json!({"update_id": 2, "message": {"message_id": 1, "date": 1000,
-            "chat": {"id": 777, "type": chat_type}, "from": {"id": 777, "username": "me"}, "text": text}});
+        let message = |text: &str, chat_type: &str| {
+            json!({"update_id": 2, "message": {"message_id": 1, "date": 1000,
+            "chat": {"id": 777, "type": chat_type}, "from": {"id": 777, "username": "me"}, "text": text}})
+        };
         bridge.handle(&message(&format!("/start {code}"), "group"));
         assert!(bridge.status().linked.is_none(), "never from a group");
         bridge.handle(&message("ABCDEFGH", "private"));
@@ -1346,7 +1697,11 @@ mod tests {
         bridge.handle(&message(&format!("/start {code}"), "private"));
         assert_eq!(bridge.status().linked.as_deref(), Some("@me"));
         assert!(bridge.state.lock().unwrap().active());
-        assert_eq!(*host.enabled.lock().unwrap(), Some(true), "Settings shows the switch on");
+        assert_eq!(
+            *host.enabled.lock().unwrap(),
+            Some(true),
+            "Settings shows the switch on"
+        );
         bridge.unlink();
         assert_eq!(*host.enabled.lock().unwrap(), Some(false));
         assert!(bridge.status().linked.is_none() && bridge.status().bot.is_none());
@@ -1357,6 +1712,8 @@ mod tests {
         assert!(valid_token(TOKEN));
         assert!(!valid_token("123:short"));
         assert!(!valid_token("abc:AAtesttokentesttokentesttokentest00"));
-        assert!(!valid_token("123456789:AAtest token with spaces and more text"));
+        assert!(!valid_token(
+            "123456789:AAtest token with spaces and more text"
+        ));
     }
 }

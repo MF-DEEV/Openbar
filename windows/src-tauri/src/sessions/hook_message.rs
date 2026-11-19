@@ -284,7 +284,13 @@ pub fn reply(
     input: Option<&Map<String, Value>>,
     approved: Option<&Map<String, Value>>,
 ) -> Vec<u8> {
-    reply_from(decision, suggestions, input, approved, super::inspection::Origin::Island)
+    reply_from(
+        decision,
+        suggestions,
+        input,
+        approved,
+        super::inspection::Origin::Island,
+    )
 }
 
 /// `reply`, with the deny messages of where the answer came from.

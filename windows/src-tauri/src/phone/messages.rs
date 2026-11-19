@@ -349,7 +349,13 @@ pub type Picked = BTreeMap<usize, BTreeSet<usize>>;
 
 /// The message for one request. `picked` holds the options toggled so far
 /// for a question answered in more than one tap.
-pub fn ask(ask: &Permission, session: &Session, name: &str, hide_code: bool, picked: &Picked) -> Message {
+pub fn ask(
+    ask: &Permission,
+    session: &Session,
+    name: &str,
+    hide_code: bool,
+    picked: &Picked,
+) -> Message {
     let mut parts = vec![header(session, name), kind(ask)];
     if hide_code {
         parts.push(if ask.questions.is_empty() {
@@ -378,7 +384,12 @@ pub fn body(ask: &Permission, room: usize) -> String {
     }
     if is_plan(ask) {
         let (text, left) = clip(ask.detail.trim(), room.min(PROSE_LIMIT));
-        return escape(&text) + &if left > 0 { format!("\n{}", more(left, "plan")) } else { String::new() };
+        return escape(&text)
+            + &if left > 0 {
+                format!("\n{}", more(left, "plan"))
+            } else {
+                String::new()
+            };
     }
     if !ask.diffs.is_empty() {
         return diff(&ask.diffs, room);
@@ -392,12 +403,19 @@ pub fn body(ask: &Permission, room: usize) -> String {
     let (text, cut) = clip(detail, room.saturating_sub(80));
     let left = cut
         + if cut > 0 {
-            ask.content.as_ref().and_then(|c| c.metadata(ask).remaining).unwrap_or(0)
+            ask.content
+                .as_ref()
+                .and_then(|c| c.metadata(ask).remaining)
+                .unwrap_or(0)
         } else {
             0
         };
     format!("<pre>{}</pre>", escape(&text))
-        + &if left > 0 { format!("\n{}", more(left, "request")) } else { String::new() }
+        + &if left > 0 {
+            format!("\n{}", more(left, "request"))
+        } else {
+            String::new()
+        }
 }
 
 pub fn more(left: usize, what: &str) -> String {
@@ -410,7 +428,11 @@ pub fn more(left: usize, what: &str) -> String {
 pub fn questions(questions: &[Question], room: usize) -> String {
     let mut lines = Vec::new();
     for (index, question) in questions.iter().enumerate() {
-        let number = if questions.len() > 1 { format!("{}. ", index + 1) } else { String::new() };
+        let number = if questions.len() > 1 {
+            format!("{}. ", index + 1)
+        } else {
+            String::new()
+        };
         lines.push(format!("<b>{number}{}</b>", escape(&question.question)));
         for option in &question.options {
             let mut line = format!("• {}", escape(&option.label));
@@ -430,9 +452,18 @@ pub fn questions(questions: &[Question], room: usize) -> String {
     }
     // Escaped text can't be cut inside an entity or a tag, so the plain
     // questions are shown instead.
-    let plain = questions.iter().map(|q| q.question.as_str()).collect::<Vec<_>>().join("\n");
+    let plain = questions
+        .iter()
+        .map(|q| q.question.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
     let (cut, left) = clip(&plain, room.saturating_sub(80));
-    escape(&cut) + &if left > 0 { format!("\n{}", more(left, "question")) } else { String::new() }
+    escape(&cut)
+        + &if left > 0 {
+            format!("\n{}", more(left, "question"))
+        } else {
+            String::new()
+        }
 }
 
 pub fn diff(diffs: &[FileDiff], room: usize) -> String {
@@ -479,11 +510,19 @@ pub fn plan_label(mode: PlanMode) -> &'static str {
 }
 
 fn button(title: impl Into<String>, action: Action) -> Button {
-    Button { title: title.into(), action }
+    Button {
+        title: title.into(),
+        action,
+    }
 }
 
 /// The buttons the island offers for the same request.
-pub fn buttons(ask: &Permission, session: &Session, hide_code: bool, picked: &Picked) -> Vec<Vec<Button>> {
+pub fn buttons(
+    ask: &Permission,
+    session: &Session,
+    hide_code: bool,
+    picked: &Picked,
+) -> Vec<Vec<Button>> {
     if !ask.questions.is_empty() {
         let skip = button("Skip", Action::Skip);
         if hide_code {
@@ -493,17 +532,33 @@ pub fn buttons(ask: &Permission, session: &Session, hide_code: bool, picked: &Pi
         let mut rows = Vec::new();
         for (q, question) in ask.questions.iter().enumerate() {
             for (o, option) in question.options.iter().enumerate() {
-                let mark = if picked.get(&q).is_some_and(|p| p.contains(&o)) { "✓ " } else { "" };
-                let number = if several { format!("{}. ", q + 1) } else { String::new() };
-                rows.push(vec![button(format!("{mark}{number}{}", option.label), Action::Pick(q, o))]);
+                let mark = if picked.get(&q).is_some_and(|p| p.contains(&o)) {
+                    "✓ "
+                } else {
+                    ""
+                };
+                let number = if several {
+                    format!("{}. ", q + 1)
+                } else {
+                    String::new()
+                };
+                rows.push(vec![button(
+                    format!("{mark}{number}{}", option.label),
+                    Action::Pick(q, o),
+                )]);
             }
         }
         if answers_on_tap(ask) {
             rows.push(vec![skip]);
             return rows;
         }
-        let complete = (0..ask.questions.len()).all(|q| picked.get(&q).is_some_and(|p| !p.is_empty()));
-        rows.push(if complete { vec![skip, button("Send", Action::Send)] } else { vec![skip] });
+        let complete =
+            (0..ask.questions.len()).all(|q| picked.get(&q).is_some_and(|p| !p.is_empty()));
+        rows.push(if complete {
+            vec![skip, button("Send", Action::Send)]
+        } else {
+            vec![skip]
+        });
         return rows;
     }
     if is_plan(ask) {
@@ -551,7 +606,10 @@ pub fn answers(
             .filter(|(o, _)| picked.get(&q).is_some_and(|p| p.contains(o)))
             .map(|(_, option)| option.label.clone())
             .collect();
-        let own = typed.get(&q).map(|t| t.trim().to_owned()).unwrap_or_default();
+        let own = typed
+            .get(&q)
+            .map(|t| t.trim().to_owned())
+            .unwrap_or_default();
         if !own.is_empty() {
             if question.multi_select {
                 chosen.push(own);
@@ -587,7 +645,9 @@ pub fn outcome(outcome: &Outcome, minute: u32) -> String {
         Outcome::Denied => "<b>Denied from your phone</b>".to_owned(),
         Outcome::PlanApproved(mode) => format!(
             "<b>Plan approved from your phone</b>{}",
-            mode.as_ref().map(|m| format!(" · {}", escape(m))).unwrap_or_default()
+            mode.as_ref()
+                .map(|m| format!(" · {}", escape(m)))
+                .unwrap_or_default()
         ),
         Outcome::KeptPlanning => "<b>Kept planning, from your phone</b>".to_owned(),
         Outcome::Answered(answers) => {
@@ -595,14 +655,19 @@ pub fn outcome(outcome: &Outcome, minute: u32) -> String {
             if joined.is_empty() {
                 "<b>Answered from your phone</b>".to_owned()
             } else {
-                format!("<b>Answered from your phone</b>: {}", escape(&clip(&joined, 200).0))
+                format!(
+                    "<b>Answered from your phone</b>: {}",
+                    escape(&clip(&joined, 200).0)
+                )
             }
         }
         Outcome::Skipped => "<b>Skipped from your phone</b>".to_owned(),
         Outcome::AnsweredElsewhere => "<i>Answered on the computer.</i>".to_owned(),
         Outcome::Gone => "<i>No longer waiting.</i>".to_owned(),
         Outcome::Changed => "<i>The request changed. Look at it on the computer.</i>".to_owned(),
-        Outcome::Failed => "<i>That didn’t reach the session. Look at it on the computer.</i>".to_owned(),
+        Outcome::Failed => {
+            "<i>That didn’t reach the session. Look at it on the computer.</i>".to_owned()
+        }
     };
     format!("{text} · {time}")
 }
@@ -651,7 +716,11 @@ pub fn ended(end: End, session: &Session, name: &str, hide_code: bool) -> Messag
     let mut parts = vec![header(session, name), what.to_owned()];
     if !hide_code
         && end == End::Finished
-        && let Some(last) = session.last_text.as_deref().map(str::trim).filter(|t| !t.is_empty())
+        && let Some(last) = session
+            .last_text
+            .as_deref()
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
     {
         let (text, left) = clip(last, PROSE_LIMIT);
         parts.push(format!(
@@ -661,7 +730,10 @@ pub fn ended(end: End, session: &Session, name: &str, hide_code: bool) -> Messag
         ));
     }
     parts.push("<i>Reply to this message to send it your next prompt.</i>".into());
-    Message { text: parts.join("\n\n"), buttons: Vec::new() }
+    Message {
+        text: parts.join("\n\n"),
+        buttons: Vec::new(),
+    }
 }
 
 pub fn linked(computer: &str) -> String {
@@ -673,7 +745,8 @@ pub fn linked(computer: &str) -> String {
 
 pub const TEST: &str = "<b>Test message from Openbar.</b>\n\nPhone approvals are working, and requests will show up here while you’re away from the computer.";
 pub const WRONG_CODE: &str = "That code doesn’t match. Check the code Openbar shows in Settings.";
-pub const EARLIER_RUN: &str = "This button is from before Openbar restarted. Look at the request on the computer.";
+pub const EARLIER_RUN: &str =
+    "This button is from before Openbar restarted. Look at the request on the computer.";
 pub const SETTLED: &str = "Already settled.";
 pub const WHICH_SESSION: &str = "Reply to a session’s message so Openbar knows where this goes.";
 pub const NO_SESSION: &str = "No session can take a reply right now.";
@@ -685,9 +758,15 @@ pub fn sent_to(name: &str) -> String {
 
 pub fn reply_failed(refusal: &str, name: &str) -> String {
     if refusal == "waiting" {
-        format!("{} is waiting on a request. Answer that first.", escape(name))
+        format!(
+            "{} is waiting on a request. Answer that first.",
+            escape(name)
+        )
     } else {
-        format!("Couldn’t reach {}. Look at it on the computer.", escape(name))
+        format!(
+            "Couldn’t reach {}. Look at it on the computer.",
+            escape(name)
+        )
     }
 }
 
@@ -741,7 +820,10 @@ mod tests {
     }
 
     fn permission(json: &Value) -> Permission {
-        let text = json["detail"].as_str().unwrap_or("").repeat(json["repeat"].as_u64().unwrap_or(1) as usize);
+        let text = json["detail"]
+            .as_str()
+            .unwrap_or("")
+            .repeat(json["repeat"].as_u64().unwrap_or(1) as usize);
         let mut p = Permission::new(
             "r1",
             json["tool"].as_str().unwrap_or("Bash"),
@@ -776,7 +858,11 @@ mod tests {
             .unwrap_or_default();
         p.plan_modes = json["planModes"]
             .as_array()
-            .map(|ms| ms.iter().filter_map(|m| serde_json::from_value(m.clone()).ok()).collect())
+            .map(|ms| {
+                ms.iter()
+                    .filter_map(|m| serde_json::from_value(m.clone()).ok())
+                    .collect()
+            })
             .unwrap_or_default();
         p.diffs = json["diffs"]
             .as_array()
@@ -826,7 +912,11 @@ mod tests {
                 ..Default::default()
             };
             assert_eq!(
-                sends(&settings, item["locked"].as_bool().unwrap(), item["idle"].as_f64().unwrap()),
+                sends(
+                    &settings,
+                    item["locked"].as_bool().unwrap(),
+                    item["idle"].as_f64().unwrap()
+                ),
                 item["expect"].as_bool().unwrap(),
                 "{item}"
             );
@@ -838,14 +928,26 @@ mod tests {
                 quiet_to: item["to"].as_u64().unwrap() as u32,
                 ..Default::default()
             };
-            assert_eq!(quiet(&settings, item["minute"].as_u64().unwrap() as u32), item["expect"].as_bool().unwrap(), "{item}");
+            assert_eq!(
+                quiet(&settings, item["minute"].as_u64().unwrap() as u32),
+                item["expect"].as_bool().unwrap(),
+                "{item}"
+            );
         }
         for item in cases["codes"].as_array().unwrap() {
-            assert_eq!(code_in(item["text"].as_str().unwrap()).as_deref(), item["expect"].as_str(), "{item}");
+            assert_eq!(
+                code_in(item["text"].as_str().unwrap()).as_deref(),
+                item["expect"].as_str(),
+                "{item}"
+            );
         }
         for item in cases["callbacks"].as_array().unwrap() {
             let got = parse_callback(item["data"].as_str().unwrap());
-            assert_eq!(got.as_ref().map(|g| g.0.as_str()), item["run"].as_str(), "{item}");
+            assert_eq!(
+                got.as_ref().map(|g| g.0.as_str()),
+                item["run"].as_str(),
+                "{item}"
+            );
             if let Some((_, number)) = got {
                 assert_eq!(Some(number), item["number"].as_u64());
             }
@@ -854,7 +956,10 @@ mod tests {
         assert_eq!(code_in(&code), Some(code.clone()));
         assert_ne!(make_code(), make_code());
         let run = new_run();
-        assert_eq!(parse_callback(&callback_data(&run, 42)), Some((run.clone(), 42)));
+        assert_eq!(
+            parse_callback(&callback_data(&run, 42)),
+            Some((run.clone(), 42))
+        );
         assert!(callback_data(&run, 999_999).len() <= 64);
     }
 
@@ -862,10 +967,16 @@ mod tests {
     fn escaping_and_clipping_follow_the_shared_cases() {
         let cases = cases();
         for item in cases["escape"].as_array().unwrap() {
-            assert_eq!(escape(item["text"].as_str().unwrap()), item["expect"].as_str().unwrap());
+            assert_eq!(
+                escape(item["text"].as_str().unwrap()),
+                item["expect"].as_str().unwrap()
+            );
         }
         for item in cases["clip"].as_array().unwrap() {
-            let (shown, left) = clip(item["text"].as_str().unwrap(), item["limit"].as_u64().unwrap() as usize);
+            let (shown, left) = clip(
+                item["text"].as_str().unwrap(),
+                item["limit"].as_u64().unwrap() as usize,
+            );
             assert_eq!(shown, item["shown"].as_str().unwrap(), "{item}");
             assert_eq!(left as u64, item["left"].as_u64().unwrap(), "{item}");
         }
@@ -882,32 +993,59 @@ mod tests {
                 for (key, value) in map {
                     picked.insert(
                         key.parse().unwrap(),
-                        value.as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as usize).collect(),
+                        value
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|v| v.as_u64().unwrap() as usize)
+                            .collect(),
                     );
                 }
             }
-            let message = ask(&p, &s, item["session"]["name"].as_str().unwrap_or(""), item["hideCode"].as_bool().unwrap_or(false), &picked);
+            let message = ask(
+                &p,
+                &s,
+                item["session"]["name"].as_str().unwrap_or(""),
+                item["hideCode"].as_bool().unwrap_or(false),
+                &picked,
+            );
             if let Some(text) = item["text"].as_str() {
                 assert_eq!(message.text, text, "{name}");
             }
             for part in item["contains"].as_array().into_iter().flatten() {
-                assert!(message.text.contains(part.as_str().unwrap()), "{name}: {}", message.text);
+                assert!(
+                    message.text.contains(part.as_str().unwrap()),
+                    "{name}: {}",
+                    message.text
+                );
             }
             if let Some(most) = item["maxLength"].as_u64() {
                 assert!(utf16_len(&message.text) as u64 <= most, "{name}");
             }
             if let Some(expected) = item["buttons"].as_array() {
-                let titles: Vec<Vec<String>> = message.buttons.iter().map(|r| r.iter().map(|b| b.title.clone()).collect()).collect();
+                let titles: Vec<Vec<String>> = message
+                    .buttons
+                    .iter()
+                    .map(|r| r.iter().map(|b| b.title.clone()).collect())
+                    .collect();
                 let expected: Vec<Vec<String>> = expected
                     .iter()
-                    .map(|r| r.as_array().unwrap().iter().map(|t| t.as_str().unwrap().to_owned()).collect())
+                    .map(|r| {
+                        r.as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|t| t.as_str().unwrap().to_owned())
+                            .collect()
+                    })
                     .collect();
                 assert_eq!(titles, expected, "{name}");
             }
             if let Some(expected) = item["answers"].as_object() {
                 let got = answers(&p, &picked, &BTreeMap::new()).unwrap();
-                let want: BTreeMap<String, Vec<String>> =
-                    expected.iter().map(|(k, v)| (k.clone(), serde_json::from_value(v.clone()).unwrap())).collect();
+                let want: BTreeMap<String, Vec<String>> = expected
+                    .iter()
+                    .map(|(k, v)| (k.clone(), serde_json::from_value(v.clone()).unwrap()))
+                    .collect();
                 assert_eq!(got, want, "{name}");
             }
         }
@@ -923,14 +1061,19 @@ mod tests {
                 "denied" => Outcome::Denied,
                 "planApproved" => Outcome::PlanApproved(item["mode"].as_str().map(Into::into)),
                 "keptPlanning" => Outcome::KeptPlanning,
-                "answered" => Outcome::Answered(serde_json::from_value(item["answers"].clone()).unwrap()),
+                "answered" => {
+                    Outcome::Answered(serde_json::from_value(item["answers"].clone()).unwrap())
+                }
                 "skipped" => Outcome::Skipped,
                 "answeredElsewhere" => Outcome::AnsweredElsewhere,
                 "gone" => Outcome::Gone,
                 "changed" => Outcome::Changed,
                 _ => Outcome::Failed,
             };
-            assert_eq!(outcome(&o, item["minute"].as_u64().unwrap() as u32), item["expect"].as_str().unwrap());
+            assert_eq!(
+                outcome(&o, item["minute"].as_u64().unwrap() as u32),
+                item["expect"].as_str().unwrap()
+            );
         }
         for item in cases["ended"].as_array().unwrap() {
             let end = match item["kind"].as_str().unwrap() {
@@ -938,8 +1081,17 @@ mod tests {
                 "limit" => End::Limit,
                 _ => End::Finished,
             };
-            let s = session(&item["session"], vec![], item["lastText"].as_str().map(Into::into));
-            let got = ended(end, &s, item["session"]["name"].as_str().unwrap_or(""), item["hideCode"].as_bool().unwrap());
+            let s = session(
+                &item["session"],
+                vec![],
+                item["lastText"].as_str().map(Into::into),
+            );
+            let got = ended(
+                end,
+                &s,
+                item["session"]["name"].as_str().unwrap_or(""),
+                item["hideCode"].as_bool().unwrap(),
+            );
             assert_eq!(got.text, item["expect"].as_str().unwrap());
             assert!(got.buttons.is_empty());
         }
@@ -947,8 +1099,10 @@ mod tests {
 
     #[test]
     fn settings_come_from_the_prefs() {
-        let s = Settings::from_prefs(&json!({"sessions": {"phoneEnabled": true, "phoneAwayMinutes": 0,
-            "phoneQuietFrom": 99999, "phoneHideCode": true}}));
+        let s = Settings::from_prefs(
+            &json!({"sessions": {"phoneEnabled": true, "phoneAwayMinutes": 0,
+            "phoneQuietFrom": 99999, "phoneHideCode": true}}),
+        );
         assert!(s.enabled && s.hide_code && s.tell_ends);
         assert_eq!(s.away_minutes, 1, "at least a minute");
         assert_eq!(s.quiet_from, 24 * 60 - 1);

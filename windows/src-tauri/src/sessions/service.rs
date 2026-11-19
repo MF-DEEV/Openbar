@@ -1491,7 +1491,8 @@ impl Service {
                         .cloned()
                 })
         };
-        let entry = crate::phone::answers::PhoneAnswer::new(asked.as_ref(), request, &decision, now());
+        let entry =
+            crate::phone::answers::PhoneAnswer::new(asked.as_ref(), request, &decision, now());
         let sent = self.answer_inspected(session, request, decision, revision, None, Origin::Phone);
         if sent {
             crate::phone::answers::LOG.add(entry, session);
@@ -1529,7 +1530,9 @@ impl Service {
                 };
                 if p.request_id != request
                     || (!matches!(decision, Decision::Deny | Decision::Answer(_))
-                        && !inner.inspection.allows_from(session, p, revision, token, origin))
+                        && !inner
+                            .inspection
+                            .allows_from(session, p, revision, token, origin))
                 {
                     return false;
                 }
@@ -1639,7 +1642,9 @@ impl Service {
         };
         if p.request_id != request
             || (!matches!(decision, Decision::Deny | Decision::Answer(_))
-                && !inner.inspection.allows_from(session, p, revision, token, origin))
+                && !inner
+                    .inspection
+                    .allows_from(session, p, revision, token, origin))
         {
             return false;
         }

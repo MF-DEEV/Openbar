@@ -22,7 +22,10 @@ pub fn read(identifier: &str) -> Option<String> {
         let mut found: *mut CREDENTIALW = std::ptr::null_mut();
         CredReadW(&target, CRED_TYPE_GENERIC, None, &mut found).ok()?;
         let credential = &*found;
-        let bytes = std::slice::from_raw_parts(credential.CredentialBlob, credential.CredentialBlobSize as usize);
+        let bytes = std::slice::from_raw_parts(
+            credential.CredentialBlob,
+            credential.CredentialBlobSize as usize,
+        );
         let token = String::from_utf8(bytes.to_vec()).ok();
         CredFree(found as *const _);
         token
@@ -34,7 +37,10 @@ pub fn write(identifier: &str, token: &str) -> bool {
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();
-    let mut user: Vec<u16> = "telegram-bot".encode_utf16().chain(std::iter::once(0)).collect();
+    let mut user: Vec<u16> = "telegram-bot"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
     let mut blob = token.as_bytes().to_vec();
     let credential = CREDENTIALW {
         Flags: CRED_FLAGS(0),

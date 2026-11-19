@@ -18,7 +18,11 @@ const DEFAULT_BASE: &str = "https://api.telegram.org";
 fn base() -> String {
     let base = std::env::var("OPENBAR_TELEGRAM_API").unwrap_or_default();
     let base = base.trim().trim_end_matches('/');
-    if base.is_empty() { DEFAULT_BASE.to_owned() } else { base.to_owned() }
+    if base.is_empty() {
+        DEFAULT_BASE.to_owned()
+    } else {
+        base.to_owned()
+    }
 }
 
 pub struct Telegram;
@@ -63,7 +67,12 @@ impl Transport for Client {
             // A malformed token answers Not Found.
             401 | 404 => Failure::Unauthorized,
             409 => Failure::Conflict,
-            429 => Failure::TooMany(json["parameters"]["retry_after"].as_u64().unwrap_or(5).clamp(1, 600)),
+            429 => Failure::TooMany(
+                json["parameters"]["retry_after"]
+                    .as_u64()
+                    .unwrap_or(5)
+                    .clamp(1, 600),
+            ),
             400..=499 => Failure::Refused(json["description"].as_str().unwrap_or("").to_owned()),
             _ => Failure::Network,
         })

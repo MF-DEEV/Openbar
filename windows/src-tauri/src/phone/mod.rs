@@ -61,7 +61,13 @@ mod host {
     }
 
     impl Host for AppHost {
-        fn decide(&self, session: &str, request: &str, decision: Decision, revision: Option<&str>) -> bool {
+        fn decide(
+            &self,
+            session: &str,
+            request: &str,
+            decision: Decision,
+            revision: Option<&str>,
+        ) -> bool {
             self.app
                 .try_state::<crate::sessions::service::Shared>()
                 .is_some_and(|s| s.phone_decide(session, request, decision, revision))
@@ -90,7 +96,10 @@ mod host {
             crate::sessions::service::now()
         }
         fn computer(&self) -> String {
-            std::env::var("COMPUTERNAME").ok().filter(|n| !n.is_empty()).unwrap_or_else(|| "this PC".into())
+            std::env::var("COMPUTERNAME")
+                .ok()
+                .filter(|n| !n.is_empty())
+                .unwrap_or_else(|| "this PC".into())
         }
         fn changed(&self, status: &Status) {
             let _ = self.app.emit("phone://status", status);
@@ -113,7 +122,10 @@ mod host {
         fn set_enabled(&self, on: bool) {
             let app = self.app.clone();
             std::thread::spawn(move || {
-                let _ = crate::prefs::save_patch(&app, serde_json::json!({"sessions": {"phoneEnabled": on}}));
+                let _ = crate::prefs::save_patch(
+                    &app,
+                    serde_json::json!({"sessions": {"phoneEnabled": on}}),
+                );
             });
         }
         fn qr(&self, text: &str) -> Option<String> {
@@ -143,7 +155,11 @@ pub fn start(app: AppHandle<Wry>) {
             .unwrap_or_default();
         let token = secret::read(&identifier);
         let settings = SETTINGS.lock().unwrap().clone().unwrap_or_default();
-        let host = Arc::new(host::AppHost { app, identifier, store });
+        let host = Arc::new(host::AppHost {
+            app,
+            identifier,
+            store,
+        });
         let bridge = Bridge::new(host, Arc::new(telegram::Telegram), stored, token, settings);
         if BRIDGE.set(bridge.clone()).is_ok() {
             bridge.start();
@@ -156,8 +172,12 @@ pub fn start(app: AppHandle<Wry>) {
 /// Runs a step that may make or drop the HTTP client off the async runtime,
 /// where the blocking client must not be dropped.
 async fn blocking(step: impl FnOnce(&Bridge) -> Status + Send + 'static) -> Status {
-    let Some(bridge) = BRIDGE.get().cloned() else { return Status::default() };
-    tauri::async_runtime::spawn_blocking(move || step(&bridge)).await.unwrap_or_default()
+    let Some(bridge) = BRIDGE.get().cloned() else {
+        return Status::default();
+    };
+    tauri::async_runtime::spawn_blocking(move || step(&bridge))
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]

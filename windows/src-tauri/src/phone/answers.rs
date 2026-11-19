@@ -37,7 +37,12 @@ pub struct PhoneAnswer {
 }
 
 impl PhoneAnswer {
-    pub fn new(permission: Option<&Permission>, request: &str, decision: &Decision, at: Time) -> Self {
+    pub fn new(
+        permission: Option<&Permission>,
+        request: &str,
+        decision: &Decision,
+        at: Time,
+    ) -> Self {
         let plan = permission.is_some_and(|p| p.tool == super::messages::PLAN_TOOL);
         let question = permission.is_some_and(|p| !p.questions.is_empty());
         let verdict = match decision {
@@ -69,7 +74,9 @@ impl Log {
     pub const KEPT: usize = 30;
 
     pub const fn new() -> Self {
-        Self { entries: Mutex::new(BTreeMap::new()) }
+        Self {
+            entries: Mutex::new(BTreeMap::new()),
+        }
     }
 
     pub fn add(&self, entry: PhoneAnswer, session: &str) {
@@ -93,10 +100,9 @@ impl Log {
 
     /// Forgets sessions no longer listed, once a while passed since their last entry.
     pub fn prune(&self, listed: &HashSet<String>, now: Time) {
-        self.entries
-            .lock()
-            .unwrap()
-            .retain(|id, list| listed.contains(id) || list.last().is_some_and(|e| now - e.at < 600.0));
+        self.entries.lock().unwrap().retain(|id, list| {
+            listed.contains(id) || list.last().is_some_and(|e| now - e.at < 600.0)
+        });
     }
 }
 
@@ -113,16 +119,29 @@ mod tests {
         let bash = Permission::new("b", "Bash", Some("ls"), true, 0.0);
         let plan = Permission::new("p", "ExitPlanMode", None, false, 0.0);
         let mut question = Permission::new("q", "AskUserQuestion", None, false, 0.0);
-        question.questions = vec![Question { question: "Q?".into(), header: None, options: vec![], multi_select: false }];
+        question.questions = vec![Question {
+            question: "Q?".into(),
+            header: None,
+            options: vec![],
+            multi_select: false,
+        }];
         let cases = [
             (Some(&bash), Decision::Allow, Verdict::Allowed),
             (Some(&bash), Decision::AllowAlways, Verdict::Always),
             (Some(&bash), Decision::Deny, Verdict::Denied),
             (Some(&plan), Decision::Allow, Verdict::PlanApproved),
-            (Some(&plan), Decision::ApprovePlan(PlanMode::Auto), Verdict::PlanApproved),
+            (
+                Some(&plan),
+                Decision::ApprovePlan(PlanMode::Auto),
+                Verdict::PlanApproved,
+            ),
             (Some(&plan), Decision::Deny, Verdict::KeptPlanning),
             (Some(&question), Decision::Deny, Verdict::Skipped),
-            (Some(&question), Decision::Answer(BTreeMap::new()), Verdict::Answered),
+            (
+                Some(&question),
+                Decision::Answer(BTreeMap::new()),
+                Verdict::Answered,
+            ),
             (None, Decision::Deny, Verdict::Denied),
         ];
         for (p, decision, verdict) in cases {
