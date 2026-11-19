@@ -219,6 +219,13 @@ struct Inner {
     proxied: HashMap<String, u32>,
     /// The agents whose sessions the list shows.
     hidden_agents: HashSet<models::Provider>,
+    /// The Claude app's switches: its Code tab's sessions shown, Cowork's
+    /// files read, and what Cowork last listed (#246).
+    claude_desktop_shown: bool,
+    cowork_read: bool,
+    cowork: super::claude_desktop::Cowork,
+    cowork_rows: Vec<models::Session>,
+    cowork_events: Vec<models::SessionEvent>,
     branches: HashMap<String, (Option<String>, Time)>,
     /// Each local session's checkout, read again every few seconds (#233).
     heads: HashMap<String, (hook_agents::Head, Time)>,
@@ -311,6 +318,11 @@ impl Service {
                 listeners: HashMap::new(),
                 proxied: HashMap::new(),
                 hidden_agents: HashSet::new(),
+                claude_desktop_shown: true,
+                cowork_read: false,
+                cowork: Default::default(),
+                cowork_rows: Vec::new(),
+                cowork_events: Vec::new(),
                 branches: HashMap::new(),
                 heads: HashMap::new(),
                 engine: Engine::new(ContentPolicy::default()),
@@ -445,6 +457,14 @@ impl Service {
                 record.accepts_replies = true;
                 continue;
             }
+            // The Claude app's Code tab runs it: the app shows it, and has no
+            // terminal to type a reply into (#246).
+            if super::claude_desktop::is_code_tab(record.entrypoint.as_deref()) {
+                record.host = HostKind::App;
+                record.accepts_replies = false;
+                record.host_name = Some(super::claude_desktop::NAME.to_owned());
+                continue;
+            }
             let located = inner
                 .hosts
                 .entry(record.pid)
@@ -501,6 +521,7 @@ impl Service {
         if inner.ticks % 5 == 1 {
             inner.hooks_installed = hooks::claude_hooks_status_installed();
         }
+        Self::read_cowork(&mut inner, t);
         self.release_stale_hooks(&mut inner, t);
         self.publish(&mut inner, t)
     }
@@ -889,8 +910,45 @@ impl Service {
         self.codex_clients().into_iter().find(|c| c.owns(session))
     }
 
+    /// Reads Cowork's session files while its switch is on: every tick
+    /// while one of its sessions works or waits, otherwise every few (#246).
+    fn read_cowork(inner: &mut Inner, t: Time) {
+        if !inner.cowork_read || !inner.claude_desktop_shown {
+            return;
+        }
+        let busy = inner
+            .cowork_rows
+            .iter()
+            .any(|s| s.phase.is_active() || s.phase.is_waiting());
+        if !busy && inner.ticks % 3 != 1 {
+            return;
+        }
+        let policy = inner.engine.policy();
+        let (rows, events) = inner.cowork.scan(
+            &super::claude_desktop::cowork_folders(),
+            t,
+            policy,
+            super::claude_desktop::is_running(),
+        );
+        inner.cowork_rows = rows;
+        inner.cowork_events.extend(events);
+    }
+
     fn publish(&self, inner: &mut Inner, t: Time) -> bool {
         let mut snapshot = inner.engine.snapshot(t);
+        // The Code tab's sessions follow the Claude app's switch (#246).
+        if !inner.claude_desktop_shown {
+            let hidden: HashSet<String> = snapshot
+                .sessions
+                .iter()
+                .filter(|s| s.origin == Some(super::claude_desktop::Origin::Desktop))
+                .map(|s| s.id.clone())
+                .collect();
+            snapshot.sessions.retain(|s| !hidden.contains(&s.id));
+            snapshot.events.retain(|e| !hidden.contains(event_id(e)));
+        }
+        snapshot.sessions.extend(inner.cowork_rows.iter().cloned());
+        snapshot.events.append(&mut inner.cowork_events);
         if let Some(home) = hooks::installer::home_dir() {
             for session in &mut snapshot.sessions {
                 inner.agent_colors.decorate(session, &home, t);
@@ -1301,6 +1359,18 @@ impl Service {
         else {
             return;
         };
+        // With the Claude app's switch off, its Code tab's sessions are left
+        // to the app, which asks there as it would without the island (#246).
+        if !inner.claude_desktop_shown
+            && super::claude_desktop::is_code_tab(
+                inner
+                    .engine
+                    .record(&message.fact.session_id)
+                    .and_then(|r| r.entrypoint.as_deref()),
+            )
+        {
+            return;
+        }
         let mut connection = Some(connection);
         // A session that runs without asking is never held (#234): its tool
         // goes ahead now, and its page lists it.
@@ -1588,6 +1658,7 @@ impl Service {
             codex.acknowledge(session, t);
         }
         inner.hook_agents.acknowledge(session, t);
+        inner.cowork.acknowledge(session, t);
         inner.engine.acknowledge(session, t);
         self.publish(&mut inner, t);
     }
@@ -1601,6 +1672,13 @@ impl Service {
         inner.engine.set_policy(ContentPolicy { previews: on });
         if !on {
             inner.hook_agents.purge_content();
+            inner.cowork.purge_content();
+            for row in &mut inner.cowork_rows {
+                row.title = None;
+                row.last_text = None;
+                row.chat.clear();
+                row.name = row.project.clone();
+            }
         }
         if on {
             // Read everything again to fill in what was skipped.
@@ -1798,6 +1876,24 @@ impl Service {
     }
 
     /// Hides or shows each hook agent's sessions, as Settings say.
+    /// The Claude app's two switches (#246): its Code tab's sessions, and
+    /// reading Cowork's files, off until turned on.
+    pub fn set_claude_desktop(&self, shown: bool, cowork: bool) {
+        let mut inner = self.inner.lock().unwrap();
+        if inner.claude_desktop_shown == shown && inner.cowork_read == cowork {
+            return;
+        }
+        inner.claude_desktop_shown = shown;
+        inner.cowork_read = cowork;
+        if !shown || !cowork {
+            inner.cowork_rows.clear();
+            inner.cowork_events.clear();
+            let _ = inner.cowork.scan(&[], 0.0, ContentPolicy::default(), false);
+        }
+        let t = now();
+        self.publish(&mut inner, t);
+    }
+
     pub fn set_hidden_agents(&self, hidden: HashSet<models::Provider>) {
         let mut inner = self.inner.lock().unwrap();
         if inner.hidden_agents == hidden {
@@ -1870,6 +1966,27 @@ impl Service {
     }
 
     fn open_found(&self, session: &str) -> bool {
+        let desktop = {
+            let inner = self.inner.lock().unwrap();
+            inner
+                .sessions
+                .iter()
+                .find(|s| s.id == session && s.origin.is_some())
+                .cloned()
+        };
+        if let Some(found) = desktop {
+            // The Claude app shows it; no terminal does (#246).
+            let link = super::claude_desktop::app_session_id(
+                &found,
+                &super::claude_desktop::data_folders_here(),
+            )
+            .and_then(|id| super::claude_desktop::link(&id));
+            let ok = super::claude_desktop::open(link.as_deref());
+            if ok {
+                self.acknowledge(session);
+            }
+            return ok;
+        }
         if let Some((link, pid)) = self.remote_target(session) {
             // Its pane comes forward in the host's tmux; no window here shows it.
             let ok = link.focus(pid, session);
@@ -3374,6 +3491,12 @@ pub async fn sessions_open(
         .map_err(|_| ())
 }
 
+/// Whether the Claude app is on this PC, for its switches in Settings (#246).
+#[tauri::command]
+pub fn sessions_claude_desktop_installed() -> bool {
+    super::claude_desktop::is_installed()
+}
+
 /// Attaches a session's detached tmux or zellij in a new terminal window.
 #[tauri::command]
 pub async fn sessions_attach(
@@ -3533,5 +3656,14 @@ mod auto_mode_tests {
             allowable(&vibe, "per_1").is_some(),
             "Vibe's approvals held by its proxy"
         );
+    }
+}
+
+/// The session an event is about.
+fn event_id(event: &models::SessionEvent) -> &str {
+    match event {
+        models::SessionEvent::NeedsPermission { id, .. }
+        | models::SessionEvent::NeedsInput { id }
+        | models::SessionEvent::Finished { id, .. } => id,
     }
 }

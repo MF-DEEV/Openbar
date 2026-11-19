@@ -206,6 +206,9 @@ pub struct SessionRecord {
     pub job: Option<String>,
     /// The SSH alias of the host it runs on, for one on another machine.
     pub remote: Option<String>,
+    /// What started it, as Claude Code names it: `cli` for a terminal,
+    /// `claude-desktop` for the Claude app's Code tab (#246).
+    pub entrypoint: Option<String>,
 }
 
 impl SessionRecord {
@@ -767,6 +770,9 @@ pub struct Session {
     /// (#236): a Codex session from a second Codex home, not Codex's server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub via: Option<String>,
+    /// The Claude app runs it, in its Code tab or Cowork, not a terminal (#246).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<super::claude_desktop::Origin>,
 }
 
 impl Session {
@@ -1530,6 +1536,7 @@ mod tests {
             let_through: Vec::new(),
             via: None,
             later_asks: Vec::new(),
+            origin: None,
         }
     }
 

@@ -124,6 +124,7 @@ struct NotchClaudeSessionDetailView: View {
                 }
                 HStack(spacing: 6) {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
+                    if let origin = session.origin { NotchClaudeOriginBadge(origin: origin, text: text) }
                     if let multiplexer = session.host.multiplexer {
                         NotchMultiplexerBadge(name: multiplexer, text: text, detached: detachedLine != nil)
                     }
@@ -564,7 +565,7 @@ struct NotchClaudeSessionPermissionCard: View {
                     .disabled(blocked)
                 }
             } else {
-                Text(text.answerIn(session.provider)).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                Text(text.answerIn(session)).font(.system(size: 10.5)).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 NotchClaudeDecisionButton(title: text.open, symbol: "arrow.up.forward.app", role: .secondary, action: open)
             }

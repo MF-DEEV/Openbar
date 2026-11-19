@@ -83,6 +83,9 @@ struct ClaudeSessionRecord: Equatable {
     var job: String? = nil
     /// The config folder its record was found in.
     var configHome: String? = nil
+    /// What started it, as Claude Code names it: `cli` for a terminal,
+    /// `claude-desktop` for the Claude app's Code tab (#246).
+    var entrypoint: String? = nil
 
     static let permissionPrompt = "permission prompt"
     /// Any dialog in the terminal, including one the person opened, like
@@ -538,6 +541,8 @@ struct ClaudeSession: Equatable, Identifiable {
     /// It runs in its agent's no-ask mode: bypass permissions, Codex with
     /// approvals off (#234).
     var autoMode = false
+    /// The Claude app runs it, in its Code tab or Cowork, not a terminal (#246).
+    var origin: ClaudeSessionOrigin? = nil
     /// Permissions the island allowed without asking, newest last (#234).
     var letThrough: [ClaudeLetThrough] = []
 

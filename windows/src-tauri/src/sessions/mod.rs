@@ -15,6 +15,7 @@ pub mod agent_colors;
 pub mod attachments;
 pub mod auto_mode;
 pub mod background;
+pub mod claude_desktop;
 pub mod codex;
 pub mod engine;
 pub mod file_diff;

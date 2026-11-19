@@ -77,6 +77,7 @@ enum ClaudeSessionRegistryReader {
             started: (json["procStart"] as? String).flatMap(procStart) ?? milliseconds(json["startedAt"]),
             version: json["version"] as? String ?? "")
         record.nameSource = json["nameSource"] as? String
+        record.entrypoint = (json["entrypoint"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         if ClaudeBackgroundJobs.isBackground(kind: json["kind"] as? String) {
             // The job's short id starts the session's id, should a record not name it.
             record.job = (json["jobId"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? String(session.prefix(8))

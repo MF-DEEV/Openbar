@@ -921,6 +921,10 @@ enum DefaultsKey {
     static let notchSessionsAgentCursor = "notchSessionsAgentCursor"
     static let notchSessionsAgentAntigravity = "notchSessionsAgentAntigravity"
     static let notchSessionsAgentGrok = "notchSessionsAgentGrok"
+    /// The Claude app's Code tab sessions in the list (#246).
+    static let notchSessionsClaudeDesktop = "notchSessionsClaudeDesktop"
+    /// Cowork's sessions, read from the Claude app's files; off until turned on (#246).
+    static let notchSessionsClaudeCowork = "notchSessionsClaudeCowork"
     /// Names given to Claude Code sessions in the island, by session.
     static let notchSessionsNames = "notchSessionsNames"
     /// Each session and subagent shows a Clawd in a costume of its own.
@@ -1631,6 +1635,8 @@ enum Defaults {
         DefaultsKey.notchSessionsAgentCursor: true,
         DefaultsKey.notchSessionsAgentAntigravity: true,
         DefaultsKey.notchSessionsAgentGrok: true,
+        DefaultsKey.notchSessionsClaudeDesktop: true,
+        DefaultsKey.notchSessionsClaudeCowork: false,
         DefaultsKey.notchSessionsLargeTextSize: 15.0,
         DefaultsKey.notchSessionsSidebarHidden: false,
         DefaultsKey.notchSessionsBuddies: true,

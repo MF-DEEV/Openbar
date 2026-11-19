@@ -242,6 +242,10 @@ struct NotchClaudeSessionsSettingsControls: View {
                 NotchSessionsAgentSettingsRow(provider: provider, text: text)
                     .padding(.leading, settingsRowTextInset)
             }
+            if ClaudeDesktop.isInstalled() {
+                NotchSessionsClaudeDesktopSettings(text: text)
+                    .padding(.leading, settingsRowTextInset)
+            }
         }
     }
 
@@ -314,6 +318,52 @@ struct NotchClaudeSessionsSettingsControls: View {
 
 /// One agent's row: its mark and name, and the switch that shows its
 /// sessions and keeps its hooks in. Where its hooks stand is on the Hooks page.
+/// The Claude app's two switches (#246): its Code tab's sessions, heard
+/// through Claude Code's hooks, and Cowork's, read from its files only once
+/// turned on.
+struct NotchSessionsClaudeDesktopSettings: View {
+    let text: NotchClaudeSessionStrings
+    @ObservedObject private var service = ClaudeSessionService.shared
+    @AppStorage(DefaultsKey.notchSessionsClaudeDesktop) private var codeTab = true
+    @AppStorage(DefaultsKey.notchSessionsClaudeCowork) private var cowork = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                NotchSessionAgentGlyph(provider: .claude, size: 12, working: false)
+                    .frame(width: 18, height: 18)
+                Text(text.claudeDesktopTitle)
+                    .font(.callout)
+                    .fixedSize()
+                Spacer(minLength: 8)
+            }
+            toggle(text.claudeDesktopCodeTab, hint: text.claudeDesktopCodeTabHint, isOn: $codeTab)
+            toggle(text.claudeDesktopCowork, hint: text.claudeDesktopCoworkHint, isOn: $cowork)
+                .disabled(!codeTab)
+                .opacity(codeTab ? 1 : 0.6)
+        }
+    }
+
+    private func toggle(_ title: String, hint: String, isOn: Binding<Bool>) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.callout)
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Toggle(title, isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .onChange(of: isOn.wrappedValue) { _, _ in service.syncWithPreferences() }
+        }
+        .padding(.leading, 26)
+    }
+}
+
 struct NotchSessionsAgentSettingsRow: View {
     let provider: ClaudeSessionProvider
     let text: NotchClaudeSessionStrings

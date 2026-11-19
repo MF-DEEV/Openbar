@@ -176,6 +176,13 @@ final class ClaudeSessionService: ObservableObject {
     /// Gemini CLI's, Copilot CLI's, OpenCode's and Cursor's sessions, from
     /// their hooks and plugin. Queue.
     private let hookAgents = AgentHookSessions()
+    /// Cowork's sessions in the Claude app, read from its files while their
+    /// switch is on (#246). Queue.
+    private let cowork = ClaudeCoworkSessions()
+    private var coworkRows: (sessions: [ClaudeSession], events: [ClaudeSessionEvent]) = ([], [])
+    /// The Claude app's switches: its Code tab's sessions shown, Cowork's read. Queue.
+    private var desktopShown = true
+    private var coworkRead = false
     private let branches = AgentGitBranch()
     /// OpenCode permission requests whose plugin waits for the island's answer.
     private var agentPending: [String: (connection: ClaudeHookServer.Connection, session: String, since: Date)] = [:]
@@ -227,10 +234,15 @@ final class ClaudeSessionService: ObservableObject {
         SessionAutoMode.shared.settings = SessionAutoMode.Settings(defaults: .standard)
         let policy = NotchClaudeSessionsSupport.policy()
         let agents = NotchClaudeSessionsSupport.shownAgents()
+        let desktop = NotchClaudeSessionsSupport.showsClaudeDesktop()
+        let coworkOn = NotchClaudeSessionsSupport.readsCowork()
         guard NotchClaudeSessionsSupport.isEnabled() else { stop(); return }
         queue.async { [self] in
-            if shownAgents != agents {
+            if shownAgents != agents || desktopShown != desktop || coworkRead != coworkOn {
                 shownAgents = agents
+                desktopShown = desktop
+                coworkRead = coworkOn
+                if !coworkOn || !desktop { coworkRows = ([], []); _ = cowork.scan([], now: Date(), previews: false, running: false) }
                 publish(now: Date())
             }
             if engine.policy != policy {
@@ -243,6 +255,7 @@ final class ClaudeSessionService: ObservableObject {
                 } else {
                     ClaudeChatImage.forget()
                     hookAgents.purgeContent()
+                    cowork.purgeContent()
                 }
                 for key in readers.keys { readers[key]?.reader.policy = policy }
                 for key in remoteTails.keys { remoteTails[key]?.reader.policy = policy }
@@ -427,6 +440,7 @@ final class ClaudeSessionService: ObservableObject {
     func acknowledge(_ id: String) {
         queue.async { [self] in
             hookAgents.acknowledge(id, now: Date())
+            cowork.acknowledge(id, now: Date())
             codexClients.forEach { $0.acknowledge(id, now: Date()) }
             engine.acknowledge(id, now: Date())
             publish(now: Date())
@@ -1400,6 +1414,11 @@ final class ClaudeSessionService: ObservableObject {
         }
         // A remote session's transcript is on its host, read through its connection.
         let remote = isRemotePeer(connection.peer)
+        // With the Claude app's switch off, its Code tab's sessions are left
+        // to the app, which asks there as it would without the island (#246).
+        if !remote, !desktopShown, ClaudeDesktop.isCodeTab(entrypoint: engine.record(message.fact.sessionID)?.entrypoint) {
+            return connection.finish()
+        }
         if !remote, let transcript = message.transcript, !transcript.isEmpty { transcripts[message.fact.sessionID] = transcript }
         let session = message.fact.sessionID
         if let permission = message.letsThrough,
@@ -1731,6 +1750,13 @@ final class ClaudeSessionService: ObservableObject {
             }
             return
         }
+        if session.origin != nil {
+            // The Claude app shows it; no terminal does (#246).
+            return actions.async {
+                let opened = ClaudeDesktop.open(session)
+                DispatchQueue.main.async { completion(opened ? .opened : .missing) }
+            }
+        }
         let homes = ClaudeSessionRegistryReader.homes(home)
         let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
         actions.async {
@@ -1935,6 +1961,12 @@ final class ClaudeSessionService: ObservableObject {
                 records[index].host = .background(job: job)
                 continue
             }
+            // The Claude app's Code tab runs it: the app shows it, whatever
+            // its environment says of a terminal (#246).
+            if ClaudeDesktop.isCodeTab(entrypoint: records[index].entrypoint) {
+                records[index].host = .app(ClaudeDesktop.bundle)
+                continue
+            }
             if hosts[pid] == nil { hosts[pid] = ClaudeSessionHosts.host(of: pid) }
             records[index].host = hosts[pid] ?? .unknown
         }
@@ -1956,10 +1988,22 @@ final class ClaudeSessionService: ObservableObject {
             }
         }
         transcripts = transcripts.filter { ids.contains($0.key) }
+        readCowork(now: now)
         releaseSettled(now: now)
         publish(now: now)
         let active = published.contains { $0.phase.isActive || $0.phase.isWaiting }
         schedule(active ? Self.activeTick : Self.quietTick)
+    }
+
+    /// Reads Cowork's session files while its switch is on: every tick while
+    /// one of its sessions works or waits, otherwise every few (#246).
+    private func readCowork(now: Date) {
+        guard coworkRead, desktopShown else { return }
+        let busy = coworkRows.sessions.contains { $0.phase.isActive || $0.phase.isWaiting }
+        guard busy || ticks % Self.sideFilesEvery == 1 else { return }
+        let found = cowork.scan(ClaudeDesktop.coworkFolders(home: home), now: now, previews: engine.policy.previews,
+                                running: ClaudeDesktop.isRunning())
+        coworkRows = (found.sessions, coworkRows.events + found.events)
     }
 
     private func sessionID(ofReader path: String) -> String {
@@ -2034,7 +2078,11 @@ final class ClaudeSessionService: ObservableObject {
 
     private func publish(now: Date) {
         let snapshot = engine.snapshot(now: now)
-        let claude = snapshot.sessions.map { agentColors.decorate($0, now: now) }
+        // The Code tab's sessions follow the Claude app's switch (#246).
+        let claude = snapshot.sessions.filter { desktopShown || $0.origin != .desktop }
+            .map { agentColors.decorate($0, now: now) }
+        let fromCowork = coworkRows
+        coworkRows.events = []
         let fromCodex = codex?.snapshot(now: now, previews: engine.policy.previews) ?? (sessions: [], events: [])
         var codexSessions = fromCodex.sessions.map { session in
             placed(session, others: fromCodex.sessions.filter { $0.id != session.id }.map(\.cwd))
@@ -2053,7 +2101,7 @@ final class ClaudeSessionService: ObservableObject {
         }, branch: { [self] folder in branches.branch(of: folder, now: now) })
         let agentSessions = fromAgents.sessions.filter { shownAgents.contains($0.provider) }
         let sorted = SessionAutoMode.log.decorate(NotchClaudeSessionsSupport.sorted(
-            withBackground(claude, now: now) + codexSessions + agentSessions + (sample.map { [$0] } ?? [])
+            withBackground(claude, now: now) + codexSessions + agentSessions + fromCowork.sessions + (sample.map { [$0] } ?? [])
         ).map { withLiveBranch($0, now: now) })
         let assessed = risks.assess(sorted, now: now)
         inspection.retain(assessed)
@@ -2062,7 +2110,9 @@ final class ClaudeSessionService: ObservableObject {
         let allowed = autoAllow.sessions
         let hidden = Set(assessed.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }
             .map(\.id))
-        let events = (snapshot.events + codexEvents + fromAgents.events)
+        let hiddenDesktop = desktopShown ? [] : Set(snapshot.sessions.filter { $0.origin == .desktop }.map(\.id))
+        let events = (snapshot.events.filter { !hiddenDesktop.contains(Self.eventID($0)) }
+                      + codexEvents + fromAgents.events + fromCowork.events)
             .filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) } + sampleEvents
         sampleEvents = []
         let changed = shown != published || allowed != publishedAutoAllow
@@ -2095,6 +2145,12 @@ final class ClaudeSessionService: ObservableObject {
                 }
             }
             events.forEach(self.events.send)
+        }
+    }
+
+    static func eventID(_ event: ClaudeSessionEvent) -> String {
+        switch event {
+        case .needsPermission(let id, _), .needsInput(let id), .finished(let id, _): return id
         }
     }
 
