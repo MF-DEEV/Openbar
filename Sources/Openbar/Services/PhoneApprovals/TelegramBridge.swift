@@ -92,8 +92,7 @@ final class TelegramBridge: ObservableObject {
         settings = PhoneSettings.load()
         link = PhoneLink.load()
         bot = UserDefaults.standard.string(forKey: DefaultsKey.notchSessionsPhoneBot)
-        if token == nil, link != nil || settings.enabled { token = KeychainSecret.read(Self.tokenName) }
-        if let token { api = TelegramAPI(token: token) }
+        if token == nil, link != nil || settings.enabled { loadToken() }
         ClaudeSessionService.shared.$sessions
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in MainActor.assumeIsolated { self?.sync() } }
@@ -110,9 +109,41 @@ final class TelegramBridge: ObservableObject {
         }
         // Away comes without an event: input just stops. A look now and then
         // sends what waits once the minutes have passed.
+        // Settings written from outside the app (an import) are read then too.
         timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.sync() }
+            MainActor.assumeIsolated {
+                self?.settingsChanged()
+                self?.sync()
+            }
         }
+        Self.log.notice("phone approvals started: enabled \(self.settings.enabled, privacy: .public), linked \(self.link != nil, privacy: .public)")
+        listen()
+        sync()
+    }
+
+    /// Reads the bot's token off the main thread: the keychain may ask the
+    /// person first (an app whose signature changed), and the island must
+    /// not freeze while it does.
+    private func loadToken() {
+        #if OPENBAR_DEVELOPMENT
+        // Development builds only: a stand-in bot's token for tests against
+        // a stand-in Bot API, which never reaches the keychain.
+        if let test = ProcessInfo.processInfo.environment["OPENBAR_TELEGRAM_TEST_TOKEN"], TelegramAPI.validToken(test) {
+            return tokenLoaded(test)
+        }
+        #endif
+        let name = Self.tokenName
+        Task.detached(priority: .utility) {
+            let token = KeychainSecret.read(name)
+            await MainActor.run { TelegramBridge.shared.tokenLoaded(token) }
+        }
+    }
+
+    private func tokenLoaded(_ token: String?) {
+        guard let token, self.token == nil else { return }
+        self.token = token
+        api = TelegramAPI(token: token)
+        Self.log.notice("phone approvals: the bot's token is ready")
         listen()
         sync()
     }
@@ -154,7 +185,12 @@ final class TelegramBridge: ObservableObject {
         do {
             let me = try await api.call("getMe") as? [String: Any]
             guard let name = me?["username"] as? String, !name.isEmpty else { throw TelegramAPI.Failure.unauthorized }
-            guard KeychainSecret.write(token, Self.tokenName, label: PhoneApprovalStrings.keychainLabel) else {
+            let item = Self.tokenName
+            let label = PhoneApprovalStrings.keychainLabel
+            let saved = await Task.detached(priority: .userInitiated) {
+                KeychainSecret.write(token, item, label: label)
+            }.value
+            guard saved else {
                 problem = PhoneApprovalStrings.keychainFailed
                 return
             }
@@ -198,7 +234,8 @@ final class TelegramBridge: ObservableObject {
         api?.close()
         api = nil
         token = nil
-        KeychainSecret.delete(Self.tokenName)
+        let name = Self.tokenName
+        Task.detached(priority: .userInitiated) { KeychainSecret.delete(name) }
         PhoneLink.clear()
         UserDefaults.standard.set(false, forKey: DefaultsKey.notchSessionsPhoneEnabled)
         link = nil
@@ -232,7 +269,27 @@ final class TelegramBridge: ObservableObject {
         let generation = pollGeneration
         poll = Task { [weak self] in
             var backoff: TimeInterval = 2
+            // Taps and messages sent while nothing listened (Openbar closed,
+            // or phone approvals switched off) are dropped, never acted on later.
+            var drained = false
             while !Task.isCancelled {
+                if !drained {
+                    guard let self, self.listens else { break }
+                    do {
+                        let last = try await api.call("getUpdates", ["offset": -1, "timeout": 0])
+                        if let id = (last as? [[String: Any]])?.last.flatMap({ Self.int($0["update_id"]) }) {
+                            self.offset = max(self.offset, id + 1)
+                        }
+                        drained = true
+                    } catch TelegramAPI.Failure.unauthorized {
+                        self.problem = PhoneApprovalStrings.revoked
+                        break
+                    } catch {
+                        try? await Task.sleep(for: .seconds(backoff))
+                        backoff = min(backoff * 2, 60)
+                        continue
+                    }
+                }
                 guard let self, self.listens else { break }
                 do {
                     let result = try await api.call("getUpdates", ["offset": self.offset, "timeout": 50,
@@ -245,6 +302,7 @@ final class TelegramBridge: ObservableObject {
                         self.handle(update)
                     }
                 } catch TelegramAPI.Failure.unauthorized {
+                    Self.log.error("the bot's token was refused")
                     self.problem = PhoneApprovalStrings.revoked
                     break
                 } catch TelegramAPI.Failure.conflict {
@@ -253,6 +311,7 @@ final class TelegramBridge: ObservableObject {
                 } catch TelegramAPI.Failure.tooMany(let wait) {
                     try? await Task.sleep(for: .seconds(wait))
                 } catch {
+                    Self.log.error("reading updates failed: \(String(describing: error), privacy: .public)")
                     if (error as? TelegramAPI.Failure) == .network { self.problem = PhoneApprovalStrings.offline }
                     try? await Task.sleep(for: .seconds(backoff))
                     backoff = min(backoff * 2, 60)
@@ -476,7 +535,10 @@ final class TelegramBridge: ObservableObject {
         var current: Set<String> = []
         for session in sessions {
             guard let event = NotchSessionWaitingSound.terminal(session) else { continue }
-            let id = "\(session.id)\u{1}\(event.kind.rawValue)\u{1}\(event.id)"
+            // One message a turn: the turn's end time can still move a
+            // moment as the hooks and the transcript catch up.
+            let turn = session.turnStarted.map { String($0.timeIntervalSince1970) } ?? event.id
+            let id = "\(session.id)\u{1}\(turn)"
             current.insert(id)
             guard endsReady, away, !ends.contains(id) else { continue }
             let message = PhoneMessages.ended(event.kind, of: session, name: service.displayName(session), hideCode: settings.hideCode)
