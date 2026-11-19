@@ -46,14 +46,48 @@ pub fn is_code_tab(entrypoint: Option<&str>) -> bool {
     entrypoint.is_some_and(|e| e == "claude-desktop" || e.starts_with("claude-desktop-"))
 }
 
-/// The link that shows a Code tab session in the app, the way `/desktop`
-/// hands one over from a terminal. Cowork has none to one session.
-pub fn link(session: &Session) -> Option<String> {
-    let id = &session.id;
-    (session.origin == Some(Origin::Desktop)
-        && (8..=64).contains(&id.len())
-        && id.chars().all(|c| c.is_ascii_hexdigit() || c == '-'))
-    .then(|| format!("claude://resume?session={id}"))
+/// The app's own id for a session: Cowork's is its file's name; a Code tab
+/// session's is found by its Claude Code id in the record the app keeps of
+/// it, `claude-code-sessions/<account>/<org>/local_<id>.json`.
+pub fn app_session_id(session: &Session, data: &[PathBuf]) -> Option<String> {
+    match session.origin? {
+        Origin::Cowork => session.id.strip_prefix(PREFIX).map(str::to_owned),
+        Origin::Desktop => {
+            let folders: Vec<PathBuf> = data
+                .iter()
+                .map(|f| f.join("claude-code-sessions"))
+                .collect();
+            session_files(&folders).into_iter().find_map(|file| {
+                let bytes = fs::read(&file).ok().filter(|b| b.len() < 4 << 20)?;
+                let Value::Object(json) = serde_json::from_slice::<Value>(&bytes).ok()? else {
+                    return None;
+                };
+                (json.get("cliSessionId").and_then(Value::as_str) == Some(session.id.as_str()))
+                    .then(|| {
+                        json.get("sessionId")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned)
+                            .or_else(|| file.file_stem().map(|s| s.to_string_lossy().into_owned()))
+                    })?
+            })
+        }
+    }
+}
+
+/// The link that shows one session in the app (Claude Desktop 6):
+/// `claude://code/needs-input?session=local_<id>` finds a Code tab or a
+/// Cowork session by the app's id for it. (`claude://resume` would import a
+/// Code tab session a second time.)
+pub fn link(app_id: &str) -> Option<String> {
+    let rest = app_id.strip_prefix("local_")?;
+    ((1..=64).contains(&rest.len()) && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+        .then(|| format!("claude://code/needs-input?session={app_id}"))
+}
+
+pub fn data_folders_here() -> Vec<PathBuf> {
+    let app_data = std::env::var_os("APPDATA").map(PathBuf::from);
+    let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    data_folders(app_data.as_deref(), local.as_deref())
 }
 
 /// The app's data folders: `%APPDATA%\Claude` when signed in,
@@ -78,9 +112,7 @@ pub fn data_folders(app_data: Option<&Path>, local_app_data: Option<&Path>) -> V
 }
 
 pub fn cowork_folders() -> Vec<PathBuf> {
-    let app_data = std::env::var_os("APPDATA").map(PathBuf::from);
-    let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
-    data_folders(app_data.as_deref(), local.as_deref())
+    data_folders_here()
         .into_iter()
         .map(|folder| folder.join("local-agent-mode-sessions"))
         .collect()
@@ -177,6 +209,9 @@ pub struct LogState {
     pub last_text: Option<String>,
     pub chat: Vec<ChatMessage>,
     next_chat: i64,
+    /// The prompt that opened the turn, until the model answers: the app
+    /// logs it again as the session replays it.
+    opening_prompt: Option<String>,
 }
 
 impl LogState {
@@ -186,6 +221,7 @@ impl LogState {
 
     fn purge_content(&mut self) {
         self.last_text = None;
+        self.opening_prompt = None;
         self.chat.clear();
         for tool in &mut self.tools {
             tool.summary = None;
@@ -220,7 +256,11 @@ impl LogState {
         if text.is_empty() || text.starts_with('<') {
             return;
         }
+        if self.turn_open && self.opening_prompt.as_deref() == Some(text) {
+            return;
+        }
         self.begin(at);
+        self.opening_prompt = Some(text.to_owned());
         if previews {
             self.say(text, ChatRole::User, at);
         }
@@ -321,6 +361,7 @@ impl LogState {
                 if !self.turn_open {
                     self.begin(at);
                 }
+                self.opening_prompt = None;
                 if let Some(model) =
                     text(message.get("model")).filter(|m| !m.is_empty() && m != "<synthetic>")
                 {
@@ -474,7 +515,53 @@ fn is_absolute(path: &str) -> bool {
         || (path.len() > 2 && path.as_bytes()[1] == b':')
 }
 
-/// The `local_<id>.json` files under the folders, never inside a session's own folder.
+/// Folders beside the sessions that hold none: the app's plugins and skills,
+/// memory and usage.
+const SKIPPED: [&str; 7] = [
+    "skills-plugin",
+    "plugin-cache",
+    "memory",
+    "usage-ledger",
+    "outputs",
+    "uploads",
+    "uploads-tmp",
+];
+
+/// What the folder of the session `local_<uuid>.json` may be called: the
+/// first part of its id (Claude Desktop 6), its whole id, or the file's name.
+pub fn folder_names(file: &str) -> Vec<String> {
+    let name = file.strip_suffix(".json").unwrap_or(file);
+    let id = name.strip_prefix("local_").unwrap_or(name);
+    let mut names = Vec::new();
+    if let Some(first) = id.split('-').next() {
+        names.push(first.to_owned());
+    }
+    names.push(id.to_owned());
+    names.push(name.to_owned());
+    names.retain(|n| !n.is_empty());
+    names
+}
+
+/// The session's `audit.jsonl`, in whichever of its folders exists.
+pub fn log_of(file: &Path) -> PathBuf {
+    let parent = file.parent().unwrap_or(Path::new(""));
+    let name = file
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let candidates: Vec<PathBuf> = folder_names(&name)
+        .into_iter()
+        .map(|n| parent.join(n).join("audit.jsonl"))
+        .collect();
+    candidates
+        .iter()
+        .find(|c| c.is_file())
+        .cloned()
+        .unwrap_or_else(|| candidates.first().cloned().unwrap_or_default())
+}
+
+/// The `local_<id>.json` files under the folders. A session's own folder,
+/// which holds the person's files, is never gone into.
 pub fn session_files(folders: &[PathBuf]) -> Vec<PathBuf> {
     fn walk(folder: &Path, depth: usize, found: &mut Vec<PathBuf>) {
         if depth > 4 {
@@ -491,6 +578,11 @@ pub fn session_files(folders: &[PathBuf]) -> Vec<PathBuf> {
             })
             .collect();
         names.sort();
+        let sessions: HashSet<String> = names
+            .iter()
+            .filter(|(name, _, dir)| !dir && name.starts_with("local_") && name.ends_with(".json"))
+            .flat_map(|(name, _, _)| folder_names(name))
+            .collect();
         for (name, path, dir) in names {
             if name.starts_with("local_") {
                 if !dir && name.ends_with(".json") {
@@ -498,7 +590,12 @@ pub fn session_files(folders: &[PathBuf]) -> Vec<PathBuf> {
                 }
                 continue;
             }
-            if dir && !name.starts_with('.') && name != "skills-plugin" {
+            if dir
+                && !name.starts_with('.')
+                && !SKIPPED.contains(&name.as_str())
+                && !sessions.contains(&name)
+                && !path.join("audit.jsonl").is_file()
+            {
                 walk(&path, depth + 1, found);
             }
         }
@@ -565,12 +662,15 @@ impl Cowork {
                     ..Meta::default()
                 },
                 meta_stamp: None,
-                log: file.with_extension("").join("audit.jsonl"),
+                log: log_of(&file),
                 offset: 0,
                 state: LogState::default(),
                 acknowledged: None,
                 previews: false,
             });
+            if !entry.log.is_file() {
+                entry.log = log_of(&file);
+            }
             if entry.meta_stamp != stamp
                 && let Ok(data) = fs::read(&file)
                 && data.len() < 4 << 20
@@ -727,7 +827,7 @@ fn session(
     let project = folder
         .as_deref()
         .map(project_name)
-        .unwrap_or_else(|| "Cowork".to_owned());
+        .unwrap_or_else(|| NAME.to_owned());
     let mut timeline: Vec<ToolUse> = state
         .tools
         .iter()
@@ -849,6 +949,21 @@ mod tests {
         )
     }
 
+    fn rows_for_lookup(id: &str, origin: Origin) -> Session {
+        let entry = Entry {
+            meta: Meta::default(),
+            meta_stamp: None,
+            log: PathBuf::new(),
+            offset: 0,
+            state: LogState::default(),
+            acknowledged: None,
+            previews: false,
+        };
+        let mut row = session(&entry, id.to_owned(), SessionPhase::Idle, 0.0, 0.0, false);
+        row.origin = Some(origin);
+        row
+    }
+
     fn prompt() -> Value {
         json!({"type": "user", "message": {"role": "user", "content": "tidy the downloads folder"}, "parent_tool_use_id": null})
     }
@@ -898,6 +1013,15 @@ mod tests {
         assert!(!is_app_path(
             r"C:\Users\me\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\claude.exe"
         ));
+        assert_eq!(
+            link("local_6e026cc1-16ac-406b-b936-9a5d3079ceb0").as_deref(),
+            Some("claude://code/needs-input?session=local_6e026cc1-16ac-406b-b936-9a5d3079ceb0")
+        );
+        assert!(link("x&y=1").is_none() && link("local_a b").is_none() && link("local_").is_none());
+        assert_eq!(
+            folder_names("local_2e916da8-c9eb.json"),
+            ["2e916da8", "2e916da8-c9eb", "local_2e916da8-c9eb"]
+        );
         let folders = data_folders(Some(Path::new("R")), Some(Path::new("L")));
         assert!(folders.contains(&Path::new("R").join("Claude")));
         assert!(folders.contains(&Path::new("L").join("Claude-3p")));
@@ -915,7 +1039,11 @@ mod tests {
             T0,
         );
         state.apply(&line(prompt(), T0 + 1.0), true, T0);
+        // The app logs the prompt again as the session replays it.
+        state.apply(&line(prompt(), T0 + 1.5), true, T0);
         assert!(state.turn_open);
+        assert_eq!(state.chat.len(), 1);
+        assert_eq!(state.turn_started, Some(T0 + 1.0));
         assert_eq!(state.model.as_deref(), Some("claude-opus-5-5"));
         assert_eq!(phase(&state, None, T0 + 2.0), SessionPhase::Generating);
         state.apply(&line(tool_call(), T0 + 2.0), true, T0);
@@ -1004,7 +1132,15 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         let sessions_root = root.join("local-agent-mode-sessions");
         let org = sessions_root.join("acct").join("org");
-        fs::create_dir_all(org.join("local_aaa").join(".claude")).unwrap();
+        // Claude Desktop 6 names a session's folder after the first part of its id.
+        fs::create_dir_all(org.join("aaa").join(".claude")).unwrap();
+        // The person's files in a session's folder are never looked through.
+        fs::create_dir_all(org.join("aaa").join("outputs")).unwrap();
+        fs::write(
+            org.join("aaa").join("outputs").join("local_trap.json"),
+            b"{}",
+        )
+        .unwrap();
         fs::create_dir_all(sessions_root.join("skills-plugin").join("x")).unwrap();
         let live = super::super::service::now();
         let write_meta = |id: &str, title: &str, archived: bool, activity: Time| {
@@ -1021,7 +1157,7 @@ mod tests {
         write_meta("local_aaa", "Tidy downloads", false, live);
         write_meta("local_old", "Old one", false, live - 3.0 * 3600.0);
         write_meta("local_arch", "Archived", true, live);
-        let audit = org.join("local_aaa").join("audit.jsonl");
+        let audit = org.join("aaa").join("audit.jsonl");
         let mut body = Vec::new();
         for (index, value) in [prompt(), tool_call(), ask()].into_iter().enumerate() {
             body.extend(line(value, live + index as f64));
@@ -1101,6 +1237,31 @@ mod tests {
                 .is_empty()
         );
         assert!(meta(b"[]", "x").is_none());
+
+        // Open finds a Code tab session's app id in the record the app keeps.
+        let data = root.join("Claude-3p");
+        let records = data
+            .join("claude-code-sessions")
+            .join("6887b3a4")
+            .join("00000000");
+        fs::create_dir_all(&records).unwrap();
+        fs::write(
+            records.join("local_6e026cc1.json"),
+            br#"{"sessionId":"local_6e026cc1","cliSessionId":"af54c630-f416","cwd":"C:\\w"}"#,
+        )
+        .unwrap();
+        let mut code = rows_for_lookup("af54c630-f416", Origin::Desktop);
+        assert_eq!(
+            app_session_id(&code, std::slice::from_ref(&data)).as_deref(),
+            Some("local_6e026cc1")
+        );
+        code.id = "0000".into();
+        assert!(app_session_id(&code, std::slice::from_ref(&data)).is_none());
+        let cowork_row = rows_for_lookup("cowork:local_2e916da8", Origin::Cowork);
+        assert_eq!(
+            app_session_id(&cowork_row, &[]).as_deref(),
+            Some("local_2e916da8")
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

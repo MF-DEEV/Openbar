@@ -1972,10 +1972,15 @@ impl Service {
                 .sessions
                 .iter()
                 .find(|s| s.id == session && s.origin.is_some())
-                .map(super::claude_desktop::link)
+                .cloned()
         };
-        if let Some(link) = desktop {
+        if let Some(found) = desktop {
             // The Claude app shows it; no terminal does (#246).
+            let link = super::claude_desktop::app_session_id(
+                &found,
+                &super::claude_desktop::data_folders_here(),
+            )
+            .and_then(|id| super::claude_desktop::link(&id));
             let ok = super::claude_desktop::open(link.as_deref());
             if ok {
                 self.acknowledge(session);

@@ -47,16 +47,33 @@ enum ClaudeDesktopTests {
                      "a Code tab session is Claude's, from the app, waiting as its record says: \(String(describing: fromApp))")
         suite.expect(sessions.first { $0.id == "b2" }?.origin == nil, "a terminal's has no origin")
 
-        var session = fromApp!
-        suite.expect(ClaudeDesktop.link(for: session)?.absoluteString == "claude://resume?session=af54c630-f416-4921-8550-0efb82f376da",
-                     "Open asks the app for the session by its id")
-        session.origin = .cowork
-        suite.expect(ClaudeDesktop.link(for: session) == nil, "Cowork has no link to one session")
-        var odd = fromApp!
-        odd = ClaudeSession(id: "x&y=1", pid: 1, cwd: "/", project: "p", name: "n", host: .unknown, phase: .idle,
-                            phaseSince: now, timeline: [], subagents: [], tokens: AgentTokens(), cost: 0, hooked: true)
-        odd.origin = .desktop
-        suite.expect(ClaudeDesktop.link(for: odd) == nil, "an id that isn't one is never put in a link")
+        // Open finds the app's own id: Cowork's from its row, a Code tab
+        // session's from the record the app keeps (Claude Desktop 6.6395.1).
+        let home = FileManager.default.temporaryDirectory.appending(path: "ob-desk-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let records = home.appending(path: "Library/Application Support/Claude-3p/claude-code-sessions/6887b3a4/00000000")
+        try? FileManager.default.createDirectory(at: records, withIntermediateDirectories: true)
+        let appRecord = #"{"sessionId":"local_6e026cc1-16ac-406b-b936-9a5d3079ceb0","cliSessionId":"af54c630-f416-4921-8550-0efb82f376da","cwd":"/w"}"#
+        try? Data(appRecord.utf8).write(to: records.appending(path: "local_6e026cc1-16ac-406b-b936-9a5d3079ceb0.json"))
+        let id = ClaudeDesktop.appSessionID(for: fromApp!, home: home)
+        suite.expect(id == "local_6e026cc1-16ac-406b-b936-9a5d3079ceb0", "a Code tab session's app id comes from the app's record: \(String(describing: id))")
+        suite.expect(ClaudeDesktop.link(appSessionID: id!)?.absoluteString
+                     == "claude://code/needs-input?session=local_6e026cc1-16ac-406b-b936-9a5d3079ceb0",
+                     "Open asks the app for that session")
+        var cowork = fromApp!
+        cowork = ClaudeSession(id: "cowork:local_2e916da8-c9eb-4a3e-950a-4c60718a196f", pid: 0, cwd: "", project: "p", name: "n",
+                               host: .app(ClaudeDesktop.bundle), phase: .idle, phaseSince: now, timeline: [], subagents: [],
+                               tokens: AgentTokens(), cost: 0, hooked: false)
+        cowork.origin = .cowork
+        suite.expect(ClaudeDesktop.appSessionID(for: cowork, home: home) == "local_2e916da8-c9eb-4a3e-950a-4c60718a196f",
+                     "a Cowork row carries its app id")
+        var unknown = fromApp!
+        unknown = ClaudeSession(id: "0000", pid: 1, cwd: "/", project: "p", name: "n", host: .unknown, phase: .idle,
+                                phaseSince: now, timeline: [], subagents: [], tokens: AgentTokens(), cost: 0, hooked: true)
+        unknown.origin = .desktop
+        suite.expect(ClaudeDesktop.appSessionID(for: unknown, home: home) == nil, "a session the app has no record of has no link")
+        suite.expect(ClaudeDesktop.link(appSessionID: "x&y=1") == nil && ClaudeDesktop.link(appSessionID: "local_a b") == nil,
+                     "an id that isn't one is never put in a link")
     }
 
     // MARK: Cowork log
@@ -92,8 +109,11 @@ enum ClaudeDesktopTests {
         var state = ClaudeCoworkLog.State()
         ClaudeCoworkLog.apply(line(["type": "system", "subtype": "init", "model": "claude-opus-5-5"], at: 0), to: &state, previews: true)
         ClaudeCoworkLog.apply(line(prompt, at: 1), to: &state, previews: true)
-        suite.expect(state.turnOpen && state.model == "claude-opus-5-5" && state.chat.map(\.text) == ["tidy the downloads folder"],
-                     "a prompt opens a turn; init names the model")
+        // The app logs the prompt again as the session replays it (Claude Desktop 6.6395.1).
+        ClaudeCoworkLog.apply(line(prompt, at: 1.5), to: &state, previews: true)
+        suite.expect(state.turnOpen && state.model == "claude-opus-5-5" && state.chat.map(\.text) == ["tidy the downloads folder"]
+                     && state.turnStarted == now.addingTimeInterval(1),
+                     "a prompt opens a turn once, replayed or not; init names the model: \(state.chat.map(\.text))")
         suite.expect(ClaudeCoworkSessions.phase(state, acknowledged: nil, now: now.addingTimeInterval(2)) == .generating,
                      "the turn works")
         ClaudeCoworkLog.apply(line(toolCall, at: 2), to: &state, previews: true)
@@ -180,10 +200,14 @@ enum ClaudeDesktopTests {
         let root = FileManager.default.temporaryDirectory.appending(path: "ob-cowork-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let org = root.appending(path: "local-agent-mode-sessions/acct-1/org-1")
-        let sessionDir = org.appending(path: "local_aaa")
+        // Claude Desktop 6 names a session's folder after the first part of its id.
+        let sessionDir = org.appending(path: "aaa")
         try? FileManager.default.createDirectory(at: sessionDir.appending(path: ".claude"), withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: root.appending(path: "local-agent-mode-sessions/skills-plugin/x"),
                                                  withIntermediateDirectories: true)
+        // The person's files in a session's folder are never looked through.
+        try? FileManager.default.createDirectory(at: sessionDir.appending(path: "outputs"), withIntermediateDirectories: true)
+        try? Data("{}".utf8).write(to: sessionDir.appending(path: "outputs/local_trap.json"))
         let live = Date()
         func writeMeta(_ id: String, title: String, archived: Bool = false, activity: Date = live) {
             let json: [String: Any] = ["sessionId": id, "cliSessionId": "cli-\(id)", "cwd": "/sessions/brave-owl",

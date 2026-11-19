@@ -53,19 +53,38 @@ enum ClaudeDesktop {
         !NSRunningApplication.runningApplications(withBundleIdentifier: bundle).isEmpty
     }
 
-    /// The link that shows the session in the app. The Code tab opens a
-    /// Claude Code session by its id with `claude://resume?session=`, the way
-    /// `/desktop` hands one over from a terminal; Cowork has no link to one
-    /// session, so the app comes forward.
-    static func link(for session: ClaudeSession) -> URL? {
-        guard session.origin == .desktop,
-              session.id.range(of: #"^[0-9a-fA-F-]{8,64}$"#, options: .regularExpression) != nil else { return nil }
-        return URL(string: "claude://resume?session=\(session.id)")
+    /// The app's own id for a session: Cowork's is its file's name; a Code
+    /// tab session's is found by its Claude Code id in the record the app
+    /// keeps of it, `claude-code-sessions/<account>/<org>/local_<id>.json`.
+    static func appSessionID(for session: ClaudeSession, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String? {
+        switch session.origin {
+        case .cowork?: return String(session.id.dropFirst(ClaudeCoworkSessions.prefix.count))
+        case .desktop?:
+            let folders = dataFolders(home: home).map { $0.appending(path: "claude-code-sessions", directoryHint: .isDirectory) }
+            for file in ClaudeCoworkSessions.sessionFiles(in: folders) {
+                guard let data = try? Data(contentsOf: file), data.count < 4 << 20,
+                      let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                      json["cliSessionId"] as? String == session.id else { continue }
+                return (json["sessionId"] as? String) ?? file.deletingPathExtension().lastPathComponent
+            }
+            return nil
+        case nil: return nil
+        }
+    }
+
+    /// The link that shows one session in the app (Claude Desktop 6):
+    /// `claude://code/needs-input?session=local_<id>` finds a Code tab or a
+    /// Cowork session by the app's id for it. (`claude://resume` would import
+    /// a Code tab session a second time.)
+    static func link(appSessionID id: String) -> URL? {
+        guard id.range(of: #"^local_[A-Za-z0-9-]{1,64}$"#, options: .regularExpression) != nil else { return nil }
+        return URL(string: "claude://code/needs-input?session=\(id)")
     }
 
     /// Brings the session's app forward, at the session when the app takes a link to it.
     static func open(_ session: ClaudeSession) -> Bool {
-        if let link = link(for: session), NSWorkspace.shared.urlForApplication(toOpen: link) != nil {
+        if let link = appSessionID(for: session).flatMap(link(appSessionID:)),
+           NSWorkspace.shared.urlForApplication(toOpen: link) != nil {
             NSWorkspace.shared.open(link)
             return true
         }
@@ -133,7 +152,10 @@ final class ClaudeCoworkSessions {
             let id = ((file.path as NSString).lastPathComponent as NSString).deletingPathExtension
             guard seen.insert(id).inserted else { continue }
             let stamp = Self.modified(file.path)
-            var entry = entries[id] ?? Entry(meta: Meta(id: id), log: file.deletingPathExtension().appending(path: "audit.jsonl").path)
+            if let known = entries[id], !FileManager.default.fileExists(atPath: known.log) {
+                entries[id]?.log = Self.log(of: file)
+            }
+            var entry = entries[id] ?? Entry(meta: Meta(id: id), log: Self.log(of: file))
             if entry.metaStamp != stamp, let data = try? Data(contentsOf: file), data.count < 4 << 20,
                let meta = Self.meta(data, id: id) {
                 entry.meta = meta
@@ -202,7 +224,7 @@ final class ClaudeCoworkSessions {
     static func session(_ entry: Entry, phase: ClaudeSessionPhase, since: Date, heard: Date, previews: Bool) -> ClaudeSession {
         let state = entry.state
         let folder = entry.meta.folder
-        let project = folder.map(AgentLogParser.projectName) ?? "Cowork"
+        let project = folder.map(AgentLogParser.projectName) ?? ClaudeDesktop.name
         var timeline = Array(state.tools.suffix(timelineLength))
         if !previews { for index in timeline.indices { timeline[index].summary = nil } }
         var open = state.openTool
@@ -241,25 +263,46 @@ final class ClaudeCoworkSessions {
 
     // MARK: Files
 
+    /// Folders beside the sessions that hold none: the app's plugins and
+    /// skills, memory and usage.
+    static let skipped: Set<String> = ["skills-plugin", "plugin-cache", "memory", "usage-ledger", "outputs", "uploads", "uploads-tmp"]
+
     /// The `local_<id>.json` files under the folders: `<account>/<org>/`,
     /// and one level below for the kinds the app files apart. A session's
-    /// own folder is never gone into.
+    /// own folder, which holds the person's files, is never gone into.
     static func sessionFiles(in folders: [URL]) -> [URL] {
         var found: [URL] = []
         func walk(_ folder: URL, depth: Int) {
             guard depth <= 4, let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return }
+            let sessions = Set(names.filter { $0.hasPrefix("local_") && $0.hasSuffix(".json") }.flatMap(folderNames))
             for name in names.sorted() {
                 let url = folder.appending(path: name)
                 if name.hasPrefix("local_") {
                     if name.hasSuffix(".json") { found.append(url) }
                     continue
                 }
-                guard !name.hasPrefix("."), name != "skills-plugin", isFolder(url.path) else { continue }
+                guard !name.hasPrefix("."), !skipped.contains(name), !sessions.contains(name), isFolder(url.path),
+                      !FileManager.default.fileExists(atPath: url.appending(path: "audit.jsonl").path) else { continue }
                 walk(url, depth: depth + 1)
             }
         }
         folders.forEach { walk($0, depth: 0) }
         return found
+    }
+
+    /// What the folder of the session `local_<uuid>.json` may be called: the
+    /// first part of its id (Claude Desktop 6), its whole id, or the file's name.
+    static func folderNames(_ file: String) -> [String] {
+        let name = file.hasSuffix(".json") ? String(file.dropLast(5)) : file
+        let id = name.hasPrefix("local_") ? String(name.dropFirst(6)) : name
+        return [id.split(separator: "-").first.map(String.init), id, name].compactMap { $0 }.filter { !$0.isEmpty }
+    }
+
+    /// The session's `audit.jsonl`, in whichever of its folders exists.
+    static func log(of file: URL) -> String {
+        let parent = file.deletingLastPathComponent()
+        let candidates = folderNames(file.lastPathComponent).map { parent.appending(path: $0).appending(path: "audit.jsonl").path }
+        return candidates.first { FileManager.default.fileExists(atPath: $0) } ?? candidates[0]
     }
 
     static func meta(_ data: Data, id: String) -> Meta? {
@@ -350,6 +393,9 @@ enum ClaudeCoworkLog {
         var lastText: String?
         var chat: [ClaudeChatMessage] = []
         private var nextChat = 0
+        /// The prompt that opened the turn, until the model answers: the app
+        /// logs it again as the session replays it.
+        var openingPrompt: Int?
 
         var openTool: ClaudeToolUse? { tools.last { $0.isRunning } }
 
@@ -410,6 +456,7 @@ enum ClaudeCoworkLog {
         case "assistant":
             guard let message = json["message"] as? [String: Any], !subagent else { return }
             if !state.turnOpen { begin(at: at, in: &state) }
+            state.openingPrompt = nil
             if let model = message["model"] as? String, !model.isEmpty, model != "<synthetic>" { state.model = model }
             for block in message["content"] as? [[String: Any]] ?? [] {
                 switch block["type"] as? String {
@@ -445,7 +492,9 @@ enum ClaudeCoworkLog {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         // Reminders and command output the app adds come wrapped in tags.
         guard !trimmed.isEmpty, !trimmed.hasPrefix("<") else { return }
+        if state.turnOpen, state.openingPrompt == trimmed.hashValue { return }
         begin(at: date, in: &state)
+        state.openingPrompt = trimmed.hashValue
         if previews { state.say(trimmed, as: .user, at: date) }
     }
 
