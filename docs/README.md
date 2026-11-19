@@ -129,7 +129,7 @@ Then turn on Sessions as the [README](../README.md#install) describes.
 ## Private by default
 
 > [!IMPORTANT]
-> Nothing leaves your machine. Prompts, replies and commands stay hidden until you turn on **Show previews**, and even then they're kept in memory only. With the app closed, your agents ask in the terminal as usual. See [everything the app reads and writes](PRIVACY.md).
+> Nothing leaves your machine, unless you link a Telegram bot for [phone approvals](phone-approvals.md), which is off until you do. Prompts, replies and commands stay hidden until you turn on **Show previews**, and even then they're kept in memory only. With the app closed, your agents ask in the terminal as usual. See [everything the app reads and writes](PRIVACY.md).
 
 ## Guides
 
@@ -145,5 +145,6 @@ Then turn on Sessions as the [README](../README.md#install) describes.
 | [Session worktrees](session-worktrees.md) | A git worktree for each session started from New session |
 | [Terminals](terminal-hosts.md) | Every terminal and editor replies reach |
 | [Remote hosts](remote-hosts.md) | Sessions on machines reached over SSH |
+| [Phone approvals](phone-approvals.md) | Allow, deny and reply from Telegram while you're away |
 | [Windows](../windows/README.md) | The Windows island, installer and build |
 | [Linux](../windows/docs/linux.md) | The island under X11 and Wayland: the build and what works |

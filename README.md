@@ -56,7 +56,7 @@
 - A reply you type or speak lands in the session's own terminal or editor.
 - Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Cursor, Pi, Mistral Vibe, Devin CLI, Google Antigravity and Grok CLI share one list.
 - Each session you start from the island gets its own git worktree.
-- Nothing leaves your machine ([privacy](docs/PRIVACY.md)).
+- Nothing leaves your machine, unless you turn on phone approvals through Telegram ([privacy](docs/PRIVACY.md)).
 - A menu bar toolkit comes with it: a volume mixer, a system monitor, clipboard history and more.
 
 ## Install
