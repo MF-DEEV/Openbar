@@ -376,7 +376,8 @@ final class ClaudeSessionEngine {
             background: record.job.map { ClaudeBackgroundDetails(job: $0, configHome: record.configHome) },
             limitStop: phase == .limited ? entry.limit : nil,
             account: record.host.remoteAlias == nil ? record.configHome : nil,
-            autoMode: SessionAutoMode.isAuto(claudeMode: entry.mode?.value))
+            autoMode: SessionAutoMode.isAuto(claudeMode: entry.mode?.value),
+            origin: record.host.remoteAlias == nil && ClaudeDesktop.isCodeTab(entrypoint: record.entrypoint) ? .desktop : nil)
     }
 
     // MARK: Rules

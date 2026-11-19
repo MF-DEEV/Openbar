@@ -306,6 +306,28 @@ struct NotchClaudeAccountBadge: View {
     }
 }
 
+/// The Claude app's Code tab or Cowork, beside the name of a session it
+/// runs, so it never passes for one in a terminal (#246).
+struct NotchClaudeOriginBadge: View {
+    let origin: ClaudeSessionOrigin
+    let text: NotchClaudeSessionStrings
+    var size: CGFloat = 9.5
+
+    var body: some View {
+        Label(text.originBadge(origin), systemImage: origin == .cowork ? "folder" : "macwindow")
+            .labelStyle(NotchClaudeSessionInlineLabel())
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.78))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(.white.opacity(0.1), in: Capsule())
+            .help(text.originHelp(origin))
+            .accessibilityLabel(text.originHelp(origin))
+    }
+}
+
 /// The tmux or zellij a session's pane belongs to, beside its name (#235).
 struct NotchMultiplexerBadge: View {
     let name: String

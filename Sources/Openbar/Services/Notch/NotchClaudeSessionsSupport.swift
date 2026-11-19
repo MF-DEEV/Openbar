@@ -48,6 +48,16 @@ enum NotchClaudeSessionsSupport {
         })
     }
 
+    /// Whether the Claude app's Code tab sessions are listed (#246).
+    static func showsClaudeDesktop(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchSessionsClaudeDesktop) as? Bool ?? true
+    }
+
+    /// Whether Cowork's session files are read: off until the person turns it on (#246).
+    static func readsCowork(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchSessionsClaudeCowork) as? Bool ?? false
+    }
+
     static func showsBuddies(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: DefaultsKey.notchSessionsBuddies) as? Bool ?? true
     }

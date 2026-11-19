@@ -361,11 +361,19 @@ struct NotchClaudeSessionStrings {
         provider.reportsThroughHooks ? String(format: answerInAgentFormat, provider.displayName) : answerInTerminal
     }
 
+    /// Where a session's request the island can't answer is answered: the
+    /// Claude app for its own sessions (#246).
+    func answerIn(_ session: ClaudeSession) -> String {
+        session.origin != nil ? String(format: answerInAgentFormat, ClaudeDesktop.name) : answerIn(session.provider)
+    }
+
     /// The reply field of a session replies can't reach.
     func replyUnavailable(for session: ClaudeSession) -> String {
         if session.provider == .cursor || session.provider == .antigravity {
             return String(format: replyInAgentFormat, session.provider.displayName)
         }
+        // The Claude app has no terminal to type into (#246).
+        if session.origin != nil { return String(format: replyInAgentFormat, ClaudeDesktop.name) }
         return replyUnavailable(for: session.host)
     }
 
@@ -666,6 +674,20 @@ extension NotchClaudeSessionStrings {
     }
 
     var answerInAgentFormat: String { "Answer this one in %@." }
+    /// The Claude app's two kinds of session, named on their rows (#246).
+    func originBadge(_ origin: ClaudeSessionOrigin) -> String { origin == .cowork ? "Cowork" : "Desktop" }
+    func originHelp(_ origin: ClaudeSessionOrigin) -> String {
+        origin == .cowork ? "A Cowork session in Claude Desktop" : "A session in Claude Desktop’s Code tab"
+    }
+    var claudeDesktopTitle: String { "Claude Desktop" }
+    var claudeDesktopCodeTab: String { "Code tab sessions" }
+    var claudeDesktopCodeTabHint: String {
+        "Sessions from Claude Desktop’s Code tab, with a Desktop label. They come in through Claude Code’s hooks, so permissions can be answered in the island."
+    }
+    var claudeDesktopCowork: String { "Read Cowork sessions" }
+    var claudeDesktopCoworkHint: String {
+        "Reads the session files Claude Desktop keeps for Cowork, without changing them, to list sessions active in the last few minutes. Cowork asks and takes replies in Claude Desktop only."
+    }
     var replyInAgentFormat: String { "Reply in %@" }
     var agentHooksOutdated: String { "Needs an update" }
     var tryAgain: String { "Try Again" }
