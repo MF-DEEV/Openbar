@@ -513,6 +513,16 @@ enum AgentHookMessage {
         }
     }
 
+    /// What a ZCode session's folder is called. A task started in ZCode's
+    /// app without a project runs in a folder of the app's own,
+    /// `~/.zcode/workspace/default` or `draft-<id>`, named for nobody.
+    static func zcodeProject(_ cwd: String) -> String {
+        let parts = cwd.split(separator: "/")
+        if parts.count >= 3, parts[parts.count - 3] == ".zcode", parts[parts.count - 2] == "workspace" { return zcodeTask }
+        return AgentLogParser.projectName(cwd)
+    }
+    static let zcodeTask = "ZCode task"
+
     /// The model ZCode names as `provider/model`, without the provider.
     static func zcodeModel(_ named: String?) -> String? {
         guard let named, !named.isEmpty else { return nil }

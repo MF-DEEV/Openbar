@@ -2111,7 +2111,10 @@ final class ClaudeSessionService: ObservableObject {
         }
         let fromAgents = hookAgents.snapshot(now: now, previews: engine.policy.previews, host: { [self] pid in
             guard pid > 0 else { return .unknown }
-            if hosts[pid] == nil { hosts[pid] = ClaudeSessionHosts.host(of: pid) }
+            if hosts[pid] == nil {
+                // ZCode's app runs its agent itself, so its window shows the session.
+                hosts[pid] = ClaudeSessionHosts.agentApp(of: pid).map { .app($0) } ?? ClaudeSessionHosts.host(of: pid)
+            }
             return hosts[pid] ?? .unknown
         }, branch: { [self] folder in branches.branch(of: folder, now: now) })
         let agentSessions = fromAgents.sessions.filter { shownAgents.contains($0.provider) }

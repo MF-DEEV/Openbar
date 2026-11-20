@@ -47,6 +47,8 @@ enum ClaudeTerminalApps {
     private static let known = [
         ClaudeSessionHosts.terminal: "Terminal", iterm: "iTerm2", ghostty: "Ghostty", wezterm: "WezTerm",
         kitty: "kitty", warp: "Warp", alacritty: "Alacritty",
+        // Its app may be anywhere, as a copy LaunchServices doesn't name.
+        ClaudeSessionHosts.zcode: "ZCode",
     ]
 }
 

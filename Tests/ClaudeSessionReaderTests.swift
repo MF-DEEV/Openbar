@@ -627,6 +627,17 @@ enum ClaudeSessionReaderTests {
         suite.expect(environment == ["TERM_PROGRAM": "Apple_Terminal", "__CFBundleIdentifier": "com.apple.Terminal", "EQ": "a=b"],
                      "the environment follows the arguments and ends at an empty entry: \(environment)")
         suite.expect(ClaudeSessionHosts.parseArguments([1, 0]).isEmpty, "a short buffer reads as nothing")
+        // Node renamed the process (`process.title`): its name over the two
+        // arguments, zeros over what is left of them (ZCode, #245).
+        var renamed: [UInt8] = []
+        withUnsafeBytes(of: Int32(2)) { renamed.append(contentsOf: $0) }
+        renamed += Array("/usr/local/bin/node".utf8) + [0, 0, 0] + Array("zcode-cli".utf8) + [UInt8](repeating: 0, count: 31)
+        for part in ["TMUX=/private/tmp/tmux-501/default,812,0", "TMUX_PANE=%3", "TERM_PROGRAM=tmux", ""] {
+            renamed += Array(part.utf8) + [0]
+        }
+        suite.expect(ClaudeSessionHosts.parseArguments(renamed) == ["TMUX": "/private/tmp/tmux-501/default,812,0", "TMUX_PANE": "%3",
+                                                                   "TERM_PROGRAM": "tmux"],
+                     "a renamed process's environment still reads: \(ClaudeSessionHosts.parseArguments(renamed))")
         let own = ClaudeSessionHosts.environment(of: getpid(), keys: ["PATH", "HOME"])
         suite.expect(own["PATH"] == ProcessInfo.processInfo.environment["PATH"] && own.count <= 2,
                      "only the asked-for variables of a live process's environment are kept")

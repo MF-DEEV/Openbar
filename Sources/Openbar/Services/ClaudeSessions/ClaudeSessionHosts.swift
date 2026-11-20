@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Darwin
 import Foundation
 
@@ -10,6 +11,24 @@ import Foundation
 enum ClaudeSessionHosts {
     static let terminal = "com.apple.Terminal"
     static let antigravity = "com.google.antigravity-ide"
+    /// ZCode's desktop app, whose agent runs in processes of its own (#245).
+    static let zcode = "dev.zcode.app"
+    /// The apps that run an agent themselves and show it in their own window.
+    static let agentApps: Set<String> = [zcode]
+
+    /// The app among a process's first few ancestors that runs agents
+    /// itself: whatever terminal it was started from, its window shows them.
+    static func agentApp(of pid: Int32, among bundles: Set<String> = agentApps,
+                         bundle: (Int32) -> String? = { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier },
+                         parent: (Int32) -> Int32? = AgentHookProcess.parent(of:)) -> String? {
+        var current = pid
+        for _ in 0..<5 {
+            guard let next = parent(current), next > 1 else { return nil }
+            if let found = bundle(next), bundles.contains(found) { return found }
+            current = next
+        }
+        return nil
+    }
 
     /// Where a session runs, from the keys of its environment that tell
     /// (`hostKeys`), its device and the app macOS holds responsible for it.
@@ -137,6 +156,9 @@ enum ClaudeSessionHosts {
 
     /// `KERN_PROCARGS2` holds the argument count, the executable path, its
     /// padding, the arguments and then the environment, all NUL-terminated.
+    /// A process that renamed itself, as Node does for `process.title`
+    /// (ZCode's `zcode-cli`, #245), wrote its name over its arguments and
+    /// zeros over the rest of them, so the environment starts after those.
     static func parseArguments(_ bytes: [UInt8]) -> [String: String] {
         let countSize = MemoryLayout<Int32>.size
         guard bytes.count > countSize else { return [:] }
@@ -150,6 +172,7 @@ enum ClaudeSessionHosts {
             skipString()
             index += 1
         }
+        skipZeros()
         var environment: [String: String] = [:]
         while index < bytes.count, bytes[index] != 0 {
             let start = index

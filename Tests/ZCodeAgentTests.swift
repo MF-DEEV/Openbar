@@ -299,6 +299,19 @@ enum ZCodeAgentTests {
                      && text.answerIn(.zcode) == "Answer this one in ZCode."
                      && NotchClaudeSessionsSupport.agentKey(.zcode) == DefaultsKey.notchSessionsAgentZCode,
                      "its hint, where it is answered, and its own switch")
+        // A task started in ZCode's app without a project runs in a folder of the app's own.
+        suite.expect(AgentHookMessage.zcodeProject("/Users/a/.zcode/workspace/draft-4e5688a1-61b1") == "ZCode task"
+                     && AgentHookMessage.zcodeProject("/Users/a/.zcode/workspace/default") == "ZCode task"
+                     && AgentHookMessage.zcodeProject("/Users/a/code/rocket") == "rocket"
+                     && AgentHookMessage.zcodeProject("/Users/a/.zcode/workspace/default/sub") == "sub",
+                     "the app's own folders read as a ZCode task")
+        // ZCode's app runs its agent under a host process of its own: the app shows the session.
+        let tree: [Int32: Int32] = [900: 800, 800: 700, 700: 1, 500: 400, 400: 300, 300: 1]
+        let apps: [Int32: String] = [700: "dev.zcode.app", 300: "com.apple.Terminal"]
+        suite.expect(ClaudeSessionHosts.agentApp(of: 900, bundle: { apps[$0] }, parent: { tree[$0] }) == "dev.zcode.app"
+                     && ClaudeSessionHosts.agentApp(of: 500, bundle: { apps[$0] }, parent: { tree[$0] }) == nil,
+                     "the desktop app's agent is told by its ancestor, a terminal's isn't")
+        suite.expect(ClaudeTerminalApps.name(of: ClaudeSessionHosts.zcode) == "ZCode", "its app is called ZCode")
         suite.expect(ClaudeSessionProvider.zcode.character == .zcode && ClawdCharacter.zcode.favouredShell == .rose
                      && NotchHookAgentMarkPaths.mark(.zcode) != nil
                      && AgentHookInstaller.hookFile(.zcode, home: home, bundle: "b")?.wholeFile == false,

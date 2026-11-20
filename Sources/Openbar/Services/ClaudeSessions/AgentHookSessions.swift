@@ -266,7 +266,7 @@ final class AgentHookSessions {
                          host: ClaudeSessionHost, branch: String?) -> ClaudeSession {
         var timeline = entry.tools
         if !previews { for index in timeline.indices { timeline[index].summary = nil } }
-        let project = AgentLogParser.projectName(entry.cwd)
+        let project = entry.provider == .zcode ? AgentHookMessage.zcodeProject(entry.cwd) : AgentLogParser.projectName(entry.cwd)
         let tokens = entry.usage.values.reduce(AgentTokens()) { total, part in
             AgentTokens(input: total.input + part.tokens.input, cacheWrite: total.cacheWrite + part.tokens.cacheWrite,
                         cacheRead: total.cacheRead + part.tokens.cacheRead, output: total.output + part.tokens.output,
