@@ -31,6 +31,7 @@ import { checkMusicOpenPlayer } from "./music-open-player-cases.mjs";
 import { checkIslandContextMenu } from "./island-context-menu-cases.mjs";
 import { checkMascot } from "./mascot-cases.mjs";
 import { checkSessionRename } from "./session-rename-cases.mjs";
+import { checkSessionGrouping } from "./session-grouping-cases.mjs";
 import { checkI18n } from "./i18n-cases.mjs";
 import { checkMusicQueue } from "./music-queue-cases.mjs";
 import { checkMusicQueueArtwork } from "./music-queue-artwork-cases.mjs";
@@ -124,6 +125,8 @@ try {
     await checkI18n({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--session-rename")) {
     await checkSessionRename({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--session-grouping")) {
+    await checkSessionGrouping({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--island-shortcut")) {
     await checkIslandShortcut({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--context-menu")) {
