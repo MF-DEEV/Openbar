@@ -417,7 +417,8 @@ extension ClaudeSessionProvider {
     /// takes the pink of its P, Mistral Vibe the amber of Mistral's M,
     /// Devin CLI a violet no other agent wears, and Google Antigravity the
     /// deep blue of its arch's foot. Grok CLI, whose mark has no color,
-    /// gets the moss green no other agent wears.
+    /// gets the moss green no other agent wears, and ZCode, black and white
+    /// too, a magenta no other agent wears.
     var tint: Color {
         if let agent { return agent.tint }
         switch self {
@@ -427,6 +428,7 @@ extension ClaudeSessionProvider {
         case .devin: return Color(red: 0.70, green: 0.55, blue: 1.0)
         case .antigravity: return Color(red: 0.19, green: 0.53, blue: 1.0)
         case .grok: return Color(red: 0.55, green: 0.80, blue: 0.40)
+        case .zcode: return Color(red: 0.88, green: 0.44, blue: 0.78)
         default: return Color(red: 0.80, green: 0.82, blue: 0.90)
         }
     }

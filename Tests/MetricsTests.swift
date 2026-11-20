@@ -152,6 +152,7 @@ struct MetricsTests {
                 VibeAppServerTests.run(suite)
                 AntigravityAgentTests.run(suite)
                 GrokAgentTests.run(suite)
+                ZCodeAgentTests.run(suite)
                 ClaudeDesktopTests.run(suite)
                 HookPageTests.run(suite)
                 ClaudeFileDiffTests.run(suite)
@@ -171,6 +172,7 @@ struct MetricsTests {
                 VibeAppServerTests.run(suite)
                 AntigravityAgentTests.run(suite)
                 GrokAgentTests.run(suite)
+                ZCodeAgentTests.run(suite)
                 HookPageTests.run(suite)
             }),
             ("claude-desktop", { ClaudeDesktopTests.run(suite) }),

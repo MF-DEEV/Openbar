@@ -5,10 +5,10 @@ import CryptoKit
 import Foundation
 
 /// Puts the island's hooks into Gemini CLI, Copilot CLI, Cursor, Mistral
-/// Vibe, Devin CLI and Grok CLI, and its plugin into OpenCode and Pi, and takes them
+/// Vibe, Devin CLI, Grok CLI and ZCode, and its plugin into OpenCode and Pi, and takes them
 /// out again, only when the person presses Install or Remove. Where the
 /// agent keeps every hook in one file (Gemini's settings, Cursor's
-/// hooks.json, Vibe's hooks.toml, Devin's config.json) the island's entries
+/// hooks.json, Vibe's hooks.toml, Devin's and ZCode's config.json) the island's entries
 /// go beside the person's own, carry its marker, and the file is copied
 /// aside first, as for Claude Code. Where the agent reads a folder of files
 /// (Copilot's and Grok's hooks, OpenCode's plugins, Pi's extensions) the
@@ -17,8 +17,9 @@ import Foundation
 /// Each hook is the system's `nc` writing the event, wrapped in an envelope
 /// naming the agent and the hook, to the island's socket. When the app is
 /// not running it connects to nothing and prints nothing, and the agent
-/// carries on as if there were no hook. None of the hooks installed asks
-/// anything of its answer, so none ever holds the agent up.
+/// carries on as if there were no hook. Only ZCode's permission hook waits
+/// for an answer, and ZCode asks in its own prompt at the same time, so it
+/// never holds ZCode up either.
 enum AgentHookInstaller {
     static let eventTimeout = 5
 
@@ -55,6 +56,11 @@ enum AgentHookInstaller {
     /// whatever the hook answers, and asks in its terminal.
     static let grokEvents = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse",
                              "PostToolUseFailure", "PermissionDenied", "Notification", "Stop", "StopFailure", "StopCancelled"]
+    /// ZCode's events (its hooks guide, zcode.z.ai/en/docs/hooks), every one
+    /// it has: its config refuses any other name. They sit under
+    /// `hooks.events` in its CLI config, which also says `hooks.enabled`.
+    static let zcodeEvents = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest", "PostToolUse",
+                              "PostToolUseFailure", "Stop"]
     /// Events Codex and Claude Code match against a tool name.
     static let claudeToolEvents: Set<String> = ["PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest"]
     /// What a tool with Claude Code style hooks gets: Claude Code's events,
@@ -132,6 +138,10 @@ enum AgentHookInstaller {
         grokFolder(home: home, environment: environment).appending(path: "hooks/\(ownName(bundle)).json")
     }
 
+    /// ZCode's CLI config, read by `zcode` and by the runtime its desktop
+    /// app starts alike. Nothing moves it but the home folder.
+    static func zcodeConfig(home: URL) -> URL { home.appending(path: ".zcode/cli/config.json") }
+
     /// Antigravity's global hooks, read by its app, its IDE and `agy` alike.
     static func antigravityHooks(home: URL) -> URL { home.appending(path: ".gemini/config/hooks.json") }
 
@@ -187,6 +197,7 @@ enum AgentHookInstaller {
         case .devin: return devinConfig(home: home, environment: environment).deletingLastPathComponent()
         case .antigravity: return antigravityHooks(home: home).deletingLastPathComponent()
         case .grok: return grokFolder(home: home, environment: environment)
+        case .zcode: return zcodeConfig(home: home).deletingLastPathComponent()
         case .codex:
             return environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
                 ?? home.appending(path: ".codex")
@@ -212,6 +223,7 @@ enum AgentHookInstaller {
         case .cursor: apps = ["Cursor.app"]
         case .opencode: apps = ["OpenCode.app"]
         case .antigravity: apps = ["Antigravity.app", "Antigravity IDE.app"]
+        case .zcode: apps = ["ZCode.app"]
         default: apps = []
         }
         return apps.contains { app in ["/Applications", home.appending(path: "Applications").path].contains { exists("\($0)/\(app)") } }
@@ -433,6 +445,8 @@ enum AgentHookInstaller {
                 return groupsState(try ClaudeHookInstaller.read(url), events: devinEvents, bundle: bundle) {
                     command(.devin, event: $0, socket: socket, bundle: bundle)
                 }
+            case .zcode:
+                return zcodeState(try ClaudeHookInstaller.read(url), socket: socket, bundle: bundle)
             case .antigravity:
                 let settings = try ClaudeHookInstaller.read(url)
                 if let own = settings[ownName(bundle)] as? [String: Any],
@@ -509,6 +523,8 @@ enum AgentHookInstaller {
                 if settings["version"] == nil { settings["version"] = 1 }
                 return settings
             }
+        case .zcode:
+            try ClaudeHookInstaller.update(url) { zcodeInstalling(into: $0, socket: socket, bundle: bundle) }
         case .antigravity:
             try ClaudeHookInstaller.update(url) { settings in
                 var settings = antigravityRemoving(from: settings, bundle: bundle)
@@ -547,6 +563,10 @@ enum AgentHookInstaller {
         case .antigravity:
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
             try ClaudeHookInstaller.update(url) { antigravityRemoving(from: $0, bundle: bundle) }
+        case .zcode:
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            let before = zcodeEnabledBefore(url)
+            try ClaudeHookInstaller.update(url) { zcodeRemoving(from: $0, bundle: bundle, enabledBefore: before) }
         case .claude, .custom:
             break
         }
@@ -609,6 +629,82 @@ enum AgentHookInstaller {
         }
         settings["hooks"] = hooks
         return settings
+    }
+
+    // MARK: ZCode's config
+
+    /// The hook for one of ZCode's events. Its permission hook may wait as
+    /// long as Claude Code's: ZCode shows its own prompt meanwhile, and
+    /// stops the hook when the person answers there.
+    static func zcodeEntry(_ event: String, socket: String, bundle: String) -> [String: Any] {
+        let seconds = event == "PermissionRequest" ? ClaudeHookInstaller.permissionTimeout : eventTimeout
+        return ["type": "command", "timeoutMs": seconds * 1000,
+                "command": command(.zcode, event: event, socket: socket, bundle: bundle)]
+    }
+
+    /// ZCode's groups, lifted from `hooks.events` to where the Claude Code
+    /// style helpers look for them.
+    static func zcodeGroups(_ settings: [String: Any]) -> [String: Any] {
+        guard let events = (settings["hooks"] as? [String: Any])?["events"] else { return [:] }
+        return ["hooks": events]
+    }
+
+    /// The settings with `groups` put back under `hooks.events`.
+    static func zcodeSetting(_ settings: [String: Any], groups: [String: Any]) -> [String: Any] {
+        var settings = settings
+        var hooks = settings["hooks"] as? [String: Any] ?? [:]
+        hooks["events"] = groups["hooks"]
+        settings["hooks"] = hooks
+        return settings
+    }
+
+    /// Installed when every event holds the current hook and hooks are on:
+    /// ZCode runs none while `hooks.enabled` isn't true.
+    static func zcodeState(_ settings: [String: Any], socket: String, bundle: String) -> State {
+        let groups = zcodeGroups(settings)
+        let on = (settings["hooks"] as? [String: Any])?["enabled"] as? Bool == true
+        if on, groupsHold(groups, events: zcodeEvents, command: { command(.zcode, event: $0, socket: socket, bundle: bundle) }) {
+            return .installed
+        }
+        return ClaudeHookInstaller.hasAny(in: groups, bundle: bundle) ? .outdated : .missing
+    }
+
+    /// The island's groups after the person's own, tool events matching
+    /// every tool, and hooks turned on. Every other key is left as it was.
+    static func zcodeInstalling(into settings: [String: Any], socket: String, bundle: String) -> [String: Any] {
+        let groups = installingGroups(into: zcodeGroups(settings), events: zcodeEvents, bundle: bundle,
+                                      matched: claudeToolEvents) { zcodeEntry($0, socket: socket, bundle: bundle) }
+        var settings = zcodeSetting(settings, groups: groups)
+        var hooks = settings["hooks"] as? [String: Any] ?? [:]
+        hooks["enabled"] = true
+        settings["hooks"] = hooks
+        return settings
+    }
+
+    /// The settings without the island's hooks. Once none of anyone's are
+    /// left, `hooks.enabled` goes back to what it was before the island
+    /// first wrote the file, when that is known (`enabledBefore`: nil when
+    /// unknown, `.some(nil)` when it wasn't set); with others' hooks left, it
+    /// stays on for them.
+    static func zcodeRemoving(from settings: [String: Any], bundle: String, enabledBefore: Bool??) -> [String: Any] {
+        let groups = ClaudeHookInstaller.removing(from: zcodeGroups(settings), bundle: bundle)
+        guard settings["hooks"] is [String: Any] else { return settings }
+        var settings = zcodeSetting(settings, groups: groups)
+        var hooks = settings["hooks"] as? [String: Any] ?? [:]
+        if hooks["events"] == nil, let before = enabledBefore { hooks["enabled"] = before }
+        settings["hooks"] = hooks.isEmpty ? nil : hooks
+        return settings
+    }
+
+    /// What `hooks.enabled` was before the island first wrote ZCode's
+    /// config: `.some(nil)` when the file or the key wasn't there, nil when
+    /// nothing tells.
+    static func zcodeEnabledBefore(_ url: URL) -> Bool?? {
+        let manager = FileManager.default
+        if manager.fileExists(atPath: ClaudeHookInstaller.absentNote(of: url).path) { return .some(nil) }
+        guard let data = manager.contents(atPath: ClaudeHookInstaller.originalCopy(of: url).path),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        return .some((json["hooks"] as? [String: Any])?["enabled"] as? Bool)
     }
 
     // MARK: Antigravity's named hooks

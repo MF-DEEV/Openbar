@@ -844,9 +844,15 @@ enum AgentCLI {
         case .devin: return "devin"
         case .antigravity: return "agy"
         case .grok: return "grok"
+        case .zcode: return "zcode"
         case .claude, .codex, .custom: return nil
         }
     }
+
+    /// Whether New session can start the agent with its first prompt.
+    /// ZCode's terminal UI takes none (`--prompt` runs headless, without
+    /// asking anything), so it is found and connected but not offered there.
+    static func startsWithPrompt(_ provider: ClaudeSessionProvider) -> Bool { provider != .zcode }
 
     /// The command on the person's `PATH`, then where its installers put it.
     static func locate(_ provider: ClaudeSessionProvider, path: String?, home: URL,
@@ -869,7 +875,7 @@ enum AgentCLI {
         case .opencode: return ["--prompt", prompt]
         case .cursor, .pi, .vibe: return [prompt]
         case .devin, .grok: return ["--", prompt]
-        case .claude, .codex, .custom: return []
+        case .zcode, .claude, .codex, .custom: return []
         }
     }
 }

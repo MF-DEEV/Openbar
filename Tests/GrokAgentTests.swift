@@ -279,11 +279,11 @@ enum GrokAgentTests {
                                                       exists: { $0.hasSuffix(".grok") }),
                      "found by its command where its installer puts it, never by ~/.grok alone")
         suite.expect(ClaudeSessionProvider.grok.displayName == "Grok CLI" && ClaudeSessionProvider.grok.shortName == "Grok"
-                     && ClaudeSessionProvider.hookAgents.last == .grok && ClaudeSessionProvider.grok.answersPermissions
+                     && ClaudeSessionProvider.hookAgents.contains(.grok) && ClaudeSessionProvider.grok.answersPermissions
                      && !ClaudeSessionProvider.grok.takesRepliesDirectly
                      && AgentCLI.startArguments(.grok, prompt: "-go") == ["--", "-go"]
                      && AgentHookInstaller.foldersByHand.contains(.grok),
-                     "named, listed last, answered with keys, and started with its first prompt")
+                     "named, listed, answered with keys, and started with its first prompt")
         let text = FeatureStrings.notchClaudeSessions(.enUS)
         suite.expect(text.agentHint(.grok).contains("~/.grok/hooks")
                      && text.answerIn(.grok) == "Answer this one in Grok CLI."
