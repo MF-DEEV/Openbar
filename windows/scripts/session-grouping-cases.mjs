@@ -21,7 +21,8 @@ export async function checkSessionGrouping({ send, evaluate, base }) {
     await document.fonts.ready;
     for(let i=0;i<12;i++) await new Promise(requestAnimationFrame);
   })()`);
-  const boxes = () => evaluate(`[...document.querySelectorAll('.s-grouping button')].map(button=>{
+  const boxes = () =>
+    evaluate(`[...document.querySelectorAll('.s-grouping button')].map(button=>{
     const r=button.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};
   })`);
   assert.equal((await boxes()).length, 3, "The grouping switch must show three choices");
