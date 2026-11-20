@@ -1873,11 +1873,13 @@ impl Service {
             plain.then(|| hosts::deliver_codex(entry.pid as u32, &located, text, &[]).is_ok());
         #[cfg(not(windows))]
         let plain_typed: Option<bool> = plain.then_some(false);
+        let one_return = hook_agents::takes_one_return(entry.provider);
         let typed = plain_typed.unwrap_or_else(|| {
-            hosts::deliver(entry.pid as u32, &located, text, &[]).is_ok() && {
-                std::thread::sleep(Duration::from_millis(450));
-                hosts::deliver(entry.pid as u32, &located, "", &[]).is_ok()
-            }
+            hosts::deliver(entry.pid as u32, &located, text, &[]).is_ok()
+                && (one_return || {
+                    std::thread::sleep(Duration::from_millis(450));
+                    hosts::deliver(entry.pid as u32, &located, "", &[]).is_ok()
+                })
         });
         if typed {
             self.acknowledge(session);

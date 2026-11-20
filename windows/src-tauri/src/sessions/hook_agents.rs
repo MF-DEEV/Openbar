@@ -2666,6 +2666,15 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
     }
 }
 
+/// Whether a reply typed into the agent's terminal takes one Return only.
+/// The others get a second one a moment later, for the agents whose prompt
+/// takes a quick Return as part of the paste (Gemini CLI). ZCode's sends
+/// on the first, and a second would land on the permission prompt the
+/// reply may open at once, where Return picks Deny (#245).
+pub fn takes_one_return(provider: Provider) -> bool {
+    provider == Provider::Zcode
+}
+
 /// Whether New session can start the agent with its first prompt. ZCode's
 /// terminal UI takes none (`--prompt` runs headless, without asking
 /// anything), so it is found and connected but not offered there.
@@ -6169,6 +6178,7 @@ mod tests {
         assert_eq!(command_name(Provider::Zcode), Some("zcode"));
         assert!(start_arguments(Provider::Zcode, "go").is_empty());
         assert!(!starts_with_prompt(Provider::Zcode) && starts_with_prompt(Provider::Grok));
+        assert!(takes_one_return(Provider::Zcode) && !takes_one_return(Provider::Gemini));
         assert_eq!(name(Provider::Zcode, "ApplyPatch"), "Edit");
         assert_eq!(name(Provider::Zcode, "Bash"), "Bash");
         assert!(Provider::Zcode.answers_permissions());
