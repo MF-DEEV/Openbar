@@ -530,6 +530,7 @@ export const AGENT_PREF = {
   devin: "agentDevin",
   antigravity: "agentAntigravity",
   grok: "agentGrok",
+  zcode: "agentZcode",
 } as const;
 
 /** The model, picked from a menu that opens upward: Codex lists more than fit as chips. */

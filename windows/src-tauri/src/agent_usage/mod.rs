@@ -28,6 +28,8 @@ pub(crate) fn agent_executable(name: &str) -> Option<std::path::PathBuf> {
             home.join(".local").join("bin"),
             home.join(".opencode").join("bin"),
             home.join(".grok").join("bin"),
+            // ZCode's installer puts its command in ~/.local/bin; its runtime lives here.
+            home.join(".zcode").join("runtime").join("bin"),
         ];
         candidates.extend(cli::in_dirs(&dirs, name, &exts));
     }

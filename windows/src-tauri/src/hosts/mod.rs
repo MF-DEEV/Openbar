@@ -187,6 +187,11 @@ const IDES: [(&str, &str); 6] = [
     ("windsurf.exe", "windsurf"),
 ];
 
+/// Apps that run an agent themselves and show it in their own window:
+/// ZCode's desktop app (#245). A session under one is the app's, whatever
+/// terminal the app was started from.
+pub const AGENT_APPS: [(&str, &str); 1] = [("zcode.exe", "ZCode")];
+
 /// Classifies by the first ancestor whose image is a terminal or an IDE.
 pub fn classify(chain: &[process::Entry]) -> Located {
     let ancestors: Vec<u32> = chain
@@ -201,6 +206,14 @@ pub fn classify(chain: &[process::Entry]) -> Located {
         .collect();
     for entry in chain.iter().skip(1) {
         let name = entry.name.to_ascii_lowercase();
+        if let Some((_, app)) = AGENT_APPS.iter().find(|(exe, _)| *exe == name) {
+            return Located {
+                host: Host::App {
+                    name: (*app).into(),
+                },
+                ancestors,
+            };
+        }
         if name == "windowsterminal.exe" {
             return Located {
                 host: Host::WindowsTerminal {

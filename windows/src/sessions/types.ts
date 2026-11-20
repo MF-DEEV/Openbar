@@ -186,6 +186,7 @@ export type Provider =
   | "devin"
   | "antigravity"
   | "grok"
+  | "zcode"
   /** A tool with Claude Code style hooks added on the Hooks page (#236): never one of the named agents. */
   | "custom";
 
@@ -202,6 +203,7 @@ export const PROVIDERS: readonly Provider[] = [
   "devin",
   "antigravity",
   "grok",
+  "zcode",
 ];
 
 /** The agents that report through the island's hooks or plugin
@@ -216,6 +218,7 @@ export const HOOK_AGENTS = [
   "devin",
   "antigravity",
   "grok",
+  "zcode",
 ] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
@@ -232,6 +235,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   devin: "Devin",
   antigravity: "Antigravity",
   grok: "Grok",
+  zcode: "ZCode",
   custom: "Other tool",
 };
 
@@ -251,6 +255,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   devin: "Devin CLI",
   antigravity: "Google Antigravity",
   grok: "Grok CLI",
+  zcode: "ZCode",
   custom: "Other tool",
 };
 
@@ -380,6 +385,7 @@ export interface Counts {
   workingDevin?: number;
   workingAntigravity?: number;
   workingGrok?: number;
+  workingZcode?: number;
   /** Of `working`, the tools added on the Hooks page (#236). */
   workingCustom?: number;
   waiting: number;
@@ -448,6 +454,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     devin: counts.workingDevin ?? 0,
     antigravity: counts.workingAntigravity ?? 0,
     grok: counts.workingGrok ?? 0,
+    zcode: counts.workingZcode ?? 0,
     custom: counts.workingCustom ?? 0,
   };
   if (provider === "claude") {

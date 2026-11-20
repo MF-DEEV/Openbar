@@ -3,7 +3,15 @@
 
 import { describe, expect, it } from "vitest";
 import { characterOf, FAVOURED_SHELL } from "./clawd/costume";
-import { ANTIGRAVITY_TINT, CLAUDE_TINT, GEMINI_TINT, GROK_TINT, OPENCODE_TINT, providerTint } from "./format";
+import {
+  ANTIGRAVITY_TINT,
+  CLAUDE_TINT,
+  GEMINI_TINT,
+  GROK_TINT,
+  OPENCODE_TINT,
+  providerTint,
+  ZCODE_TINT,
+} from "./format";
 import { MARK_SCALE, markOf } from "./glyphs";
 import { countItems, stripAgents } from "./SessionsStrip";
 import { S } from "./strings";
@@ -20,7 +28,7 @@ const counts = (working: number, others: Partial<Counts> = {}): Counts => ({
 describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
   it("counts each agent's work apart, Claude's being what no other claims", () => {
     const c = counts(4, { workingGemini: 1, workingOpencode: 2 });
-    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0]);
+    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0]);
     expect(workingOf(counts(1, { workingCursor: 5 }), "cursor")).toBe(1);
     expect(workingOf(counts(-1, { workingGemini: -3 }), "gemini")).toBe(0);
   });
@@ -82,7 +90,7 @@ describe("Google Antigravity in Sessions (#247)", () => {
     const c = counts(3, { workingAntigravity: 2 });
     expect(workingOf(c, "antigravity")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-2)).toBe("antigravity");
+    expect(HOOK_AGENTS.at(-3)).toBe("antigravity");
     expect(PROVIDER_NAMES.antigravity).toBe("Google Antigravity");
     expect(SHORT_NAMES.antigravity).toBe("Antigravity");
     expect(stripAgents(counts(2, { workingAntigravity: 1, workingDevin: 1 }))).toEqual(["devin", "antigravity"]);
@@ -101,7 +109,7 @@ describe("Grok CLI in Sessions (#243)", () => {
     const c = counts(3, { workingGrok: 2 });
     expect(workingOf(c, "grok")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-1)).toBe("grok");
+    expect(HOOK_AGENTS).toContain("grok");
     expect(isHookAgent("grok")).toBe(true);
     expect(PROVIDER_NAMES.grok).toBe("Grok CLI");
     expect(SHORT_NAMES.grok).toBe("Grok");
@@ -116,5 +124,29 @@ describe("Grok CLI in Sessions (#243)", () => {
   it("sends what the island can't answer to Grok CLI", () => {
     expect(S.answerIn("grok")).toBe("Answer this one in Grok CLI.");
     expect(S.replyPlaceholderFor("grok")).toBe("Reply to Grok CLI…");
+  });
+});
+
+describe("ZCode in Sessions (#245)", () => {
+  it("counts, names and draws it as itself", () => {
+    const c = counts(3, { workingZcode: 2 });
+    expect(workingOf(c, "zcode")).toBe(2);
+    expect(workingOf(c, "claude")).toBe(1);
+    expect(HOOK_AGENTS.at(-1)).toBe("zcode");
+    expect(PROVIDERS.at(-1)).toBe("zcode");
+    expect(isHookAgent("zcode")).toBe(true);
+    expect(PROVIDER_NAMES.zcode).toBe("ZCode");
+    expect(SHORT_NAMES.zcode).toBe("ZCode");
+    expect(stripAgents(counts(2, { workingGrok: 1, workingZcode: 1 }))).toEqual(["grok", "zcode"]);
+    expect(characterOf("zcode")).toBe("zcode");
+    expect(FAVOURED_SHELL.zcode).toBe("rose");
+    expect(providerTint("zcode")).toBe(ZCODE_TINT);
+    expect(MARK_SCALE.zcode).toBe(1.1);
+    expect(markOf("zcode")).not.toBe(markOf("grok"));
+  });
+
+  it("sends what the island can't answer to ZCode", () => {
+    expect(S.answerIn("zcode")).toBe("Answer this one in ZCode.");
+    expect(S.replyPlaceholderFor("zcode")).toBe("Reply to ZCode…");
   });
 });

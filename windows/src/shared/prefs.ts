@@ -57,6 +57,7 @@ export interface SessionPrefs extends SessionSoundPrefs {
   agentDevin: boolean;
   agentAntigravity: boolean;
   agentGrok: boolean;
+  agentZcode: boolean;
   /** The Claude app's Code tab sessions in the list (#246). */
   claudeDesktop: boolean;
   /** Cowork's sessions, read from the Claude app's files; off until turned on (#246). */
@@ -139,6 +140,7 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   agentDevin: true,
   agentAntigravity: true,
   agentGrok: true,
+  agentZcode: true,
   claudeDesktop: true,
   claudeCowork: false,
   voiceReplies: true,
