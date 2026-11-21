@@ -195,6 +195,8 @@ struct AgentPending {
     connection: HookConnection,
     session: String,
     since: Time,
+    /// The input of a ZCode question, handed back with the answers.
+    input: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 struct Inner {
@@ -714,10 +716,10 @@ impl Service {
         if let Some((session, request)) = &decoded.permission
             && let Some(reason) = super::auto_mode::settings().passes(provider, false)
             && let Some(asked) = allowable(&decoded.events, request)
-            && let Some(body) = if provider == models::Provider::Vibe {
-                hook_agents::vibe_reply(&Decision::Allow, &[])
-            } else {
-                hook_agents::opencode_reply(&Decision::Allow)
+            && let Some(body) = match provider {
+                models::Provider::Vibe => hook_agents::vibe_reply(&Decision::Allow, &[]),
+                models::Provider::Zcode => hook_agents::zcode_reply(&Decision::Allow, None),
+                _ => hook_agents::opencode_reply(&Decision::Allow),
             }
             && let Some(connection) = connection.take()
         {
@@ -743,6 +745,7 @@ impl Service {
                     connection,
                     session: hook_agents::id(provider, session),
                     since: t,
+                    input: decoded.input.clone(),
                 },
             );
         }
@@ -1219,8 +1222,10 @@ impl Service {
             let startable_agents: Vec<&'static str> = models::Provider::HOOK_AGENTS
                 .iter()
                 .filter(|p| {
-                    hook_agents::command_name(**p)
-                        .is_some_and(|name| crate::agent_usage::agent_executable(name).is_some())
+                    hook_agents::starts_with_prompt(**p)
+                        && hook_agents::command_name(**p).is_some_and(|name| {
+                            crate::agent_usage::agent_executable(name).is_some()
+                        })
                 })
                 .map(|p| p.key())
                 .collect();
@@ -1512,7 +1517,7 @@ impl Service {
                     self.publish(&mut inner, t);
                     return true;
                 }
-                // OpenCode's plugin waits for the answer; the other agents ask in their own terminal.
+                // OpenCode's plugin and ZCode's hook wait for the answer; the other agents ask in their own terminal.
                 if !matches!(decision, Decision::Deny)
                     && inner
                         .agent_pending
@@ -1521,11 +1526,10 @@ impl Service {
                 {
                     return false;
                 }
-                let vibe = inner
-                    .hook_agents
-                    .entry(session)
-                    .is_some_and(|e| e.provider == models::Provider::Vibe);
-                if vibe {
+                let provider = inner.hook_agents.entry(session).map(|e| e.provider);
+                let vibe = provider == Some(models::Provider::Vibe);
+                let zcode = provider == Some(models::Provider::Zcode);
+                if vibe || zcode {
                     // A question is answered or skipped, never allowed; answers go only to a question.
                     let asks = p.asks_questions();
                     match &decision {
@@ -1546,6 +1550,12 @@ impl Service {
                         .map(|p| p.questions.clone())
                         .unwrap_or_default();
                     hook_agents::vibe_reply(&decision, &questions)
+                } else if zcode {
+                    let input = inner
+                        .agent_pending
+                        .get(request)
+                        .and_then(|p| p.input.clone());
+                    hook_agents::zcode_reply(&decision, input.as_ref())
                 } else {
                     hook_agents::opencode_reply(&decision)
                 };
@@ -1863,11 +1873,13 @@ impl Service {
             plain.then(|| hosts::deliver_codex(entry.pid as u32, &located, text, &[]).is_ok());
         #[cfg(not(windows))]
         let plain_typed: Option<bool> = plain.then_some(false);
+        let one_return = hook_agents::takes_one_return(entry.provider);
         let typed = plain_typed.unwrap_or_else(|| {
-            hosts::deliver(entry.pid as u32, &located, text, &[]).is_ok() && {
-                std::thread::sleep(Duration::from_millis(450));
-                hosts::deliver(entry.pid as u32, &located, "", &[]).is_ok()
-            }
+            hosts::deliver(entry.pid as u32, &located, text, &[]).is_ok()
+                && (one_return || {
+                    std::thread::sleep(Duration::from_millis(450));
+                    hosts::deliver(entry.pid as u32, &located, "", &[]).is_ok()
+                })
         });
         if typed {
             self.acknowledge(session);

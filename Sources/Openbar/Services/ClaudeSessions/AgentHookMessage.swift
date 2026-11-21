@@ -83,6 +83,9 @@ enum AgentHookMessage {
         var fromProxy = false
         /// The config folder's tag (Codex) or tool id the hook names (#236).
         var via: String? = nil
+        /// The input of a question the hook holds, handed back whole with
+        /// the answers (ZCode).
+        var input: [String: Any]? = nil
         let provider: ClaudeSessionProvider
         let pid: Int32
     }
@@ -92,12 +95,12 @@ enum AgentHookMessage {
         AgentLogParser.contains(data, #""openbar":"#)
     }
 
-    /// Whether the hook waits for the island's answer: an OpenCode permission,
-    /// or OpenCode's plugin or Pi's extension listening. Every other hook is
-    /// let go at once.
+    /// Whether the hook waits for the island's answer: an OpenCode or ZCode
+    /// permission, or OpenCode's plugin or Pi's extension listening. Every
+    /// other hook is let go at once.
     static func waits(_ data: Data) -> Bool {
         guard isEnvelope(data), AgentLogParser.contains(data, "\"opencode\"") || AgentLogParser.contains(data, "\"pi\"")
-            || AgentLogParser.contains(data, "\"proxy\"")
+            || AgentLogParser.contains(data, "\"proxy\"") || AgentLogParser.contains(data, "\"zcode\"")
         else { return false }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let name = json[key] as? String, let provider = ClaudeSessionProvider(rawValue: name),
@@ -105,6 +108,8 @@ enum AgentHookMessage {
         let kind = event["kind"] as? String
         // Vibe's proxy holds the connection of an approval or a question, which the island answers.
         if provider == .vibe { return json["hook"] as? String == "proxy" && (kind == "approval" || kind == "question") }
+        // ZCode's permission hook prints the island's answer.
+        if provider == .zcode { return json["hook"] as? String == "PermissionRequest" }
         guard provider.reportsThroughPlugin else { return false }
         return kind == "listen" || (provider == .opencode && kind == "permission")
     }
@@ -142,6 +147,7 @@ enum AgentHookMessage {
         case .grok:
             decoded.events = grok(hook, event, pid: pid, now: now, policy: policy)
             decoded.transcript = text(event, "transcriptPath")
+        case .zcode: zcode(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .claude: return nil
         }
         return decoded
@@ -442,6 +448,104 @@ enum AgentHookMessage {
         }
         if provider != .devin, let model = text(json, "model") { add(.model(model)) }
         return events
+    }
+
+    // MARK: ZCode
+
+    /// ZCode's hooks (zcode.z.ai/en/docs/hooks), in Claude Code's format
+    /// with camelCase copies beside. Its permission hook runs while ZCode's
+    /// own prompt is up: the island's answer, printed by the hook, wins if it
+    /// comes first, and ZCode stops the hook when the person answers there.
+    /// A question is a permission for `AskUserQuestion`, answered with the
+    /// question's input and the answers in it. It has no hook at its end:
+    /// a session goes when its process does.
+    private static func zcode(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                              policy: ClaudeContentPolicy, into decoded: inout Decoded) {
+        guard let session = text(json, "session_id") ?? text(json, "sessionId") else { return }
+        let cwd = text(json, "cwd")
+        func add(_ kind: AgentHookEvent.Kind) {
+            decoded.events.append(AgentHookEvent(provider: .zcode, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+        }
+        let tool = AgentHookTools.name(.zcode, json["tool_name"] as? String ?? json["toolName"] as? String ?? "")
+        let input = arguments(json["tool_input"] ?? json["toolInput"])
+        let call = text(json, "tool_use_id") ?? text(json, "toolCallId")
+        let asks = tool == ClaudeQuestion.tool
+        let event = text(json, "hook_event_name") ?? text(json, "hookEventName") ?? hook
+        switch event {
+        case "SessionStart":
+            add(.started)
+            if let model = zcodeModel(text(json, "model")) { add(.model(model)) }
+        case "UserPromptSubmit": add(.prompt(policy.previews ? preview(json["prompt"]) : nil))
+        case "PreToolUse":
+            // A question is told by its permission request.
+            if asks { break }
+            var use = toolUse(tool, input: input, at: now, policy: policy)
+            if let call { use = ClaudeToolUse(id: call, name: use.name, summary: use.summary, started: now, inputKey: use.inputKey) }
+            add(.toolStarted(use))
+        case "PermissionRequest":
+            let request = call ?? text(json, "requestId") ?? UUID().uuidString
+            let questions = asks ? ClaudeQuestion.questions(in: input) ?? [] : []
+            // A question the island can't show is answered in ZCode.
+            if asks && questions.isEmpty { add(.question); break }
+            decoded.permission = (session, request)
+            if !questions.isEmpty { decoded.input = input }
+            // ZCode's tools take Claude Code's names and arguments, so the
+            // request reads as Claude Code's, whatever the previews.
+            let full = ClaudeToolSummary.permissionDetail(name: tool, input: input)
+            let content = PermissionContent(full: full, complete: tool != "Bash" || (input["command"] as? String).map { !$0.isEmpty } == true,
+                                            originalLength: full.unicodeScalars.count)
+            add(.heldPermission(ClaudePermission(
+                requestID: request, tool: tool.isEmpty ? "Tool" : tool,
+                summary: questions.first.map { ClaudeToolSummary.clip($0.question) } ?? ClaudeToolSummary.summary(name: tool, input: input),
+                detail: content.preview, content: content, offersAlways: false, since: now,
+                inputKey: ClaudeToolSummary.inputKey(name: tool, input: input), questions: questions,
+                diffs: ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: cwd))))
+        case "PostToolUse", "PostToolUseFailure":
+            // The tool ran or failed: its request, if any, was answered, here or in ZCode.
+            add(.permissionSettled(call))
+            if asks { break }
+            add(.toolFinished(id: call, name: tool, inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                              failed: event == "PostToolUseFailure", started: nil))
+        case "Stop":
+            add(.stopped(lastText: policy.previews ? preview(json["last_assistant_message"] ?? json["responseText"]) : nil,
+                         failed: false))
+        default: break
+        }
+    }
+
+    /// What a ZCode session's folder is called. A task started in ZCode's
+    /// app without a project runs in a folder of the app's own,
+    /// `~/.zcode/workspace/default` or `draft-<id>`, named for nobody.
+    static func zcodeProject(_ cwd: String) -> String {
+        let parts = cwd.split(separator: "/")
+        if parts.count >= 3, parts[parts.count - 3] == ".zcode", parts[parts.count - 2] == "workspace" { return zcodeTask }
+        return AgentLogParser.projectName(cwd)
+    }
+    static let zcodeTask = "ZCode task"
+
+    /// The model ZCode names as `provider/model`, without the provider.
+    static func zcodeModel(_ named: String?) -> String? {
+        guard let named, !named.isEmpty else { return nil }
+        guard let slash = named.firstIndex(of: "/") else { return named }
+        let model = named[named.index(after: slash)...]
+        return model.isEmpty ? nil : String(model)
+    }
+
+    /// What ZCode's permission hook prints for the person's decision, as
+    /// Claude Code's does. Answers go back in the question's own input, each
+    /// as one text, as ZCode keeps them; a skipped question is a deny.
+    static func zcodeReply(_ decision: ClaudeHookMessage.Decision, input: [String: Any]? = nil) -> Data? {
+        let body: [String: Any]
+        switch decision {
+        case .allow, .allowAlways, .approvePlan: body = ["behavior": "allow"]
+        case .deny: body = ["behavior": "deny", "message": input != nil ? ClaudeHookMessage.skipMessage : ClaudeHookMessage.denyMessage]
+        case .answer(let answers):
+            guard var updated = input else { return nil }
+            updated["answers"] = answers.mapValues { $0.joined(separator: ", ") }
+            body = ["behavior": "allow", "updatedInput": updated]
+        }
+        let output: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": body]]
+        return try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])
     }
 
     // MARK: Grok CLI
@@ -767,6 +871,8 @@ enum AgentHookTools {
                 "get_command_or_subagent_output": "BashOutput", "kill_command_or_subagent": "KillShell",
                 "web_fetch": "WebFetch", "web_search": "WebSearch", "ask_user_question": "AskUserQuestion",
                 "enter_plan_mode": "EnterPlanMode", "exit_plan_mode": "ExitPlanMode"],
+        // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.
+        .zcode: ["ApplyPatch": "Edit", "Agent": "Task"],
         .devin: ["exec": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "apply_patch": "Edit", "grep": "Grep",
                  "glob": "Glob", "webfetch": "WebFetch", "todo_write": "TodoWrite", "run_subagent": "Task",
                  "notebook_read": "Read", "notebook_edit": "Edit", "exit_plan_mode": "ExitPlanMode"],

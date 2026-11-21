@@ -921,6 +921,7 @@ enum DefaultsKey {
     static let notchSessionsAgentCursor = "notchSessionsAgentCursor"
     static let notchSessionsAgentAntigravity = "notchSessionsAgentAntigravity"
     static let notchSessionsAgentGrok = "notchSessionsAgentGrok"
+    static let notchSessionsAgentZCode = "notchSessionsAgentZCode"
     /// The Claude app's Code tab sessions in the list (#246).
     static let notchSessionsClaudeDesktop = "notchSessionsClaudeDesktop"
     /// Cowork's sessions, read from the Claude app's files; off until turned on (#246).
@@ -1635,6 +1636,7 @@ enum Defaults {
         DefaultsKey.notchSessionsAgentCursor: true,
         DefaultsKey.notchSessionsAgentAntigravity: true,
         DefaultsKey.notchSessionsAgentGrok: true,
+        DefaultsKey.notchSessionsAgentZCode: true,
         DefaultsKey.notchSessionsClaudeDesktop: true,
         DefaultsKey.notchSessionsClaudeCowork: false,
         DefaultsKey.notchSessionsLargeTextSize: 15.0,

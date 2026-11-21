@@ -4,12 +4,13 @@
 import SwiftUI
 
 /// The makers' own marks of Gemini CLI, GitHub Copilot, OpenCode, Cursor,
-/// Pi, Mistral Vibe, Devin CLI and Google Antigravity, drawn by the app from
+/// Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI and ZCode, drawn by the app from
 /// the same paths the Windows island uses, so a session reads as its
 /// agent's whether that agent's app is on the Mac or not. Paths from
 /// @lobehub/icons-static-svg (MIT), Pi's colors from pi.dev's own logo; the
-/// marks belong to Google, GitHub, OpenCode, Anysphere, Earendil, Mistral AI
-/// and Cognition and only name whose session it is. Gemini CLI's keeps its
+/// marks belong to Google, GitHub, OpenCode, Anysphere, Earendil, Mistral AI,
+/// Cognition, xAI and Z.ai and only name whose session it is; ZCode's comes from
+/// its own open-source app (zai-org/ZCode, Apache-2.0). Gemini CLI's keeps its
 /// gradient, Antigravity's arch Google's four colors across it, and Pi's,
 /// Mistral's and Devin's their colors; the other three are one color, as
 /// their makers show them on dark. Each breathes while its session works, unless Reduce Motion
@@ -105,6 +106,13 @@ enum NotchHookAgentMarkPaths {
     /// Grok's mark: the slash through its broken ring (xAI's Grok logo).
     static let grok = "M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"
 
+    /// ZCode's Z (Z.ai's mark, as its app shows it in its title bar): the
+    /// top bar's left part, the diagonal with the top and bottom bars' long
+    /// parts, and the bottom bar's right part.
+    static let zcode = "M12.525 3.085L11.055 5.175C10.824 5.5 10.446 5.7 10.037 5.7H2.025V3.075C2.025 3.085 12.525 3.085 12.525 3.085Z"
+        + "M22.5 3.075L9.9 20.925H1.5L14.1 3.075H22.5Z"
+        + "M11.475 20.924L12.955 18.823C13.187 18.498 13.564 18.299 13.974 18.299H21.975V20.924H11.475Z"
+
     /// A tool added by hand (#236): a plain terminal with a prompt, the
     /// island's own drawing, since the tool's mark is unknown.
     static let custom = "M5 4h14a3 3 0 013 3v10a3 3 0 01-3 3H5a3 3 0 01-3-3V7a3 3 0 013-3z"
@@ -148,6 +156,7 @@ enum NotchHookAgentMarkPaths {
         ]),
         .custom: Mark(layers: [Layer(path: path(custom), fill: .solid(light))]),
         .grok: Mark(layers: [Layer(path: path(grok), fill: .solid(light))]),
+        .zcode: Mark(layers: [Layer(path: path(zcode), fill: .solid(light))]),
         .devin: Mark(layers: [
             Layer(path: path(devin0), fill: .solid(Color(red: 0x39 / 255, green: 0x69 / 255, blue: 0xCA / 255))),
             Layer(path: path(devin1), fill: .solid(Color(red: 0x21 / 255, green: 0xC1 / 255, blue: 0x9A / 255))),

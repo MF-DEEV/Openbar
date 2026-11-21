@@ -305,6 +305,9 @@ enum NotchClawdSprite {
             grokSlash.forEach { put($0) }
             put(Stamp(x: 0, y: 0, rows: grokBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .zcode:
+            put(Stamp(x: 0, y: 0, rows: zcodeBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -345,6 +348,7 @@ enum NotchClawdSprite {
         // The arch stands on the ends of its two legs.
         case .antigravity: return [(0, true), (2, true), (10, false), (12, false)]
         case .grok: return [(3, true), (4, true), (8, false), (9, false)]
+        case .zcode: return [(3, true), (4, true), (8, false), (9, false)]
         }
     }
 
@@ -461,6 +465,18 @@ enum NotchClawdSprite {
         "CCCCCCCCCCCCC",
         ".cCCCCCCCCCc.",
         "...ccccccc...",
+    ]
+    /// ZCode's figure: the rounded tile of its app icon with the Z of its
+    /// mark (A) under the eyes.
+    static let zcodeBody = [
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCAAAAAAACCC",
+        "CCCCCCCAACCCC",
+        "CCCCCAACCCCCC",
+        ".ccaaaaaaacc.",
     ]
     private static let grokSlash = [Stamp(x: 10, y: -2, rows: ["..A", ".A.", "A.."]), Stamp(x: 1, y: 7, rows: [".A", "A."])]
     private static let devinAntennae = [Stamp(x: 3, y: -2, rows: ["A", "c"]), Stamp(x: 9, y: -2, rows: ["A", "c"])]
@@ -1044,7 +1060,7 @@ enum NotchClawdSprite {
             case "y": return shaded(piYellow)
             default: break
             }
-        case .vibe, .devin, .antigravity, .grok:
+        case .vibe, .devin, .antigravity, .grok, .zcode:
             break
         case .clawd:
             break

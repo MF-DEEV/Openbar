@@ -118,6 +118,9 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     case antigravity
     /// xAI's Grok Build CLI (`grok`), heard through hooks in its own folder (#243).
     case grok
+    /// Z.ai's ZCode (`zcode` and its desktop app), heard through hooks in
+    /// its CLI config, whose permission hook the island answers (#245).
+    case zcode
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     case custom
@@ -132,7 +135,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .custom: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .custom: return nil
         }
     }
 
@@ -150,6 +153,7 @@ extension ClaudeSessionProvider {
         case .devin: return "Devin CLI"
         case .antigravity: return "Google Antigravity"
         case .grok: return "Grok CLI"
+        case .zcode: return "ZCode"
         case .custom: return "Other tool"
         }
     }
@@ -172,7 +176,8 @@ extension ClaudeSessionProvider {
     static let agents: [ClaudeSessionProvider] = allCases.filter { $0 != .custom }
 
     /// The agents that report through the island's hooks or plugin.
-    static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok]
+    static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok,
+                                                      .zcode]
 
     var reportsThroughHooks: Bool { Self.hookAgents.contains(self) }
 
@@ -185,9 +190,11 @@ extension ClaudeSessionProvider {
     /// the person answers those in the agent. Grok CLI's hooks can't approve
     /// either, but its prompt takes Return for yes and Ctrl-C for no, which
     /// the island types into its terminal where the terminal lets it.
+    /// ZCode's permission hook answers like Claude Code's, racing its own
+    /// prompt: whichever answers first wins.
     var answersPermissions: Bool {
         switch self {
-        case .claude, .codex, .opencode, .grok: return true
+        case .claude, .codex, .opencode, .grok, .zcode: return true
         case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return false
         }
     }

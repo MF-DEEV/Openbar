@@ -1241,6 +1241,7 @@ pub fn display_name(provider: Provider) -> &'static str {
         Provider::Devin => "Devin CLI",
         Provider::Antigravity => "Google Antigravity",
         Provider::Grok => "Grok CLI",
+        Provider::Zcode => "ZCode",
         Provider::Custom => "Other tool",
     }
 }

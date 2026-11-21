@@ -184,8 +184,11 @@ final class ClaudeSessionService: ObservableObject {
     private var desktopShown = true
     private var coworkRead = false
     private let branches = AgentGitBranch()
-    /// OpenCode permission requests whose plugin waits for the island's answer.
+    /// OpenCode permission requests whose plugin waits for the island's
+    /// answer, and ZCode's whose hook does.
     private var agentPending: [String: (connection: ClaudeHookServer.Connection, session: String, since: Date)] = [:]
+    /// The input of each ZCode question waiting, handed back with the answers.
+    private var agentInputs: [String: [String: Any]] = [:]
     /// Each OpenCode's plugin listening for replies, by its process.
     private var listeners: [Int32: ClaudeHookServer.Connection] = [:]
     /// The Mistral Vibe sessions a New session runs through the island's
@@ -342,6 +345,7 @@ final class ClaudeSessionService: ObservableObject {
             pending = [:]
             agentPending.values.forEach { $0.connection.finish() }
             agentPending = [:]
+            agentInputs = [:]
             listeners.values.forEach { $0.finish() }
             listeners = [:]
             hookAgents.prune(now: Date()) { _ in false }
@@ -498,9 +502,10 @@ final class ClaudeSessionService: ObservableObject {
                 return
             }
             if hookAgents.owns(id) {
-                // OpenCode's plugin waits for the answer; the other agents ask in their own terminal.
-                let vibe = hookAgents.entry(id)?.provider == .vibe
-                if vibe {
+                // OpenCode's plugin and ZCode's hook wait for the answer; the other agents ask in their own terminal.
+                let provider = hookAgents.entry(id)?.provider
+                let vibe = provider == .vibe, zcode = provider == .zcode
+                if vibe || zcode {
                     // A question is answered or skipped, never allowed; answers go only to a question.
                     switch decision {
                     case .allow, .allowAlways, .approvePlan: if current.asksQuestions { return }
@@ -510,11 +515,15 @@ final class ClaudeSessionService: ObservableObject {
                 }
                 guard let asked = agentPending[request], asked.session == id,
                       let reply = vibe ? AgentHookMessage.vibeReply(decision, questions: current.questions)
+                        : zcode ? AgentHookMessage.zcodeReply(decision, input: agentInputs[request])
                         : AgentHookMessage.opencodeReply(decision) else { return }
                 if case .deny = decision {} else {
-                    guard !asked.connection.isClosed, Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return }
+                    // ZCode stops the hook once the person answered in it.
+                    guard !asked.connection.isClosed, !(zcode && asked.connection.peerIsGone),
+                          Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return }
                 }
                 agentPending[request] = nil
+                agentInputs[request] = nil
                 asked.connection.finish(reply)
                 hookAgents.resolve(id, request: request)
                 hookAgents.acknowledge(id, now: Date())
@@ -734,7 +743,7 @@ final class ClaudeSessionService: ObservableObject {
                 let canStart = shell.executable != nil
                 let canCodex = CodexCLI.locate(path: shell.environment["PATH"], home: home) != nil
                 let startable = Set(ClaudeSessionProvider.hookAgents.filter {
-                    AgentCLI.locate($0, path: shell.environment["PATH"], home: home) != nil
+                    AgentCLI.startsWithPrompt($0) && AgentCLI.locate($0, path: shell.environment["PATH"], home: home) != nil
                 })
                 DispatchQueue.main.async {
                     if self.canStartSessions != canStart { self.canStartSessions = canStart }
@@ -1475,7 +1484,8 @@ final class ClaudeSessionService: ObservableObject {
         var proceeded: String?
         if let asked = decoded.permission, let reason = SessionAutoMode.shared.settings.passes(decoded.provider, autoMode: false),
            let permission = Self.allowable(decoded.events, request: asked.request),
-           let reply = decoded.provider == .vibe ? AgentHookMessage.vibeReply(.allow) : AgentHookMessage.opencodeReply(.allow) {
+           let reply = decoded.provider == .vibe ? AgentHookMessage.vibeReply(.allow)
+            : decoded.provider == .zcode ? AgentHookMessage.zcodeReply(.allow) : AgentHookMessage.opencodeReply(.allow) {
             let id = AgentHookEvent.id(decoded.provider, asked.session)
             agentPending.removeValue(forKey: asked.request)?.connection.finish()
             connection.finish(reply)
@@ -1486,6 +1496,7 @@ final class ClaudeSessionService: ObservableObject {
             inspection.invalidate(id)
             agentPending.removeValue(forKey: asked.request)?.connection.finish()
             agentPending[asked.request] = (connection, id, now)
+            agentInputs[asked.request] = decoded.input
         } else {
             connection.finish()
         }
@@ -1541,6 +1552,7 @@ final class ClaudeSessionService: ObservableObject {
                 // Answered in OpenCode itself: its plugin stops waiting too.
                 for (key, waiting) in agentPending where waiting.session == placed.id && (request == nil || key == request) {
                     agentPending[key] = nil
+                    agentInputs[key] = nil
                     waiting.connection.finish()
                 }
             }
@@ -1569,15 +1581,18 @@ final class ClaudeSessionService: ObservableObject {
         return nil
     }
 
-    /// Lets go of OpenCode requests whose session left or that waited too
-    /// long, and of listeners whose OpenCode quit.
+    /// Lets go of OpenCode and ZCode requests whose session left, whose
+    /// hook went away (ZCode stops it once answered there) or that waited
+    /// too long, and of listeners whose OpenCode quit.
     private func releaseAgents(now: Date) {
         hookAgents.prune(now: now)
         for (request, waiting) in agentPending {
             let current = hookAgents.entry(waiting.session)?.permission?.requestID == request
-            guard !current || waiting.connection.isClosed || now.timeIntervalSince(waiting.since) > Self.permissionDeadline
+            guard !current || waiting.connection.isClosed || waiting.connection.peerIsGone
+                || now.timeIntervalSince(waiting.since) > Self.permissionDeadline
             else { continue }
             agentPending[request] = nil
+            agentInputs[request] = nil
             waiting.connection.finish()
             if current { hookAgents.resolve(waiting.session, request: request) }
         }
@@ -2096,7 +2111,10 @@ final class ClaudeSessionService: ObservableObject {
         }
         let fromAgents = hookAgents.snapshot(now: now, previews: engine.policy.previews, host: { [self] pid in
             guard pid > 0 else { return .unknown }
-            if hosts[pid] == nil { hosts[pid] = ClaudeSessionHosts.host(of: pid) }
+            if hosts[pid] == nil {
+                // ZCode's app runs its agent itself, so its window shows the session.
+                hosts[pid] = ClaudeSessionHosts.agentApp(of: pid).map { .app($0) } ?? ClaudeSessionHosts.host(of: pid)
+            }
             return hosts[pid] ?? .unknown
         }, branch: { [self] folder in branches.branch(of: folder, now: now) })
         let agentSessions = fromAgents.sessions.filter { shownAgents.contains($0.provider) }

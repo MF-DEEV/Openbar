@@ -51,11 +51,24 @@ fn stem(name: &str) -> String {
     }
 }
 
+/// Apps that run an agent themselves and show it in their own window:
+/// ZCode's desktop app (#245). A session under one is the app's, whatever
+/// terminal the app was started from.
+const AGENT_APPS: &[(&str, &str)] = &[("zcode", "ZCode"), ("zcode-preview", "ZCode")];
+
 /// Classifies by the first ancestor whose image is a terminal or an IDE.
 pub fn classify(chain: &[Entry]) -> Located {
     let ancestors: Vec<u32> = chain.iter().map(|e| e.pid).collect();
     for entry in chain.iter().skip(1) {
         let name = stem(&entry.name);
+        if let Some((_, app)) = AGENT_APPS.iter().find(|(known, _)| *known == name) {
+            return Located {
+                host: Host::App {
+                    name: (*app).into(),
+                },
+                ancestors,
+            };
+        }
         if let Some((_, ide)) = IDES.iter().find(|(known, _)| *known == name) {
             return Located {
                 host: Host::Vscode {

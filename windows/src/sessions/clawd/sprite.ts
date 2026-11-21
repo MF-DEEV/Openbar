@@ -907,6 +907,12 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [8, false],
     [9, false],
   ],
+  zcode: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -1022,6 +1028,19 @@ export const GROK_BODY = [
   "...ccccccc...",
 ];
 
+/** ZCode's figure: the rounded tile of its app icon with the Z of its mark
+ * (A) under the eyes (NotchClawdSprite.swift). */
+export const ZCODE_BODY = [
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCAAAAAAACCC",
+  "CCCCCCCAACCCC",
+  "CCCCCAACCCCCC",
+  ".ccaaaaaaacc.",
+];
+
 function compose(
   costume: ClawdCostume,
   p: ClawdPose,
@@ -1095,6 +1114,9 @@ function compose(
     put(s(10, -2, ["..A", ".A.", "A.."]));
     put(s(1, 7, [".A", "A."]));
     put(s(0, 0, GROK_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "zcode") {
+    put(s(0, 0, ZCODE_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));

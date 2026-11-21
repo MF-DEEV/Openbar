@@ -790,7 +790,7 @@ pub struct SessionCounts {
     /// Of `working`, the Codex ones: each agent shows its own mark and color.
     pub working_codex: i64,
     /// Of `working`, the ones of Gemini CLI, Copilot CLI, OpenCode, Cursor,
-    /// Pi, Mistral Vibe, Devin CLI, Google Antigravity and Grok CLI.
+    /// Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI and ZCode.
     pub working_gemini: i64,
     pub working_copilot: i64,
     pub working_opencode: i64,
@@ -800,6 +800,7 @@ pub struct SessionCounts {
     pub working_devin: i64,
     pub working_antigravity: i64,
     pub working_grok: i64,
+    pub working_zcode: i64,
     /// Of `working`, the ones of tools added on the Hooks page (#236).
     pub working_custom: i64,
     pub waiting: i64,
@@ -825,6 +826,7 @@ impl SessionCounts {
                     Provider::Devin => counts.working_devin += 1,
                     Provider::Antigravity => counts.working_antigravity += 1,
                     Provider::Grok => counts.working_grok += 1,
+                    Provider::Zcode => counts.working_zcode += 1,
                     Provider::Custom => counts.working_custom += 1,
                     Provider::Claude => {}
                 }
@@ -864,6 +866,9 @@ pub enum Provider {
     Antigravity,
     /// xAI's Grok Build CLI (`grok`), heard through hooks in its own folder (#243).
     Grok,
+    /// Z.ai's ZCode (`zcode` and its desktop app), heard through hooks in
+    /// its CLI config, whose permission hook the island answers (#245).
+    Zcode,
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     Custom,

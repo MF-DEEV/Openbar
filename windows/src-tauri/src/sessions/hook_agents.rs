@@ -40,7 +40,7 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 9] = [
+    pub const HOOK_AGENTS: [Provider; 10] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -50,6 +50,7 @@ impl Provider {
         Provider::Devin,
         Provider::Antigravity,
         Provider::Grok,
+        Provider::Zcode,
     ];
 
     pub fn reports_through_hooks(self) -> bool {
@@ -61,11 +62,17 @@ impl Provider {
     /// CLI's stay in Devin and Google Antigravity's hook can't approve a call;
     /// the person answers those in the agent. Grok CLI's hooks can't approve
     /// either, but its prompt takes Return for yes and Ctrl-C for no, which
-    /// the island presses in its terminal where it can (#243).
+    /// the island presses in its terminal where it can (#243). ZCode's
+    /// permission hook answers like Claude Code's, racing its own prompt:
+    /// whichever answers first wins (#245).
     pub fn answers_permissions(self) -> bool {
         matches!(
             self,
-            Provider::Claude | Provider::Codex | Provider::Opencode | Provider::Grok
+            Provider::Claude
+                | Provider::Codex
+                | Provider::Opencode
+                | Provider::Grok
+                | Provider::Zcode
         )
     }
 
@@ -82,6 +89,7 @@ impl Provider {
             Provider::Devin => "devin",
             Provider::Antigravity => "antigravity",
             Provider::Grok => "grok",
+            Provider::Zcode => "zcode",
             Provider::Custom => "custom",
         }
     }
@@ -105,6 +113,7 @@ impl Provider {
             Provider::Devin,
             Provider::Antigravity,
             Provider::Grok,
+            Provider::Zcode,
             Provider::Custom,
         ]
         .into_iter()
@@ -189,6 +198,9 @@ pub struct Decoded {
     pub attached: Option<String>,
     /// The events come from the proxy, not from Vibe's hooks.
     pub from_proxy: bool,
+    /// The input of a question the hook holds, handed back whole with the
+    /// answers (ZCode).
+    pub input: Option<Map<String, Value>>,
     pub provider: Option<Provider>,
     pub pid: i32,
 }
@@ -198,13 +210,14 @@ pub fn is_envelope(data: &[u8]) -> bool {
     contains(data, b"\"openbar\":")
 }
 
-/// Whether the hook waits for the island's answer: an OpenCode permission,
-/// or OpenCode's plugin or Pi's extension listening.
+/// Whether the hook waits for the island's answer: an OpenCode or ZCode
+/// permission, or OpenCode's plugin or Pi's extension listening.
 pub fn waits(data: &[u8]) -> bool {
     if !is_envelope(data)
         || !(contains(data, b"\"opencode\"")
             || contains(data, b"\"pi\"")
-            || contains(data, b"\"proxy\""))
+            || contains(data, b"\"proxy\"")
+            || contains(data, b"\"zcode\""))
     {
         return false;
     }
@@ -220,6 +233,8 @@ pub fn waits(data: &[u8]) -> bool {
             json.get("hook").and_then(Value::as_str) == Some("proxy")
                 && matches!(kind, Some("approval" | "question"))
         }
+        // ZCode's permission hook prints the island's answer.
+        Some("zcode") => json.get("hook").and_then(Value::as_str) == Some("PermissionRequest"),
         _ => false,
     }
 }
@@ -296,6 +311,7 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
             decoded.events = antigravity(&hook, event, pid, now, policy);
             decoded.transcript = text(event, "transcriptPath");
         }
+        Provider::Zcode => zcode(&hook, event, pid, now, policy, &mut decoded),
         Provider::Grok => {
             decoded.events = grok(&hook, event, pid, now, policy);
             decoded.transcript = text(event, "transcriptPath");
@@ -1001,6 +1017,207 @@ pub fn is_devin_process(name: &str) -> bool {
     let name = name.to_lowercase();
     let name = name.strip_suffix(".exe").unwrap_or(&name);
     name == "devin" || name.starts_with("devin-") || name.starts_with("devin.")
+}
+
+// MARK: ZCode
+
+/// ZCode's hooks (zcode.z.ai/en/docs/hooks), in Claude Code's format with
+/// camelCase copies beside. Its permission hook runs while ZCode's own
+/// prompt is up: the island's answer, printed by the hook, wins if it comes
+/// first, and ZCode stops the hook when the person answers there. A
+/// question is a permission for `AskUserQuestion`, answered with the
+/// question's input and the answers in it. It has no hook at its end: a
+/// session goes when its process does (AgentHookMessage.zcode).
+fn zcode(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+    decoded: &mut Decoded,
+) {
+    let Some(session) = text(json, "session_id").or_else(|| text(json, "sessionId")) else {
+        return;
+    };
+    let cwd = text(json, "cwd");
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Zcode,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    let raw = str_of(json.get("tool_name"))
+        .or_else(|| str_of(json.get("toolName")))
+        .unwrap_or("");
+    let tool = name(Provider::Zcode, raw);
+    let input = arguments(json.get("tool_input").or_else(|| json.get("toolInput")));
+    let call = text(json, "tool_use_id").or_else(|| text(json, "toolCallId"));
+    let asks = tool == Question::TOOL;
+    let event = text(json, "hook_event_name")
+        .or_else(|| text(json, "hookEventName"))
+        .unwrap_or_else(|| hook.to_owned());
+    match event.as_str() {
+        "SessionStart" => {
+            add(Kind::Started);
+            if let Some(model) = zcode_model(str_of(json.get("model"))) {
+                add(Kind::Model(model));
+            }
+        }
+        "UserPromptSubmit" => add(Kind::Prompt(
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
+        )),
+        // A question is told by its permission request.
+        "PreToolUse" if asks => {}
+        "PreToolUse" => {
+            let mut use_ = tool_use(&tool, &input, now, policy);
+            if let Some(call) = &call {
+                use_.id = call.clone();
+            }
+            add(Kind::ToolStarted(use_));
+        }
+        "PermissionRequest" => {
+            let request = call
+                .clone()
+                .or_else(|| text(json, "requestId"))
+                .unwrap_or_else(|| format!("{:x}", rand_id()));
+            let questions = if asks {
+                Question::questions_in(&input).unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            // A question the island can't show is answered in ZCode.
+            if asks && questions.is_empty() {
+                add(Kind::Question);
+            } else {
+                decoded.permission = Some((session.clone(), request.clone()));
+                if !questions.is_empty() {
+                    decoded.input = Some(input.clone());
+                }
+                // ZCode's tools take Claude Code's names and arguments, so
+                // the request reads as Claude Code's, whatever the previews.
+                let full = tool_summary::permission_detail(&tool, &input);
+                let complete = tool != "Bash"
+                    || input
+                        .get("command")
+                        .and_then(Value::as_str)
+                        .is_some_and(|s| !s.is_empty());
+                let mut permission = Permission {
+                    request_id: request,
+                    tool: if tool.is_empty() {
+                        "Tool".to_owned()
+                    } else {
+                        tool.clone()
+                    },
+                    summary: questions
+                        .first()
+                        .map(|q| tool_summary::clip(&q.question))
+                        .or_else(|| tool_summary::summary(&tool, &input)),
+                    detail: String::new(),
+                    content: None,
+                    offers_always: false,
+                    since: now,
+                    tool_id: None,
+                    input_key: Some(tool_summary::input_key(&tool, &input)),
+                    questions,
+                    diffs: file_diff::diffs(&tool, &input, cwd.as_deref()),
+                    plan_modes: Vec::new(),
+                    risk: super::risk::Risk::Unassessed,
+                };
+                permission.set_content(&full, complete, Some(full.chars().count()));
+                add(Kind::HeldPermission(permission));
+            }
+        }
+        "PostToolUse" | "PostToolUseFailure" => {
+            // The tool ran or failed: its request, if any, was answered, here or in ZCode.
+            add(Kind::PermissionSettled(call.clone()));
+            if !asks {
+                add(Kind::ToolFinished {
+                    id: call,
+                    input_key: Some(tool_summary::input_key(&tool, &input)),
+                    name: tool,
+                    failed: event == "PostToolUseFailure",
+                    started: None,
+                });
+            }
+        }
+        "Stop" => add(Kind::Stopped {
+            last_text: policy
+                .previews
+                .then(|| {
+                    reply_preview(
+                        json.get("last_assistant_message")
+                            .or_else(|| json.get("responseText")),
+                    )
+                })
+                .flatten(),
+            failed: false,
+        }),
+        _ => {}
+    }
+    decoded.events = events;
+}
+
+/// The model ZCode names as `provider/model`, without the provider.
+pub fn zcode_model(named: Option<&str>) -> Option<String> {
+    let named = named.filter(|n| !n.is_empty())?;
+    match named.split_once('/') {
+        Some((_, model)) => (!model.is_empty()).then(|| model.to_owned()),
+        None => Some(named.to_owned()),
+    }
+}
+
+/// What a task started in ZCode's app without a project is called: it runs
+/// in a folder of the app's own, `.zcode/workspace/default` or `draft-<id>`.
+pub const ZCODE_TASK: &str = "ZCode task";
+
+/// What a ZCode session's folder is called (AgentHookMessage.zcodeProject).
+pub fn zcode_project(cwd: &str) -> String {
+    let parts: Vec<&str> = cwd.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
+    let n = parts.len();
+    if n >= 3 && parts[n - 3] == ".zcode" && parts[n - 2] == "workspace" {
+        return ZCODE_TASK.to_owned();
+    }
+    project_name(cwd)
+}
+
+/// What ZCode's permission hook prints for the person's decision, as Claude
+/// Code's does. Answers go back in the question's own input, each as one
+/// text, as ZCode keeps them; a skipped question is a deny.
+pub fn zcode_reply(
+    decision: &super::hook_message::Decision,
+    input: Option<&Map<String, Value>>,
+) -> Option<Vec<u8>> {
+    use super::hook_message::{DENY_MESSAGE, Decision, SKIP_MESSAGE};
+    let body = match decision {
+        Decision::Allow | Decision::AllowAlways | Decision::ApprovePlan(_) => {
+            json!({"behavior": "allow"})
+        }
+        Decision::Deny => json!({
+            "behavior": "deny",
+            "message": if input.is_some() { SKIP_MESSAGE } else { DENY_MESSAGE },
+        }),
+        Decision::Answer(answers) => {
+            let mut updated = input?.clone();
+            let given: Map<String, Value> = answers
+                .iter()
+                .map(|(question, picked)| (question.clone(), json!(picked.join(", "))))
+                .collect();
+            updated.insert("answers".into(), Value::Object(given));
+            json!({"behavior": "allow", "updatedInput": updated})
+        }
+    };
+    serde_json::to_vec(
+        &json!({"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": body}}),
+    )
+    .ok()
 }
 
 // MARK: Grok CLI
@@ -1726,6 +1943,8 @@ pub fn name(provider: Provider, tool: &str) -> String {
             ("notebook_edit", "Edit"),
             ("exit_plan_mode", "ExitPlanMode"),
         ],
+        // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.
+        Provider::Zcode => &[("ApplyPatch", "Edit"), ("Agent", "Task")],
         Provider::Grok => &[
             ("run_terminal_command", "Bash"),
             ("read_file", "Read"),
@@ -2309,7 +2528,11 @@ fn session(
             tool.summary = None;
         }
     }
-    let project = project_name(&entry.cwd);
+    let project = if entry.provider == Provider::Zcode {
+        zcode_project(&entry.cwd)
+    } else {
+        project_name(&entry.cwd)
+    };
     let mut tokens = Tokens::default();
     let mut cost = 0.0;
     for (part, part_cost) in entry.usage.values() {
@@ -2438,8 +2661,25 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Devin => Some("devin"),
         Provider::Antigravity => Some("agy"),
         Provider::Grok => Some("grok"),
+        Provider::Zcode => Some("zcode"),
         Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
+}
+
+/// Whether a reply typed into the agent's terminal takes one Return only.
+/// The others get a second one a moment later, for the agents whose prompt
+/// takes a quick Return as part of the paste (Gemini CLI). ZCode's sends
+/// on the first, and a second would land on the permission prompt the
+/// reply may open at once, where Return picks Deny (#245).
+pub fn takes_one_return(provider: Provider) -> bool {
+    provider == Provider::Zcode
+}
+
+/// Whether New session can start the agent with its first prompt. ZCode's
+/// terminal UI takes none (`--prompt` runs headless, without asking
+/// anything), so it is found and connected but not offered there.
+pub fn starts_with_prompt(provider: Provider) -> bool {
+    provider != Provider::Zcode
 }
 
 /// The arguments that open the agent's terminal UI with a first prompt
@@ -2458,7 +2698,7 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         Provider::Opencode => vec!["--prompt".into(), prompt.into()],
         Provider::Cursor | Provider::Pi | Provider::Vibe => vec![prompt.into()],
         Provider::Devin | Provider::Grok => vec!["--".into(), prompt.into()],
-        Provider::Claude | Provider::Codex | Provider::Custom => Vec::new(),
+        Provider::Zcode | Provider::Claude | Provider::Codex | Provider::Custom => Vec::new(),
     }
 }
 
@@ -2629,6 +2869,19 @@ pub mod installer {
         "StopCancelled",
     ];
 
+    /// ZCode's events (its hooks guide, zcode.z.ai/en/docs/hooks), every one
+    /// it has: its config refuses any other name. They sit under
+    /// `hooks.events` in its CLI config, which also says `hooks.enabled`.
+    pub const ZCODE_EVENTS: [&str; 7] = [
+        "SessionStart",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PermissionRequest",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "Stop",
+    ];
+
     /// Google Antigravity's lifecycle hooks (its hooks.json guide). It has no
     /// session or prompt hooks: a turn is heard from the model's invocations.
     pub const ANTIGRAVITY_EVENTS: [&str; 5] = [
@@ -2778,6 +3031,33 @@ pub mod installer {
         base.join("devin").join("config.json")
     }
 
+    /// ZCode's CLI config, read by `zcode` and by the runtime its desktop
+    /// app starts alike, in the same place on every system.
+    pub fn zcode_config(home: &Path) -> PathBuf {
+        home.join(".zcode").join("cli").join("config.json")
+    }
+
+    /// Where ZCode's desktop app is put: the per-user install on Windows,
+    /// the packages' folders on Linux.
+    fn zcode_apps(home: &Path) -> Vec<PathBuf> {
+        if cfg!(windows) {
+            vec![
+                std::env::var_os("LOCALAPPDATA")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| home.join("AppData").join("Local"))
+                    .join("Programs")
+                    .join("ZCode")
+                    .join("ZCode.exe"),
+            ]
+        } else {
+            vec![
+                PathBuf::from("/opt/ZCode/zcode"),
+                PathBuf::from("/opt/ZCode/ZCode"),
+                PathBuf::from("/usr/share/zcode/zcode"),
+            ]
+        }
+    }
+
     /// Codex's own home, `CODEX_HOME` or `~/.codex`, which the island hears
     /// through Codex's app-server.
     pub fn codex_home(home: &Path) -> PathBuf {
@@ -2798,6 +3078,7 @@ pub mod installer {
             Provider::Devin => devin_config(home).parent()?.to_path_buf(),
             Provider::Antigravity => antigravity_hooks(home).parent()?.to_path_buf(),
             Provider::Grok => grok_folder(home),
+            Provider::Zcode => zcode_config(home).parent()?.to_path_buf(),
             Provider::Claude | Provider::Custom => return None,
         })
     }
@@ -2885,6 +3166,9 @@ pub mod installer {
         }
         if provider == Provider::Antigravity {
             return antigravity_apps(home).iter().any(|p| p.is_file());
+        }
+        if provider == Provider::Zcode {
+            return zcode_apps(home).iter().any(|p| p.is_file());
         }
         provider == Provider::Cursor && cursor_apps(home).iter().any(|p| p.is_file())
     }
@@ -3480,6 +3764,10 @@ pub mod installer {
                 }),
                 Err(_) => State::Unreadable,
             },
+            Provider::Zcode => match read(&path) {
+                Ok(s) => zcode_state(&s, exe, app),
+                Err(_) => State::Unreadable,
+            },
             Provider::Antigravity => match read(&path) {
                 Ok(s) if s.get(own_name(app)) == Some(&antigravity_entry(exe, app)) => {
                     State::Installed
@@ -3693,6 +3981,9 @@ pub mod installer {
             Provider::Antigravity => {
                 claude::update(&path, |s| antigravity_installing(s, exe, app)).map_err(failure)
             }
+            Provider::Zcode => {
+                claude::update(&path, |s| zcode_installing(s, exe, app)).map_err(failure)
+            }
             Provider::Codex => match folder {
                 Some(folder) => claude::update(&path, |s| codex_installing(s, exe, app, folder))
                     .map_err(failure),
@@ -3732,8 +4023,208 @@ pub mod installer {
             Provider::Antigravity => {
                 claude::update(&path, |s| antigravity_removing(s, app)).map_err(failure)
             }
+            Provider::Zcode => {
+                let before = zcode_enabled_before(&path);
+                claude::update(&path, |s| zcode_removing(s, app, before.clone())).map_err(failure)
+            }
             Provider::Claude | Provider::Custom => Ok(()),
         }
+    }
+
+    // MARK: ZCode's config
+
+    /// One of ZCode's hooks: this app, run with no shell between (a
+    /// `process` hook), so ZCode is its parent and waits for its answer.
+    /// Its permission hook may wait as long as Claude Code's: ZCode shows
+    /// its own prompt meanwhile, and stops the hook when answered there.
+    pub fn zcode_entry(event: &str, exe: &Path, app: &str) -> Value {
+        let seconds = if event == "PermissionRequest" {
+            claude::PERMISSION_TIMEOUT
+        } else {
+            EVENT_TIMEOUT
+        };
+        json!({
+            "type": "process",
+            "command": exe.to_string_lossy(),
+            "args": ["--hook", "--agent", "zcode", "--event", event, "--marker", claude::marker_name(app), "--app", app],
+            "timeoutMs": seconds * 1000,
+        })
+    }
+
+    /// Whether a hook entry is this app's: its marker in the command, or as
+    /// arguments of a `process` hook.
+    fn zcode_ours(entry: &Value, app: &str) -> bool {
+        if entry
+            .get("command")
+            .and_then(Value::as_str)
+            .is_some_and(|c| c.contains(&claude::marker(app)))
+        {
+            return true;
+        }
+        let args: Vec<&str> = entry
+            .get("args")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default();
+        args.windows(4)
+            .any(|w| w == ["--marker", claude::marker_name(app), "--app", app])
+    }
+
+    fn zcode_events_of(settings: &Value) -> Map<String, Value> {
+        settings
+            .pointer("/hooks/events")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Installed when every event holds the current hook and hooks are on:
+    /// ZCode runs none while `hooks.enabled` isn't true.
+    pub fn zcode_state(settings: &Value, exe: &Path, app: &str) -> State {
+        let events = zcode_events_of(settings);
+        let on = settings.pointer("/hooks/enabled").and_then(Value::as_bool) == Some(true);
+        let holds = ZCODE_EVENTS.iter().all(|event| {
+            let wanted = zcode_entry(event, exe, app);
+            events
+                .get(*event)
+                .and_then(Value::as_array)
+                .is_some_and(|groups| {
+                    groups.iter().any(|g| {
+                        g.get("hooks")
+                            .and_then(Value::as_array)
+                            .is_some_and(|hooks| hooks.contains(&wanted))
+                    })
+                })
+        });
+        if on && holds {
+            return State::Installed;
+        }
+        let any = events
+            .values()
+            .filter_map(Value::as_array)
+            .flatten()
+            .any(|g| {
+                g.get("hooks")
+                    .and_then(Value::as_array)
+                    .is_some_and(|hooks| hooks.iter().any(|h| zcode_ours(h, app)))
+            });
+        if any { State::Outdated } else { State::Missing }
+    }
+
+    /// The events without this app's hooks; groups and events left empty go too.
+    fn zcode_events_without(events: &Map<String, Value>, app: &str) -> Map<String, Value> {
+        let mut kept_events = Map::new();
+        for (event, list) in events {
+            let Some(groups) = list.as_array() else {
+                kept_events.insert(event.clone(), list.clone());
+                continue;
+            };
+            let kept: Vec<Value> = groups
+                .iter()
+                .filter_map(|group| {
+                    let Some(hooks) = group.get("hooks").and_then(Value::as_array) else {
+                        return Some(group.clone());
+                    };
+                    let remaining: Vec<Value> = hooks
+                        .iter()
+                        .filter(|h| !zcode_ours(h, app))
+                        .cloned()
+                        .collect();
+                    if remaining.len() == hooks.len() {
+                        return Some(group.clone());
+                    }
+                    if remaining.is_empty() {
+                        return None;
+                    }
+                    let mut group = group.clone();
+                    group["hooks"] = Value::Array(remaining);
+                    Some(group)
+                })
+                .collect();
+            if !kept.is_empty() {
+                kept_events.insert(event.clone(), Value::Array(kept));
+            }
+        }
+        kept_events
+    }
+
+    /// The island's groups after the person's own, tool events matching
+    /// every tool, and hooks turned on. Every other key is left as it was.
+    pub fn zcode_installing(settings: &Value, exe: &Path, app: &str) -> Value {
+        let mut settings = if settings.is_object() {
+            settings.clone()
+        } else {
+            json!({})
+        };
+        let mut events = zcode_events_without(&zcode_events_of(&settings), app);
+        for event in ZCODE_EVENTS {
+            let mut group = json!({ "hooks": [zcode_entry(event, exe, app)] });
+            if CLAUDE_TOOL_EVENTS.contains(&event) {
+                group["matcher"] = json!("*");
+            }
+            let list = events.entry(event).or_insert_with(|| json!([]));
+            if let Some(list) = list.as_array_mut() {
+                list.push(group);
+            }
+        }
+        let object = settings.as_object_mut().unwrap();
+        let hooks = object.entry("hooks").or_insert_with(|| json!({}));
+        if !hooks.is_object() {
+            *hooks = json!({});
+        }
+        let hooks = hooks.as_object_mut().unwrap();
+        hooks.insert("events".into(), Value::Object(events));
+        hooks.insert("enabled".into(), json!(true));
+        settings
+    }
+
+    /// The settings without the island's hooks. Once none of anyone's are
+    /// left, `hooks.enabled` goes back to what it was before the island
+    /// first wrote the file, when that is known (`before`: None when unknown,
+    /// `Some(None)` when it wasn't set); with others' hooks left, it stays on
+    /// for them.
+    pub fn zcode_removing(settings: &Value, app: &str, before: Option<Option<bool>>) -> Value {
+        let mut settings = settings.clone();
+        let Some(hooks) = settings.get_mut("hooks").and_then(Value::as_object_mut) else {
+            return settings;
+        };
+        let events = hooks
+            .get("events")
+            .and_then(Value::as_object)
+            .map(|e| zcode_events_without(e, app));
+        match events {
+            Some(events) if events.is_empty() => {
+                hooks.remove("events");
+            }
+            Some(events) => {
+                hooks.insert("events".into(), Value::Object(events));
+            }
+            None => {}
+        }
+        if !hooks.contains_key("events")
+            && let Some(before) = before
+        {
+            match before {
+                Some(on) => hooks.insert("enabled".into(), json!(on)),
+                None => hooks.remove("enabled"),
+            };
+        }
+        if hooks.is_empty() {
+            settings.as_object_mut().unwrap().remove("hooks");
+        }
+        settings
+    }
+
+    /// What `hooks.enabled` was before the island first wrote ZCode's
+    /// config: `Some(None)` when the file or the key wasn't there, None when
+    /// nothing tells.
+    pub fn zcode_enabled_before(path: &Path) -> Option<Option<bool>> {
+        if claude::absent_note(path).exists() {
+            return Some(None);
+        }
+        let data = std::fs::read(claude::original_copy(path)).ok()?;
+        let json: Value = serde_json::from_slice(&data).ok()?;
+        Some(json.pointer("/hooks/enabled").and_then(Value::as_bool))
     }
 
     fn holds_marker(data: &[u8], app: &str) -> bool {
@@ -5499,8 +5990,7 @@ mod tests {
         assert_eq!(command_name(Provider::Grok), Some("grok"));
         assert_eq!(start_arguments(Provider::Grok, "-go"), vec!["--", "-go"]);
         assert!(
-            Provider::Grok.answers_permissions()
-                && Provider::HOOK_AGENTS.last() == Some(&Provider::Grok)
+            Provider::Grok.answers_permissions() && Provider::HOOK_AGENTS.contains(&Provider::Grok)
         );
     }
 
@@ -5523,5 +6013,268 @@ mod tests {
         assert_eq!(grok_session_pid_in(active, "b"), Some(22));
         assert_eq!(grok_session_pid_in(active, "c"), None);
         assert_eq!(grok_session_pid_in(b"{}", "a"), None);
+    }
+
+    // MARK: ZCode (#245)
+
+    fn zcode(event: &str, extra: Value) -> Vec<u8> {
+        let mut json = json!({
+            "hookEventName": event, "hook_event_name": event, "sessionId": "ses_7f3a", "session_id": "ses_7f3a",
+            "agentName": "build", "mode": "build", "permission_mode": "build", "cwd": "C:/w/rocket",
+            "traceId": "tr_1", "transcript_path": "C:/t/zcode-hook-a1/transcript.jsonl",
+        });
+        for (key, value) in extra.as_object().unwrap() {
+            json[key] = value.clone();
+        }
+        envelope("zcode", event, json)
+    }
+
+    fn zcode_tool(name: &str, call: &str, input: Value) -> Value {
+        json!({ "toolName": name, "tool_name": name, "toolCallId": call, "tool_use_id": call,
+                "toolInput": input.clone(), "tool_input": input })
+    }
+
+    #[test]
+    fn a_zcode_session_is_told_by_its_hooks() {
+        let mut t = Tracker::default();
+        feed(
+            &mut t,
+            &zcode(
+                "SessionStart",
+                json!({ "source": "startup", "model": "mock/glm-5.3" }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].id, "zcode:ses_7f3a");
+        assert_eq!(listed[0].provider, Provider::Zcode);
+        assert_eq!(listed[0].phase, SessionPhase::Idle);
+        assert_eq!(listed[0].model.as_deref(), Some("glm-5.3"));
+        feed(
+            &mut t,
+            &zcode("UserPromptSubmit", json!({ "prompt": "clean up" })),
+            ON,
+        );
+        let shell = zcode_tool("Bash", "call_1", json!({ "command": "rm -rf build" }));
+        feed(&mut t, &zcode("PreToolUse", shell.clone()), ON);
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].phase, SessionPhase::RunningTool);
+        // Its permission hook waits for the island; every other hook is let go.
+        let asked = zcode("PermissionRequest", shell.clone());
+        assert!(waits(&asked) && !waits(&zcode("PreToolUse", shell.clone())));
+        let decoded = decode(&asked, NOW, OFF).unwrap();
+        assert_eq!(
+            decoded.permission,
+            Some(("ses_7f3a".into(), "call_1".into()))
+        );
+        let Kind::HeldPermission(permission) = &decoded.events[0].kind else {
+            panic!("a held permission: {:?}", decoded.events);
+        };
+        assert_eq!(permission.tool, "Bash");
+        assert_eq!(permission.detail, "rm -rf build");
+        feed(&mut t, &asked, ON);
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].phase, SessionPhase::WaitingPermission);
+        // Answered in ZCode first: the tool runs, and its PostToolUse settles the card.
+        feed(&mut t, &zcode("PostToolUse", shell), ON);
+        let listed = snap(&mut t, NOW, true).0;
+        assert!(listed[0].permission.is_none());
+        assert_eq!(listed[0].phase, SessionPhase::Generating);
+        feed(
+            &mut t,
+            &zcode("Stop", json!({ "last_assistant_message": "Cleaned." })),
+            ON,
+        );
+        let listed = snap(&mut t, NOW + 1.0, true).0;
+        assert_eq!(listed[0].phase, SessionPhase::Finished);
+        assert_eq!(listed[0].last_text.as_deref(), Some("Cleaned."));
+        // No hook at its end: the row goes with its process.
+        t.prune(NOW, |_| false);
+        assert!(snap(&mut t, NOW, true).0.is_empty());
+    }
+
+    #[test]
+    fn a_zcode_question_is_answered_with_its_input() {
+        let asking = zcode_tool(
+            "AskUserQuestion",
+            "call_q",
+            json!({ "questions": [{
+            "question": "Which database?", "header": "DB", "multiSelect": false,
+            "options": [{ "label": "Postgres" }, { "label": "SQLite" }] }] }),
+        );
+        let decoded = decode(&zcode("PermissionRequest", asking), NOW, ON).unwrap();
+        let Kind::HeldPermission(permission) = &decoded.events[0].kind else {
+            panic!("a held question");
+        };
+        assert_eq!(permission.questions[0].question, "Which database?");
+        let input = decoded.input.expect("the question's input is kept");
+        let mut picked = BTreeMap::new();
+        picked.insert(
+            "Which database?".to_owned(),
+            vec!["Postgres".to_owned(), "SQLite".to_owned()],
+        );
+        use super::super::hook_message::{DENY_MESSAGE, Decision, SKIP_MESSAGE};
+        let answered: Value =
+            serde_json::from_slice(&zcode_reply(&Decision::Answer(picked), Some(&input)).unwrap())
+                .unwrap();
+        let decision = &answered["hookSpecificOutput"]["decision"];
+        assert_eq!(
+            answered["hookSpecificOutput"]["hookEventName"],
+            "PermissionRequest"
+        );
+        assert_eq!(decision["behavior"], "allow");
+        assert_eq!(
+            decision["updatedInput"]["answers"]["Which database?"],
+            "Postgres, SQLite"
+        );
+        assert_eq!(decision["updatedInput"]["questions"][0]["header"], "DB");
+        assert!(zcode_reply(&Decision::Answer(BTreeMap::new()), None).is_none());
+        let deny: Value =
+            serde_json::from_slice(&zcode_reply(&Decision::Deny, None).unwrap()).unwrap();
+        assert_eq!(
+            deny["hookSpecificOutput"]["decision"]["message"],
+            DENY_MESSAGE
+        );
+        let skip: Value =
+            serde_json::from_slice(&zcode_reply(&Decision::Deny, Some(&input)).unwrap()).unwrap();
+        assert_eq!(
+            skip["hookSpecificOutput"]["decision"]["message"],
+            SKIP_MESSAGE
+        );
+        let always: Value =
+            serde_json::from_slice(&zcode_reply(&Decision::AllowAlways, None).unwrap()).unwrap();
+        assert_eq!(
+            always["hookSpecificOutput"]["decision"],
+            json!({ "behavior": "allow" })
+        );
+        // A question the island can't show is answered in ZCode.
+        let bare = decode(
+            &zcode(
+                "PermissionRequest",
+                zcode_tool("AskUserQuestion", "q2", json!({ "questions": "?" })),
+            ),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert!(bare.permission.is_none() && bare.events[0].kind == Kind::Question);
+    }
+
+    #[test]
+    fn zcode_names_its_model_project_and_command() {
+        assert_eq!(zcode_model(Some("zai/glm-5.3")).as_deref(), Some("glm-5.3"));
+        assert_eq!(zcode_model(Some("glm-5")).as_deref(), Some("glm-5"));
+        assert_eq!(zcode_model(Some("x/")), None);
+        assert_eq!(zcode_model(None), None);
+        assert_eq!(
+            zcode_project("C:\\Users\\a\\.zcode\\workspace\\draft-4e56"),
+            ZCODE_TASK
+        );
+        assert_eq!(
+            zcode_project("/home/a/.zcode/workspace/default"),
+            ZCODE_TASK
+        );
+        assert_eq!(zcode_project("/home/a/code/rocket"), "rocket");
+        assert_eq!(command_name(Provider::Zcode), Some("zcode"));
+        assert!(start_arguments(Provider::Zcode, "go").is_empty());
+        assert!(!starts_with_prompt(Provider::Zcode) && starts_with_prompt(Provider::Grok));
+        assert!(takes_one_return(Provider::Zcode) && !takes_one_return(Provider::Gemini));
+        assert_eq!(name(Provider::Zcode, "ApplyPatch"), "Edit");
+        assert_eq!(name(Provider::Zcode, "Bash"), "Bash");
+        assert!(Provider::Zcode.answers_permissions());
+        assert_eq!(Provider::HOOK_AGENTS.last(), Some(&Provider::Zcode));
+        assert_eq!(Provider::from_key("zcode"), Some(Provider::Zcode));
+    }
+
+    #[test]
+    fn zcode_hooks_go_beside_the_persons_own_and_come_out_alone() {
+        let exe = Path::new("C:/Openbar/Openbar.exe");
+        let mine = json!({ "mcp": { "servers": {} }, "hooks": { "timeoutMs": 30000, "events": {
+            "Stop": [{ "hooks": [{ "type": "process", "command": "say", "args": ["done"] }] }] } } });
+        let installed = installer::zcode_installing(&mine, exe, "app");
+        let events = installed["hooks"]["events"].as_object().unwrap();
+        assert_eq!(events.len(), installer::ZCODE_EVENTS.len());
+        assert_eq!(installed["hooks"]["enabled"], true);
+        assert_eq!(installed["hooks"]["timeoutMs"], 30000);
+        assert!(installed["mcp"].is_object());
+        assert_eq!(events["Stop"].as_array().unwrap().len(), 2);
+        assert_eq!(events["Stop"][0]["hooks"][0]["command"], "say");
+        let pre = &events["PreToolUse"][0];
+        assert_eq!(pre["matcher"], "*");
+        assert!(events["SessionStart"][0].get("matcher").is_none());
+        assert_eq!(pre["hooks"][0]["type"], "process");
+        assert_eq!(pre["hooks"][0]["command"], "C:/Openbar/Openbar.exe");
+        assert_eq!(
+            pre["hooks"][0]["timeoutMs"],
+            installer::EVENT_TIMEOUT * 1000
+        );
+        assert_eq!(
+            events["PermissionRequest"][0]["hooks"][0]["timeoutMs"],
+            600_000
+        );
+        assert_eq!(
+            pre["hooks"][0]["args"],
+            json!([
+                "--hook",
+                "--agent",
+                "zcode",
+                "--event",
+                "PreToolUse",
+                "--marker",
+                "openbar-hook",
+                "--app",
+                "app"
+            ])
+        );
+        assert_eq!(
+            installer::zcode_state(&installed, exe, "app"),
+            installer::State::Installed
+        );
+        assert_eq!(
+            installer::zcode_state(&installed, Path::new("D:/Other.exe"), "app"),
+            installer::State::Outdated
+        );
+        assert_eq!(
+            installer::zcode_state(&mine, exe, "app"),
+            installer::State::Missing
+        );
+        let mut off = installed.clone();
+        off["hooks"]["enabled"] = json!(false);
+        assert_eq!(
+            installer::zcode_state(&off, exe, "app"),
+            installer::State::Outdated
+        );
+        // Installing again changes nothing.
+        assert_eq!(
+            installer::zcode_installing(&installed, exe, "app"),
+            installed
+        );
+        // Remove leaves the person's hook, and hooks on for it.
+        let removed = installer::zcode_removing(&installed, "app", Some(None));
+        assert_eq!(
+            removed["hooks"]["events"]["Stop"].as_array().unwrap().len(),
+            1
+        );
+        assert_eq!(removed["hooks"]["enabled"], true);
+        assert_eq!(removed["hooks"]["timeoutMs"], 30000);
+        // No file before: nothing of the island's stays behind.
+        let fresh = installer::zcode_installing(&json!({}), exe, "app");
+        assert_eq!(
+            installer::zcode_removing(&fresh, "app", Some(None)),
+            json!({})
+        );
+        // Off before, off again; unknown, the switch is left.
+        let was_off =
+            installer::zcode_installing(&json!({ "hooks": { "enabled": false } }), exe, "app");
+        assert_eq!(
+            installer::zcode_removing(&was_off, "app", Some(Some(false)))["hooks"]["enabled"],
+            false
+        );
+        assert_eq!(
+            installer::zcode_removing(&was_off, "app", None)["hooks"]["enabled"],
+            true
+        );
+        assert!(installer::zcode_config(Path::new("/h")).ends_with(".zcode/cli/config.json"));
+        assert!(!installer::FOLDERS_BY_HAND.contains(&Provider::Zcode));
     }
 }

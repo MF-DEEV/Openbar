@@ -37,7 +37,7 @@ const TOOL_EVENTS: [&str; 4] = [
     "PermissionRequest",
 ];
 /// A permission waits on the person; everything else is answered at once.
-const PERMISSION_TIMEOUT: u64 = 600;
+pub const PERMISSION_TIMEOUT: u64 = 600;
 const EVENT_TIMEOUT: u64 = 5;
 /// How many copies of earlier settings are kept beside the file.
 const BACKUPS: usize = 3;
