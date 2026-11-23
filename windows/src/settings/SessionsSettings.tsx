@@ -294,6 +294,7 @@ const AGENT_PREF = {
   antigravity: "agentAntigravity",
   grok: "agentGrok",
   zcode: "agentZcode",
+  hermes: "agentHermes",
 } as const satisfies Record<HookAgent, keyof SessionPrefs>;
 
 /** Gemini CLI, Copilot CLI, OpenCode, Cursor, Pi, Mistral Vibe, Devin CLI,
@@ -311,7 +312,11 @@ function MoreAgents() {
         caption={t("windows.settings.sessions.moreAgentsCaption")}
       />
       {HOOK_AGENTS.map((agent) => (
-        <SubRow key={agent} title={PROVIDER_NAMES[agent]}>
+        <SubRow
+          key={agent}
+          title={PROVIDER_NAMES[agent]}
+          caption={agent === "hermes" ? <HermesCaption shown={prefs[AGENT_PREF[agent]]} /> : undefined}
+        >
           <span className="st-agent-mark" aria-hidden>
             <ProviderMark provider={agent} size={14} />
           </span>
@@ -324,6 +329,29 @@ function MoreAgents() {
       ))}
     </>
   );
+}
+
+/** Under Hermes's switch (#244): Hermes runs a new hook only once the person
+ * allowed it in its terminal, and its app and gateway skip one nobody
+ * allowed. Read from Hermes's allowlist, never written. */
+function HermesCaption({ shown }: { shown: boolean }) {
+  useLocale();
+  const [waiting, setWaiting] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (!inTauri || !shown) return;
+    let live = true;
+    void invoke<{ agent: string; waitingApproval?: number }[]>("sessions_agent_hooks_status")
+      .then((statuses) => {
+        if (live) setWaiting(statuses.find((s) => s.agent === "hermes")?.waitingApproval);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [shown]);
+  if (!shown || waiting === undefined) return <>{t("windows.settings.sessions.hermesOff")}</>;
+  if (waiting > 0) return <>{tf("windows.settings.sessions.hermesWaiting", String(waiting))}</>;
+  return <>{t("windows.settings.sessions.hermesApproved")}</>;
 }
 
 /** The Claude app's two switches (#246): its Code tab's sessions, heard

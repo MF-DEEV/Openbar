@@ -178,6 +178,24 @@ pub fn send(
     Ok(())
 }
 
+/// Sends keys to the pane as typed, not as a paste: an arrow's escape
+/// sequence or a number at Hermes's menu (#244).
+pub fn keys(gui_pid: u32, pane: u32, socket: &str, bytes: &str) -> Result<(), ()> {
+    let cli = cli(gui_pid).ok_or(())?;
+    if !listed(&cli, socket, pane) {
+        return Err(());
+    }
+    let id = pane.to_string();
+    run(
+        &cli,
+        socket,
+        &["send-text", "--pane-id", &id, "--no-paste"],
+        Some(bytes),
+    )
+    .map(|_| ())
+    .ok_or(())
+}
+
 /// Presses Ctrl-C in the pane, as a key, not a paste (#243).
 pub fn interrupt(gui_pid: u32, pane: u32, socket: &str) -> Result<(), ()> {
     let cli = cli(gui_pid).ok_or(())?;

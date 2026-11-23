@@ -100,6 +100,16 @@ fn send_with(
 }
 
 /// Presses Ctrl-C in the pane, as a key (Grok CLI's no, #243).
+/// Presses a key in the pane by its name (`Down`, `2`), for Hermes's menu (#244).
+pub fn keys(socket: &str, pane: &str, terminal: Option<&str>, name: &str) -> Result<(), ()> {
+    if !holds_with("tmux", socket, pane, terminal) {
+        return Err(());
+    }
+    tmux_with("tmux", socket, &["send-keys", "-t", pane, name], None)
+        .map(|_| ())
+        .ok_or(())
+}
+
 pub fn interrupt(socket: &str, pane: &str, terminal: Option<&str>) -> Result<(), ()> {
     if !holds_with("tmux", socket, pane, terminal) {
         return Err(());

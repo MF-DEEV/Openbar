@@ -187,6 +187,8 @@ export type Provider =
   | "antigravity"
   | "grok"
   | "zcode"
+  /** Nous Research's Hermes Agent, heard through shell hooks its gateway runs (#244). */
+  | "hermes"
   /** A tool with Claude Code style hooks added on the Hooks page (#236): never one of the named agents. */
   | "custom";
 
@@ -204,6 +206,7 @@ export const PROVIDERS: readonly Provider[] = [
   "antigravity",
   "grok",
   "zcode",
+  "hermes",
 ];
 
 /** The agents that report through the island's hooks or plugin
@@ -219,6 +222,7 @@ export const HOOK_AGENTS = [
   "antigravity",
   "grok",
   "zcode",
+  "hermes",
 ] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
@@ -236,6 +240,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   antigravity: "Antigravity",
   grok: "Grok",
   zcode: "ZCode",
+  hermes: "Hermes",
   custom: "Other tool",
 };
 
@@ -256,6 +261,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   antigravity: "Google Antigravity",
   grok: "Grok CLI",
   zcode: "ZCode",
+  hermes: "Hermes",
   custom: "Other tool",
 };
 
@@ -386,6 +392,7 @@ export interface Counts {
   workingAntigravity?: number;
   workingGrok?: number;
   workingZcode?: number;
+  workingHermes?: number;
   /** Of `working`, the tools added on the Hooks page (#236). */
   workingCustom?: number;
   waiting: number;
@@ -455,6 +462,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     antigravity: counts.workingAntigravity ?? 0,
     grok: counts.workingGrok ?? 0,
     zcode: counts.workingZcode ?? 0,
+    hermes: counts.workingHermes ?? 0,
     custom: counts.workingCustom ?? 0,
   };
   if (provider === "claude") {

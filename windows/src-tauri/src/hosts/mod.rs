@@ -330,11 +330,55 @@ pub fn deliver(
     }
 }
 
-/// A key the island presses in a session's terminal (#243).
+/// A key the island presses in a session's terminal (#243): Return and
+/// Ctrl-C for Grok's prompt, the down arrow and a number for Hermes's
+/// menu (#244).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Key {
     Enter,
     Interrupt,
+    Down,
+    Char(char),
+}
+
+impl Key {
+    /// What a terminal sends the program for it.
+    pub fn bytes(self) -> String {
+        match self {
+            Key::Enter => "\r".into(),
+            Key::Interrupt => "\u{3}".into(),
+            Key::Down => "\u{1b}[B".into(),
+            Key::Char(c) => c.to_string(),
+        }
+    }
+
+    /// Its name for tmux's and zellij's `send-keys`.
+    pub fn multiplexer_name(self) -> String {
+        match self {
+            Key::Enter => "Enter".into(),
+            Key::Interrupt => "C-c".into(),
+            Key::Down => "Down".into(),
+            Key::Char(c) => c.to_string(),
+        }
+    }
+
+    /// Its name for kitty's `send-key`.
+    pub fn kitty_name(self) -> String {
+        match self {
+            Key::Enter => "enter".into(),
+            Key::Interrupt => "ctrl+c".into(),
+            Key::Down => "down".into(),
+            Key::Char(c) => c.to_ascii_lowercase().to_string(),
+        }
+    }
+}
+
+/// Presses each key in turn, stopping at the first that doesn't go.
+pub fn press_all(pid: u32, located: &Located, keys: &[Key]) -> Result<(), DeliveryError> {
+    for key in keys {
+        press(pid, located, *key)?;
+    }
+    Ok(())
 }
 
 /// Whether the island can press keys in the host, not only paste: Grok
@@ -355,15 +399,63 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
     }
     match (key, &located.host) {
         #[cfg(windows)]
+        (Key::Enter | Key::Interrupt, Host::WindowsTerminal { .. } | Host::Conhost) => {
+            console::run_helper(
+                pid,
+                console::Action::Key {
+                    interrupt: key == Key::Interrupt,
+                },
+            )
+            .map(|_| ())
+            .map_err(|_| DeliveryError::Unreachable)
+        }
+        #[cfg(windows)]
         (_, Host::WindowsTerminal { .. } | Host::Conhost) => console::run_helper(
             pid,
-            console::Action::Key {
-                interrupt: key == Key::Interrupt,
+            console::Action::Press {
+                key: match key {
+                    Key::Down => "down".into(),
+                    Key::Char(c) => c.to_string(),
+                    Key::Enter | Key::Interrupt => unreachable!(),
+                },
             },
         )
         .map(|_| ())
         .map_err(|_| DeliveryError::Unreachable),
         (Key::Enter, _) => deliver(pid, located, "", &[]),
+        (
+            Key::Down | Key::Char(_),
+            Host::Wezterm {
+                gui_pid,
+                pane,
+                socket,
+            },
+        ) => wezterm::keys(*gui_pid, *pane, socket, &key.bytes())
+            .map_err(|_| DeliveryError::Unreachable),
+        (
+            Key::Down | Key::Char(_),
+            Host::Zellij {
+                session,
+                pane,
+                server,
+                program,
+            },
+        ) => {
+            if !zellij_holds(pid, *server) {
+                return Err(DeliveryError::Unreachable);
+            }
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            zellij::keys(&target, *pane, &key.multiplexer_name())
+                .map_err(|_| DeliveryError::Unreachable)
+        }
+        #[cfg(target_os = "linux")]
+        (Key::Down | Key::Char(_), Host::Tmux { .. } | Host::Kitty { .. }) => {
+            crate::linux::hosts::keys(pid, located, key)
+        }
         (
             Key::Interrupt,
             Host::Wezterm {

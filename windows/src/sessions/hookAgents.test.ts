@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { characterOf, FAVOURED_SHELL } from "./clawd/costume";
 import {
   ANTIGRAVITY_TINT,
+  HERMES_TINT,
   CLAUDE_TINT,
   GEMINI_TINT,
   GROK_TINT,
@@ -28,7 +29,7 @@ const counts = (working: number, others: Partial<Counts> = {}): Counts => ({
 describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
   it("counts each agent's work apart, Claude's being what no other claims", () => {
     const c = counts(4, { workingGemini: 1, workingOpencode: 2 });
-    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0]);
+    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(workingOf(counts(1, { workingCursor: 5 }), "cursor")).toBe(1);
     expect(workingOf(counts(-1, { workingGemini: -3 }), "gemini")).toBe(0);
   });
@@ -90,7 +91,7 @@ describe("Google Antigravity in Sessions (#247)", () => {
     const c = counts(3, { workingAntigravity: 2 });
     expect(workingOf(c, "antigravity")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-3)).toBe("antigravity");
+    expect(HOOK_AGENTS.at(-4)).toBe("antigravity");
     expect(PROVIDER_NAMES.antigravity).toBe("Google Antigravity");
     expect(SHORT_NAMES.antigravity).toBe("Antigravity");
     expect(stripAgents(counts(2, { workingAntigravity: 1, workingDevin: 1 }))).toEqual(["devin", "antigravity"]);
@@ -132,8 +133,8 @@ describe("ZCode in Sessions (#245)", () => {
     const c = counts(3, { workingZcode: 2 });
     expect(workingOf(c, "zcode")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-1)).toBe("zcode");
-    expect(PROVIDERS.at(-1)).toBe("zcode");
+    expect(HOOK_AGENTS.at(-2)).toBe("zcode");
+    expect(PROVIDERS.at(-2)).toBe("zcode");
     expect(isHookAgent("zcode")).toBe(true);
     expect(PROVIDER_NAMES.zcode).toBe("ZCode");
     expect(SHORT_NAMES.zcode).toBe("ZCode");
@@ -148,5 +149,28 @@ describe("ZCode in Sessions (#245)", () => {
   it("sends what the island can't answer to ZCode", () => {
     expect(S.answerIn("zcode")).toBe("Answer this one in ZCode.");
     expect(S.replyPlaceholderFor("zcode")).toBe("Reply to ZCode…");
+  });
+});
+
+describe("Hermes in Sessions (#244)", () => {
+  it("counts, names and draws it as itself", () => {
+    const c = counts(3, { workingHermes: 2 });
+    expect(workingOf(c, "hermes")).toBe(2);
+    expect(workingOf(c, "claude")).toBe(1);
+    expect(HOOK_AGENTS.at(-1)).toBe("hermes");
+    expect(PROVIDERS.at(-1)).toBe("hermes");
+    expect(isHookAgent("hermes")).toBe(true);
+    expect(PROVIDER_NAMES.hermes).toBe("Hermes");
+    expect(SHORT_NAMES.hermes).toBe("Hermes");
+    expect(stripAgents(counts(2, { workingZcode: 1, workingHermes: 1 }))).toEqual(["zcode", "hermes"]);
+    expect(characterOf("hermes")).toBe("hermes");
+    expect(FAVOURED_SHELL.hermes).toBe("amber");
+    expect(providerTint("hermes")).toBe(HERMES_TINT);
+    expect(markOf("hermes")).not.toBe(markOf("zcode"));
+  });
+
+  it("sends what the island can't answer to Hermes", () => {
+    expect(S.answerIn("hermes")).toBe("Answer this one in Hermes.");
+    expect(S.replyPlaceholderFor("hermes")).toBe("Reply to Hermes…");
   });
 });

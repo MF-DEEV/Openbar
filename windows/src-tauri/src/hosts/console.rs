@@ -21,7 +21,7 @@ use windows::Win32::System::Console::{
     AttachConsole, FreeConsole, GetConsoleTitleW, GetConsoleWindow, INPUT_RECORD, INPUT_RECORD_0,
     KEY_EVENT, KEY_EVENT_RECORD, KEY_EVENT_RECORD_0, WriteConsoleInputW,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::VK_RETURN;
+use windows::Win32::UI::Input::KeyboardAndMouse::{VK_DOWN, VK_RETURN};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GA_ROOTOWNER, GW_OWNER, GetAncestor, GetWindow, GetWindowThreadProcessId,
     IsIconic, IsWindowVisible, SW_RESTORE, SetForegroundWindow, ShowWindow,
@@ -47,6 +47,9 @@ pub enum Action {
     /// Presses Return or Ctrl-C as keys, nothing pasted: Grok CLI's
     /// prompt takes them for yes and no (#243).
     Key { interrupt: bool },
+    /// Presses the down arrow (`down`) or a character as a key, for
+    /// Hermes's menu (#244).
+    Press { key: String },
     /// Prints the window that shows the console.
     Window,
     /// Prints that window, then the console's title on the next line (#210).
@@ -69,7 +72,7 @@ pub fn run_helper(pid: u32, action: Action) -> Result<String, String> {
     }
     let images = match &action {
         Action::Type { images, .. } => images.len(),
-        Action::Window | Action::Tab | Action::Key { .. } => 0,
+        Action::Window | Action::Tab | Action::Key { .. } | Action::Press { .. } => 0,
     };
     let deadline = Instant::now() + Duration::from_secs_f64(6.0 + 1.5 * images as f64);
     loop {
@@ -126,6 +129,7 @@ fn helper(pid: u32, action: Action) -> windows::core::Result<String> {
                 ))
             }
             Action::Key { interrupt } => press(interrupt).map(|_| String::new()),
+            Action::Press { key } => press_key(&key).map(|_| String::new()),
             Action::Type {
                 text,
                 images,
@@ -426,6 +430,32 @@ unsafe fn press(interrupt: bool) -> windows::core::Result<()> {
         key(VK_RETURN.0, '\r')
     };
     let result = write_records(input, &keys);
+    unsafe {
+        let _ = CloseHandle(input);
+    }
+    result
+}
+
+/// An arrow or a character as a key event, for a program that reads raw
+/// keys (Hermes's menu, #244).
+unsafe fn press_key(name: &str) -> windows::core::Result<()> {
+    let records = match name {
+        "down" => key(VK_DOWN.0, '\0'),
+        other => {
+            let Some(c) = other.chars().next() else {
+                return Ok(());
+            };
+            // A digit's or letter's virtual key is its upper-case ASCII code.
+            let code = if c.is_ascii_alphanumeric() {
+                c.to_ascii_uppercase() as u16
+            } else {
+                0
+            };
+            key(code, c)
+        }
+    };
+    let input = unsafe { console_input()? };
+    let result = write_records(input, &records);
     unsafe {
         let _ = CloseHandle(input);
     }

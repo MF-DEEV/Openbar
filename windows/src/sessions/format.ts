@@ -39,6 +39,8 @@ export const DEVIN_TINT = "#B38CFF";
 export const ANTIGRAVITY_TINT = "#3087FF";
 export const GROK_TINT = "#8CCC66";
 export const ZCODE_TINT = "#E070C7";
+/** Hermes's pale gold, from its terminal's own colors, apart from Vibe's amber. */
+export const HERMES_TINT = "#F5D666";
 
 const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   claude: CLAUDE_TINT,
@@ -53,6 +55,7 @@ const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   antigravity: ANTIGRAVITY_TINT,
   grok: GROK_TINT,
   zcode: ZCODE_TINT,
+  hermes: HERMES_TINT,
   // A tool added by hand has no color of its own (#236).
   custom: CURSOR_TINT,
 };

@@ -1242,6 +1242,7 @@ pub fn display_name(provider: Provider) -> &'static str {
         Provider::Antigravity => "Google Antigravity",
         Provider::Grok => "Grok CLI",
         Provider::Zcode => "ZCode",
+        Provider::Hermes => "Hermes",
         Provider::Custom => "Other tool",
     }
 }

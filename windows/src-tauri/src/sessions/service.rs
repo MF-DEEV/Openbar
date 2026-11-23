@@ -208,6 +208,8 @@ struct Inner {
     local_codex: Vec<super::codex::local::LocalSession>,
     /// Gemini CLI's, Copilot CLI's, OpenCode's and Cursor's sessions.
     hook_agents: HookAgents,
+    /// Where each Hermes session runs: its hooks name only its gateway (#244).
+    hermes_places: super::hermes::Places,
     agent_pending: HashMap<String, AgentPending>,
     inspection: super::inspection::Gate,
     /// What each ask looks like it does, for the queue's Allow all (#269).
@@ -302,6 +304,7 @@ impl Service {
                 #[cfg(any(windows, target_os = "linux"))]
                 local_codex: Vec::new(),
                 hook_agents: HookAgents::default(),
+                hermes_places: Default::default(),
                 agent_pending: HashMap::new(),
                 inspection: Default::default(),
                 risks: {
@@ -633,6 +636,13 @@ impl Service {
         inner
             .hook_agents
             .prune(t, |pid| hosts::process::is_running(pid as u32));
+        let hermes: std::collections::HashSet<String> = inner
+            .hook_agents
+            .entries()
+            .filter(|e| e.provider == models::Provider::Hermes)
+            .map(|e| e.session_id.clone())
+            .collect();
+        inner.hermes_places.keep(&hermes);
         let stale: Vec<String> = inner
             .agent_pending
             .iter()
@@ -779,6 +789,56 @@ impl Service {
                 continue;
             }
             event.pid = if pid > 0 { pid } else { event.pid };
+            // Hermes's gateway runs its hooks: the session's client and folder
+            // come from Hermes's own notes, and a chat it answers isn't listed (#244).
+            if provider == models::Provider::Hermes {
+                let hermes_home = hooks::installer::home_dir()
+                    .map(|h| super::hermes::home(&h))
+                    .unwrap_or_default();
+                let fresh = matches!(
+                    event.kind,
+                    hook_agents::Kind::Prompt(_)
+                        | hook_agents::Kind::Stopped { .. }
+                        | hook_agents::Kind::Started
+                );
+                if event.kind == hook_agents::Kind::Ended {
+                    inner.hermes_places.forget(&event.session_id);
+                }
+                let lookup = super::hermes::Lookup {
+                    record: &|s| super::hermes::record(s, &hermes_home),
+                    notes: &|| super::hermes::notes(&hermes_home),
+                    running: &super::hermes::running,
+                    app: &super::hermes::app,
+                    alive: &|p| hosts::process::is_running(p as u32),
+                };
+                let Some(place) = inner
+                    .hermes_places
+                    .place(&event.session_id, t, fresh, &lookup)
+                else {
+                    continue;
+                };
+                event.pid = place.pid;
+                event.cwd = place.record.as_ref().and_then(|r| r.cwd.clone());
+                // A title is made from the prompt: only read with previews on.
+                if previews && let Some(title) = place.record.as_ref().and_then(|r| r.title.clone())
+                {
+                    let mut named = event.clone();
+                    named.kind = hook_agents::Kind::Title(title);
+                    inner.hook_agents.ingest(named, t);
+                }
+                // Hermes's hooks carry no reply: with previews on, its state.db tells the last one.
+                if previews
+                    && let hook_agents::Kind::Stopped {
+                        last_text: None,
+                        failed,
+                    } = event.kind
+                {
+                    event.kind = hook_agents::Kind::Stopped {
+                        last_text: super::hermes::last_reply(&event.session_id, &hermes_home),
+                        failed,
+                    };
+                }
+            }
             // Devin CLI names no folder: the agent's own is the session's.
             if event.cwd.is_none()
                 && event.pid > 0
@@ -1492,22 +1552,34 @@ impl Service {
                 }
                 // Grok's prompt takes Return for the yes it has picked and
                 // Ctrl-C for no; its hooks tell when it moves on (#243).
+                // Hermes's classic prompt takes Return for the Allow once it
+                // has picked, arrows down to Deny and a question's number (#244).
                 if let Some(entry) = inner
                     .hook_agents
                     .entry(session)
-                    .filter(|e| e.provider == models::Provider::Grok)
+                    .filter(|e| {
+                        matches!(
+                            e.provider,
+                            models::Provider::Grok | models::Provider::Hermes
+                        )
+                    })
                     .cloned()
                 {
-                    let key = match decision {
-                        Decision::Allow => hosts::Key::Enter,
-                        Decision::Deny => hosts::Key::Interrupt,
-                        _ => return false,
+                    let keys = if entry.provider == models::Provider::Grok {
+                        grok_keys(&decision)
+                    } else if hook_agents::hermes_takes_keys(entry.client.as_deref()) {
+                        hermes_keys(&decision, p)
+                    } else {
+                        None
+                    };
+                    let Some(keys) = keys else {
+                        return false;
                     };
                     let Some(located) = inner.hosts.get(&entry.pid).cloned() else {
                         return false;
                     };
                     drop(inner);
-                    if hosts::press(entry.pid as u32, &located, key).is_err() {
+                    if hosts::press_all(entry.pid as u32, &located, &keys).is_err() {
                         return false;
                     }
                     let mut inner = self.inner.lock().unwrap();
@@ -2898,6 +2970,34 @@ fn allowable(events: &[hook_agents::AgentEvent], request: &str) -> Option<models
     })
 }
 
+/// Grok's prompt: Return for the yes it has picked, Ctrl-C for no.
+fn grok_keys(decision: &Decision) -> Option<Vec<hosts::Key>> {
+    match decision {
+        Decision::Allow => Some(vec![hosts::Key::Enter]),
+        Decision::Deny => Some(vec![hosts::Key::Interrupt]),
+        _ => None,
+    }
+}
+
+/// Hermes's classic prompt (hermes_cli/cli_modal_mixin.py): Allow once is
+/// picked first and Return confirms it; Deny is the last choice but View,
+/// which shows a long command whole, and the arrows stop at the ends, so
+/// three downs reach it whichever choices are offered. A question with
+/// choices takes its number, which answers it at once.
+pub fn hermes_keys(decision: &Decision, asked: &models::Permission) -> Option<Vec<hosts::Key>> {
+    use hosts::Key;
+    let asks = !asked.questions.is_empty();
+    match decision {
+        Decision::Allow if !asks => Some(vec![Key::Enter]),
+        Decision::Deny if !asks => Some(vec![Key::Down, Key::Down, Key::Down, Key::Enter]),
+        Decision::Answer(answers) => {
+            let key = hook_agents::hermes_answer_key(answers, asked.questions.first()?)?;
+            Some(vec![Key::Char(key)])
+        }
+        _ => None,
+    }
+}
+
 fn phase_of(inner: &Inner, id: &str) -> Option<models::SessionPhase> {
     inner.sessions.iter().find(|s| s.id == id).map(|s| s.phase)
 }
@@ -2909,6 +3009,10 @@ pub struct AgentHooksStatus {
     agent: &'static str,
     state: hook_agents::installer::State,
     present: bool,
+    /// For Hermes, once its hooks are in: how many it hasn't been told to
+    /// run yet, which it skips (#244).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    waiting_approval: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     failure: Option<String>,
 }
@@ -2928,6 +3032,14 @@ pub fn sessions_agent_hooks_status() -> Vec<AgentHooksStatus> {
                 agent: provider.key(),
                 state,
                 present: hook_agents::installer::is_present(provider, &home),
+                waiting_approval: (provider == models::Provider::Hermes
+                    && state == hook_agents::installer::State::Installed)
+                    .then(
+                        || match super::hermes::approval(&home, &exe, hooks::APP_ID) {
+                            super::hermes::Approval::Approved => 0,
+                            super::hermes::Approval::Waiting(n) => n,
+                        },
+                    ),
                 failure: AGENT_HOOK_FAILURES
                     .lock()
                     .unwrap()
