@@ -9,27 +9,57 @@
 }
 .cp-rail {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 236px;
-  gap: 8px;
+  grid-auto-rows: minmax(106px, max-content);
+  align-content: start;
+  gap: 10px;
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 4px 4px 2px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+.cp-rail::-webkit-scrollbar {
+  width: 9px;
+}
+.cp-rail::-webkit-scrollbar-track {
+  margin: 6px 0;
+  background: transparent;
+}
+.cp-rail::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  background-clip: padding-box;
+}
+.cp-rail::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.45);
+}
+.cp-rail::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 .cp-card {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px;
+  padding: 11px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.055);
   min-height: 0;
   overflow: hidden;
 }
+.cp-card:hover {
+  background: rgba(255, 255, 255, 0.075);
+}
 .cp-preview {
-  width: 104px;
-  height: 68px;
+  width: 112px;
+  height: 74px;
   flex: none;
   display: grid;
   place-items: center;
@@ -46,6 +76,7 @@
 }
 .cp-info {
   min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 5px;

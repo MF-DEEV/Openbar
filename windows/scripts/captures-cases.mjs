@@ -45,9 +45,16 @@ export async function checkCaptures({ send, evaluate, base }) {
       const page = document.querySelector('.cp-page').getBoundingClientRect();
       const frame = document.querySelector('.island-frame').getBoundingClientRect();
       const rail = document.querySelector('.cp-rail');
-      return page.left >= frame.left && page.right <= frame.right + 1 && page.bottom <= frame.bottom + 1 && rail.scrollWidth > rail.clientWidth;
+      return page.left >= frame.left && page.right <= frame.right + 1 && page.bottom <= frame.bottom + 1 && rail.scrollHeight > rail.clientHeight && rail.scrollWidth <= rail.clientWidth + 1;
     })()`);
-    assert(fits, `Captures must fit inside the ${layout} island and scroll horizontally`);
+    assert(fits, `Captures must fit inside the ${layout} island and scroll vertically`);
+    assert(await evaluate(`(() => {
+      const rail = document.querySelector('.cp-rail');
+      rail.scrollTop = rail.scrollHeight;
+      const moved = rail.scrollTop > 0;
+      rail.scrollTop = 0;
+      return moved;
+    })()`), `Captures must scroll down in the ${layout} island`);
   }
   await evaluate(`document.querySelector('.cp-actions button').click()`);
   await wait(`window.openedCapture === 'capture-0' && !captures.getState().busy`);
