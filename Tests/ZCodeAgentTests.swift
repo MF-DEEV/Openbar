@@ -289,7 +289,7 @@ enum ZCodeAgentTests {
                                                       exists: { $0.hasSuffix(".zcode") }),
                      "found by its command or its app, never by ~/.zcode alone")
         suite.expect(ClaudeSessionProvider.zcode.displayName == "ZCode" && ClaudeSessionProvider.zcode.shortName == "ZCode"
-                     && ClaudeSessionProvider.hookAgents.last == .zcode && ClaudeSessionProvider.zcode.answersPermissions
+                     && ClaudeSessionProvider.hookAgents.firstIndex(of: .zcode) == ClaudeSessionProvider.hookAgents.firstIndex(of: .grok).map { $0 + 1 } && ClaudeSessionProvider.zcode.answersPermissions
                      && !ClaudeSessionProvider.zcode.takesRepliesDirectly && AgentCLI.command(.zcode) == "zcode"
                      && AgentCLI.startArguments(.zcode, prompt: "go") == [] && !AgentCLI.startsWithPrompt(.zcode)
                      && AgentCLI.startsWithPrompt(.grok) && !AgentHookInstaller.foldersByHand.contains(.zcode),

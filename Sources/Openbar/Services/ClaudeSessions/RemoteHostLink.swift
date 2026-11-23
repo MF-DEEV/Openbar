@@ -384,7 +384,7 @@ final class RemoteHostLink {
                 Thread.sleep(forTimeInterval: seconds)
             case .enter:
                 if let failure = RemoteAnswer.outcome(request(["enter \(pid) \(session)"])) { return failure }
-            case .interrupt:
+            case .interrupt, .keys:
                 // The host's helper types text and returns only.
                 return .unreachable
             }

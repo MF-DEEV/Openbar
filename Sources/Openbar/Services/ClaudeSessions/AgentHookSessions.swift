@@ -47,6 +47,8 @@ final class AgentHookSessions {
         var lastText: String?
         var chat: [ClaudeChatMessage] = []
         var usage: [String: (tokens: AgentTokens, cost: Double)] = [:]
+        /// Where the person sees a Hermes session: `cli`, `tui` or `desktop`.
+        var client: String?
 
         var openTool: ClaudeToolUse? { tools.last { $0.finished == nil } }
 
@@ -129,6 +131,11 @@ final class AgentHookSessions {
             }
         case .permission(var permission):
             entry.openTurn(at: date)
+            // Hermes asks a question the island can't answer with a key: in Hermes.
+            if permission.tool.isEmpty, event.provider == .hermes, entry.nextAsk == nil {
+                entry.asking = true
+                break
+            }
             // Grok's prompt names no tool: the one its last PreToolUse named waits.
             if permission.tool.isEmpty {
                 let asked = permission
@@ -180,6 +187,8 @@ final class AgentHookSessions {
             entry.title = title
         case .usage(let key, let tokens, let cost):
             entry.usage[key] = (tokens, cost)
+        case .client(let name):
+            entry.client = name
         }
         entries[id] = entry
     }
@@ -209,7 +218,10 @@ final class AgentHookSessions {
     func prune(now: Date, alive: (Int32) -> Bool = AgentHookSessions.isAlive) {
         for (id, entry) in entries {
             let gone = entry.pid > 0 && !alive(entry.pid)
-            let quiet = Self.outlived.contains(entry.provider) && !entry.turnOpen && entry.permission == nil
+            // A Hermes session whose client wasn't found lives in its gateway:
+            // it goes when its client closes, or once long quiet.
+            let outlived = Self.outlived.contains(entry.provider) || (entry.provider == .hermes && entry.pid <= 0)
+            let quiet = outlived && !entry.turnOpen && entry.permission == nil
                 && now.timeIntervalSince(entry.heard) > Self.quietFor
             if gone || quiet {
                 entries[id] = nil
@@ -219,6 +231,10 @@ final class AgentHookSessions {
     }
 
     static func isAlive(_ pid: Int32) -> Bool { kill(pid, 0) == 0 || errno == EPERM }
+
+    /// Whether a Hermes session's prompts take the island's keys: its
+    /// classic terminal UI's do; its Ink UI and its app are answered there.
+    static func hermesTakesKeys(_ client: String?) -> Bool { client == nil || client == "cli" }
 
     // MARK: Output
 
@@ -274,9 +290,12 @@ final class AgentHookSessions {
         }
         let cost = entry.usage.values.reduce(0) { $0 + $1.cost }
         // A request only the agent can answer is shown as waiting there.
-        // Grok's is answered with keys, where its terminal takes them.
+        // Grok's is answered with keys, where its terminal takes them, and
+        // Hermes's too, in its classic terminal UI only.
+        let byKeys = entry.provider == .grok || entry.provider == .hermes
         let inAgent = entry.permission != nil
-            && (!entry.answerable || (entry.provider == .grok && !ClaudeTyping.takesKeys(host)))
+            && (!entry.answerable || (byKeys && !ClaudeTyping.takesKeys(host))
+                || (entry.provider == .hermes && !AgentHookSessions.hermesTakesKeys(entry.client)))
         var session = ClaudeSession(
             id: id, pid: entry.pid, cwd: entry.cwd, project: project, name: project, branch: branch, model: entry.model,
             host: host, phase: phase, phaseSince: since, turnStarted: entry.turnStarted,

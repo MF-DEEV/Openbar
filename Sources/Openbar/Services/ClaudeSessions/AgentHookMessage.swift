@@ -44,6 +44,9 @@ struct AgentHookEvent: Equatable {
         case mayAsk(ClaudePermission)
         case title(String)
         case usage(key: String, tokens: AgentTokens, cost: Double)
+        /// Where the person sees the session: Hermes's classic terminal UI
+        /// (`cli`), its Ink UI (`tui`) or its app (`desktop`).
+        case client(String)
     }
 
     let provider: ClaudeSessionProvider
@@ -148,6 +151,7 @@ enum AgentHookMessage {
             decoded.events = grok(hook, event, pid: pid, now: now, policy: policy)
             decoded.transcript = text(event, "transcriptPath")
         case .zcode: zcode(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
+        case .hermes: decoded.events = hermes(hook, event, pid: pid, now: now, policy: policy)
         case .claude: return nil
         }
         return decoded
@@ -548,6 +552,135 @@ enum AgentHookMessage {
         return try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])
     }
 
+    // MARK: Hermes
+
+    /// Hermes Agent's shell hooks (website/docs/user-guide/features/hooks.md
+    /// in its repository): snake_case events, each event's own fields under
+    /// `extra`. Its gateway runs them for every session, so their `cwd` is
+    /// the gateway's and is left out: the service reads the session's folder
+    /// from Hermes's state.db. A dangerous command and a question are told by
+    /// `on_human_input_request`, a turn's end by `on_session_end` and the
+    /// client closing by `on_session_finalize`.
+    private static func hermes(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                               policy: ClaudeContentPolicy) -> [AgentHookEvent] {
+        guard let session = text(json, "session_id") else { return [] }
+        let extra = json["extra"] as? [String: Any] ?? [:]
+        var events: [AgentHookEvent] = []
+        func add(_ kind: AgentHookEvent.Kind) {
+            events.append(AgentHookEvent(provider: .hermes, sessionID: session, pid: pid, cwd: nil, date: now, kind: kind))
+        }
+        if let platform = text(extra, "platform"), hermesClients.contains(platform) { add(.client(platform)) }
+        let raw = text(json, "tool_name") ?? ""
+        let tool = AgentHookTools.name(.hermes, raw)
+        let input = hermesInput(raw, arguments(json["tool_input"]))
+        let call = text(extra, "tool_call_id")
+        switch text(json, "hook_event_name") ?? hook {
+        case "on_session_open": add(.started)
+        case "pre_llm_call":
+            add(.prompt(policy.previews ? preview(extra["user_message"]) : nil))
+            if let model = text(extra, "model") { add(.model(model)) }
+        case "pre_tool_call":
+            // A question waits once Hermes asks; its choices are kept till then.
+            if raw == "clarify" {
+                if let ask = hermesQuestion(input, at: now) { add(.mayAsk(ask)) }
+                break
+            }
+            var use = toolUse(tool, input: input, at: now, policy: policy)
+            if let call { use = ClaudeToolUse(id: call, name: use.name, summary: use.summary, started: now, inputKey: use.inputKey) }
+            add(.toolStarted(use))
+        case "post_tool_call":
+            if raw == "clarify" { add(.permissionSettled(nil)); break }
+            let status = text(extra, "status")
+            add(.toolFinished(id: call, name: tool, inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                              failed: status != nil && status != "ok", started: nil))
+        case "on_human_input_request":
+            let request = text(extra, "request_id") ?? UUID().uuidString
+            switch text(extra, "kind") {
+            case "approval": add(.permission(hermesApproval(text(extra, "prompt") ?? "", request: request, at: now)))
+            case "clarify":
+                // Filled in from the question its clarify tool named, when
+                // the island can answer it; else answered in Hermes.
+                add(.permission(ClaudePermission(requestID: request, tool: "", summary: nil, offersAlways: false, since: now)))
+            default:
+                // A sudo or vault password is only ever typed in Hermes.
+                add(.question)
+            }
+        case "on_human_input_resolved":
+            // Hermes asks one thing at a time in a session.
+            add(.permissionSettled(nil))
+        case "on_session_end":
+            // Each turn's end: done only when it completed.
+            let done = flag(extra["completed"]) && !flag(extra["failed"]) && !flag(extra["interrupted"])
+            add(.stopped(lastText: nil, failed: !done))
+            if let model = text(extra, "model") { add(.model(model)) }
+        case "on_session_finalize": add(.ended)
+        default: break
+        }
+        return events
+    }
+
+    /// The clients a session can be shown in.
+    static let hermesClients: Set<String> = ["cli", "tui", "desktop", "acp"]
+
+    /// A flag Hermes sends as a boolean, or as text where it was stringified.
+    static func flag(_ value: Any?) -> Bool {
+        if let bool = value as? Bool { return bool }
+        if let number = value as? NSNumber { return number.boolValue }
+        if let text = value as? String { return ["true", "1", "yes"].contains(text.lowercased()) }
+        return false
+    }
+
+    /// Hermes's tool arguments under the names Claude Code gives them: its
+    /// file tools name the file `path`.
+    static func hermesInput(_ tool: String, _ args: [String: Any]) -> [String: Any] {
+        var input = args
+        if ["read_file", "write_file", "patch"].contains(tool), input["file_path"] == nil, let path = args["path"] {
+            input["file_path"] = path
+        }
+        return input
+    }
+
+    /// The card for a dangerous command Hermes asks about: the command, as
+    /// its prompt shows it with secrets masked. Its prompt takes Return for
+    /// the Allow once it has picked, and arrow keys down to Deny.
+    static func hermesApproval(_ command: String, request: String, at date: Date) -> ClaudePermission {
+        let input: [String: Any] = ["command": command]
+        let full = ClaudeToolSummary.permissionDetail(name: "Bash", input: input)
+        let content = PermissionContent(full: full, complete: !command.isEmpty, originalLength: full.unicodeScalars.count)
+        var permission = ClaudePermission(
+            requestID: request, tool: "Bash",
+            summary: ClaudeToolSummary.clip(command.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
+            detail: content.preview, content: content, offersAlways: false, since: date)
+        permission.inputKey = ClaudeToolSummary.inputKey(name: "Bash", input: input)
+        return permission
+    }
+
+    /// The most choices a key picks: Hermes's prompt numbers them 1 to 9.
+    static let hermesChoiceLimit = 9
+
+    /// The question a clarify call asks, when the island can answer it with
+    /// a key: one question, one answer, with choices. Several questions, a
+    /// free answer or more than one pick are answered in Hermes.
+    static func hermesQuestion(_ input: [String: Any], at date: Date) -> ClaudePermission? {
+        guard let list = input["questions"] as? [[String: Any]], list.count == 1, let item = list.first,
+              let text = (item["question"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
+              !flag(item["multi_select"]),
+              let choices = item["choices"] as? [String], (1...hermesChoiceLimit).contains(choices.count),
+              choices.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return nil }
+        let question = ClaudeQuestion(question: text, options: choices.map { ClaudeQuestion.Option(label: $0) })
+        var permission = ClaudePermission(requestID: UUID().uuidString, tool: ClaudeQuestion.tool,
+                                          summary: ClaudeToolSummary.clip(text), offersAlways: false, since: date)
+        permission.questions = [question]
+        return permission
+    }
+
+    /// The key that picks an answer on Hermes's question: its number.
+    static func hermesAnswerKey(_ answers: [String: [String]], question: ClaudeQuestion) -> String? {
+        guard let picked = answers[question.question] ?? (answers.count == 1 ? answers.values.first : nil), picked.count == 1,
+              let index = question.options.firstIndex(where: { $0.label == picked[0] }), index < hermesChoiceLimit else { return nil }
+        return String(index + 1)
+    }
+
     // MARK: Grok CLI
 
     /// Grok CLI's hooks (xAI's Grok Build, user guide "Hooks"): camelCase
@@ -871,6 +1004,9 @@ enum AgentHookTools {
                 "get_command_or_subagent_output": "BashOutput", "kill_command_or_subagent": "KillShell",
                 "web_fetch": "WebFetch", "web_search": "WebSearch", "ask_user_question": "AskUserQuestion",
                 "enter_plan_mode": "EnterPlanMode", "exit_plan_mode": "ExitPlanMode"],
+        .hermes: ["terminal": "Bash", "read_file": "Read", "write_file": "Write", "patch": "Edit", "search_files": "Grep",
+                  "web_search": "WebSearch", "web_extract": "WebFetch", "todo": "TodoWrite", "delegate_task": "Task",
+                  "clarify": "AskUserQuestion", "process": "BashOutput"],
         // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.
         .zcode: ["ApplyPatch": "Edit", "Agent": "Task"],
         .devin: ["exec": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "apply_patch": "Edit", "grep": "Grep",

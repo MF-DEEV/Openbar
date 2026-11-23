@@ -121,6 +121,10 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     /// Z.ai's ZCode (`zcode` and its desktop app), heard through hooks in
     /// its CLI config, whose permission hook the island answers (#245).
     case zcode
+    /// Nous Research's Hermes Agent (`hermes`, its terminal UI and desktop
+    /// app), heard through shell hooks in its config.yaml, which its gateway
+    /// runs for every session (#244).
+    case hermes
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     case custom
@@ -135,7 +139,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .custom: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .custom: return nil
         }
     }
 
@@ -154,6 +158,7 @@ extension ClaudeSessionProvider {
         case .antigravity: return "Google Antigravity"
         case .grok: return "Grok CLI"
         case .zcode: return "ZCode"
+        case .hermes: return "Hermes"
         case .custom: return "Other tool"
         }
     }
@@ -177,7 +182,7 @@ extension ClaudeSessionProvider {
 
     /// The agents that report through the island's hooks or plugin.
     static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok,
-                                                      .zcode]
+                                                      .zcode, .hermes]
 
     var reportsThroughHooks: Bool { Self.hookAgents.contains(self) }
 
@@ -191,10 +196,12 @@ extension ClaudeSessionProvider {
     /// either, but its prompt takes Return for yes and Ctrl-C for no, which
     /// the island types into its terminal where the terminal lets it.
     /// ZCode's permission hook answers like Claude Code's, racing its own
-    /// prompt: whichever answers first wins.
+    /// prompt: whichever answers first wins. Hermes's hooks only hear of a
+    /// dangerous command; its classic terminal UI takes Return for the
+    /// Allow once it has picked and arrow keys down to Deny.
     var answersPermissions: Bool {
         switch self {
-        case .claude, .codex, .opencode, .grok, .zcode: return true
+        case .claude, .codex, .opencode, .grok, .zcode, .hermes: return true
         case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return false
         }
     }

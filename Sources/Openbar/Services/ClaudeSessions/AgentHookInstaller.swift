@@ -198,6 +198,7 @@ enum AgentHookInstaller {
         case .antigravity: return antigravityHooks(home: home).deletingLastPathComponent()
         case .grok: return grokFolder(home: home, environment: environment)
         case .zcode: return zcodeConfig(home: home).deletingLastPathComponent()
+        case .hermes: return AgentHermes.home(home: home, environment: environment)
         case .codex:
             return environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
                 ?? home.appending(path: ".codex")
@@ -224,6 +225,7 @@ enum AgentHookInstaller {
         case .opencode: apps = ["OpenCode.app"]
         case .antigravity: apps = ["Antigravity.app", "Antigravity IDE.app"]
         case .zcode: apps = ["ZCode.app"]
+        case .hermes: apps = ["Hermes.app", "Hermes Agent.app"]
         default: apps = []
         }
         return apps.contains { app in ["/Applications", home.appending(path: "Applications").path].contains { exists("\($0)/\(app)") } }
@@ -447,6 +449,9 @@ enum AgentHookInstaller {
                 }
             case .zcode:
                 return zcodeState(try ClaudeHookInstaller.read(url), socket: socket, bundle: bundle)
+            case .hermes:
+                guard let text = try vibeText(url) else { return .missing }
+                return hermesState(text, socket: socket, bundle: bundle)
             case .antigravity:
                 let settings = try ClaudeHookInstaller.read(url)
                 if let own = settings[ownName(bundle)] as? [String: Any],
@@ -525,6 +530,13 @@ enum AgentHookInstaller {
             }
         case .zcode:
             try ClaudeHookInstaller.update(url) { zcodeInstalling(into: $0, socket: socket, bundle: bundle) }
+        case .hermes:
+            // Hooks written in a form the island can't add to are left to the person.
+            if let text = try vibeText(url), hermesBlocked(text, bundle: bundle) { throw Failure.unreadable }
+            try updateVibe(url) { text in
+                try? AgentHermesConfig.installing(text, entries: hermesEntries(socket: socket, bundle: bundle),
+                                                  timeout: eventTimeout, marker: marker(bundle: bundle))
+            }
         case .antigravity:
             try ClaudeHookInstaller.update(url) { settings in
                 var settings = antigravityRemoving(from: settings, bundle: bundle)
@@ -567,6 +579,9 @@ enum AgentHookInstaller {
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
             let before = zcodeEnabledBefore(url)
             try ClaudeHookInstaller.update(url) { zcodeRemoving(from: $0, bundle: bundle, enabledBefore: before) }
+        case .hermes:
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            try updateVibe(url) { text in text.flatMap { AgentHermesConfig.removing($0, marker: marker(bundle: bundle)) } }
         case .claude, .custom:
             break
         }
@@ -629,6 +644,31 @@ enum AgentHookInstaller {
         }
         settings["hooks"] = hooks
         return settings
+    }
+
+    // MARK: Hermes's config.yaml
+
+    /// The island's hook for each of Hermes's events.
+    static func hermesEntries(socket: String, bundle: String) -> [(event: String, command: String)] {
+        AgentHermes.events.map { ($0, AgentHermes.command(event: $0, socket: socket, bundle: bundle)) }
+    }
+
+    /// Installed when every event holds the current hook; outdated when
+    /// some other line of the island's is there.
+    static func hermesState(_ text: String, socket: String, bundle: String) -> State {
+        if hermesBlocked(text, bundle: bundle) { return .unreadable }
+        let commands = AgentHermesConfig.commands(text) ?? [:]
+        let current = hermesEntries(socket: socket, bundle: bundle).allSatisfy { entry in
+            commands[entry.event]?.contains(entry.command) == true
+        }
+        if current { return .installed }
+        return text.contains(marker(bundle: bundle)) ? .outdated : .missing
+    }
+
+    /// Whether the person's hooks are in a form the island can't add to.
+    static func hermesBlocked(_ text: String, bundle: String) -> Bool {
+        (try? AgentHermesConfig.installing(text, entries: hermesEntries(socket: "", bundle: bundle), timeout: eventTimeout,
+                                           marker: marker(bundle: bundle))) == nil
     }
 
     // MARK: ZCode's config

@@ -922,6 +922,9 @@ enum DefaultsKey {
     static let notchSessionsAgentAntigravity = "notchSessionsAgentAntigravity"
     static let notchSessionsAgentGrok = "notchSessionsAgentGrok"
     static let notchSessionsAgentZCode = "notchSessionsAgentZCode"
+    /// Hermes's sessions (#244): off until turned on, since Hermes asks the
+    /// person to approve each new hook in its terminal.
+    static let notchSessionsAgentHermes = "notchSessionsAgentHermes"
     /// The Claude app's Code tab sessions in the list (#246).
     static let notchSessionsClaudeDesktop = "notchSessionsClaudeDesktop"
     /// Cowork's sessions, read from the Claude app's files; off until turned on (#246).
@@ -1637,6 +1640,7 @@ enum Defaults {
         DefaultsKey.notchSessionsAgentAntigravity: true,
         DefaultsKey.notchSessionsAgentGrok: true,
         DefaultsKey.notchSessionsAgentZCode: true,
+        DefaultsKey.notchSessionsAgentHermes: false,
         DefaultsKey.notchSessionsClaudeDesktop: true,
         DefaultsKey.notchSessionsClaudeCowork: false,
         DefaultsKey.notchSessionsLargeTextSize: 15.0,

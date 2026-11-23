@@ -119,6 +119,57 @@ enum ClaudeTypingStep: Equatable {
     case enter
     /// Ctrl-C, as a key: Grok CLI's prompt takes it for no (#243).
     case interrupt
+    /// Keys pressed, never pasted: arrows or a number at an agent's menu
+    /// (Hermes's prompt, #244).
+    case keys([ClaudeKey])
+}
+
+/// A key the island presses at an agent's menu.
+enum ClaudeKey: Equatable {
+    case down
+    case up
+    /// A digit or letter, as typed.
+    case character(Character)
+
+    /// What a terminal sends the program for it.
+    var bytes: String {
+        switch self {
+        case .down: return "\u{1B}[B"
+        case .up: return "\u{1B}[A"
+        case .character(let character): return String(character)
+        }
+    }
+
+    /// The key's name for tmux's and zellij's `send-keys`.
+    var multiplexerName: String {
+        switch self {
+        case .down: return "Down"
+        case .up: return "Up"
+        case .character(let character): return String(character)
+        }
+    }
+
+    /// The key's name for kitty's `send-key`.
+    var kittyName: String {
+        switch self {
+        case .down: return "down"
+        case .up: return "up"
+        case .character(let character): return String(character).lowercased()
+        }
+    }
+
+    /// The keys as an AppleScript expression: the escape character can't
+    /// sit in a string literal, so it is joined in.
+    static func appleScript(_ keys: [ClaudeKey]) -> String {
+        let parts = keys.map { key -> String in
+            switch key {
+            case .down: return "(character id 27) & \"[B\""
+            case .up: return "(character id 27) & \"[A\""
+            case .character(let character): return AppleScriptRunner.literal(String(character))
+            }
+        }
+        return parts.isEmpty ? "\"\"" : parts.joined(separator: " & ")
+    }
 }
 
 enum ClaudeTyping {
@@ -228,6 +279,7 @@ enum ClaudeTTYTerminalScripts {
             case .wait(let seconds): "delay \(seconds)"
             case .enter: "tell theSession to write text (character id 13) newline no"
             case .interrupt: "tell theSession to write text (character id 3) newline no"
+            case .keys(let keys): "tell theSession to write text (\(ClaudeKey.appleScript(keys))) newline no"
             }
         }
         return iterm(tty: tty, found: (lines + ["return \"sent\""]).joined(separator: "\n"))
@@ -272,7 +324,7 @@ enum ClaudeTTYTerminalScripts {
             case .enter: "send key \"enter\" to theTerminal"
             // Ghostty's dictionary has no way to send a control key that was
             // checked; the island doesn't offer keys there (`takesKeys`).
-            case .interrupt: "return \"missing\""
+            case .interrupt, .keys: "return \"missing\""
             }
         }
         return ghostty(tty: tty, found: (lines + ["return \"sent\""]).joined(separator: "\n"))
@@ -383,6 +435,8 @@ enum ClaudeTmux {
                 guard run(target, ["send-keys", "-t", target.pane, "Enter"]) != nil else { return .unreachable }
             case .interrupt:
                 guard run(target, ["send-keys", "-t", target.pane, "C-c"]) != nil else { return .unreachable }
+            case .keys(let keys):
+                guard run(target, ["send-keys", "-t", target.pane] + keys.map(\.multiplexerName)) != nil else { return .unreachable }
             }
         }
         return nil
@@ -505,6 +559,9 @@ enum ClaudeWezTerm {
                 guard run(["send-text", "--pane-id", String(id), "--no-paste"], socket: socket, input: "\u{3}") != nil else {
                     return .unreachable
                 }
+            case .keys(let keys):
+                guard run(["send-text", "--pane-id", String(id), "--no-paste"], socket: socket,
+                          input: keys.map(\.bytes).joined()) != nil else { return .unreachable }
             }
         }
         return nil
@@ -582,6 +639,8 @@ enum ClaudeKitty {
                 guard run(["send-key"] + match + ["enter"], socket: socket) != nil else { return .unreachable }
             case .interrupt:
                 guard run(["send-key"] + match + ["ctrl+c"], socket: socket) != nil else { return .unreachable }
+            case .keys(let keys):
+                guard run(["send-key"] + match + keys.map(\.kittyName), socket: socket) != nil else { return .unreachable }
             }
         }
         return nil
