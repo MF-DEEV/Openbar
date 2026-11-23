@@ -735,17 +735,17 @@ extension NotchClaudeSessionStrings {
         "Hooks in ~/.zcode/cli/config.json, next to your own, for zcode and the ZCode app. Sessions show what runs and when ZCode waits on you. Allow, Deny and its questions are answered here or in ZCode, whichever comes first; replies are typed into the terminal of a zcode session."
     }
     var agentHintHermes: String {
-        "Hooks in ~/.hermes/config.yaml, next to your own, for hermes, its terminal UI and its app. Hermes asks you once to allow each new hook: answer y in its terminal, or run hermes --accept-hooks once. Until then its app and gateway skip them. Allow, Deny and its one-choice questions are answered with keys at its classic prompt in Terminal, iTerm2, tmux, zellij, WezTerm or kitty; elsewhere you answer in Hermes. Chats it answers on Telegram, Discord and the like aren't listed."
+        "Hooks in ~/.hermes/config.yaml, next to your own, for hermes, its terminal UI and its app. Hermes asks you once to allow each new hook: answer y in its terminal, or run hermes --accept-hooks once. Until then its app and gateway skip them. Allow, Deny and its one-choice questions are answered with keys at its classic prompt in Terminal, iTerm2, tmux, zellij, WezTerm or kitty; elsewhere you answer in Hermes. Chats it answers on Telegram, Discord and the like aren’t listed."
     }
     /// Under Hermes's switch (#244): Hermes asks once for each new hook.
     var hermesOff: String {
-        "Turning this on adds the island's hooks to ~/.hermes/config.yaml, next to yours. Hermes then asks once, in its terminal, before it runs each of them."
+        "Turning this on adds the island’s hooks to ~/.hermes/config.yaml, next to yours. Hermes then asks once, in its terminal, before it runs each of them."
     }
     var hermesWaitingFormat: String {
-        "Hermes hasn't allowed %d of the island's hooks yet, so it skips them. Answer y when hermes asks in a terminal, or run hermes --accept-hooks once."
+        "Hermes hasn’t allowed %d of the island’s hooks yet, so it skips them. Answer y when hermes asks in a terminal, or run hermes --accept-hooks once."
     }
     var hermesApproved: String {
-        "Hermes runs the island's hooks. Allow, Deny and one-choice questions work with keys at its classic prompt; in its Ink UI and its app you answer in Hermes."
+        "Hermes runs the island’s hooks. Allow, Deny and one-choice questions work with keys at its classic prompt; in its Ink UI and its app you answer in Hermes."
     }
     var agentHintAntigravity: String {
         "Hooks in ~/.gemini/config/hooks.json, next to your own, for Antigravity’s app, its IDE and agy. Sessions show what its agent runs; approvals stay in Antigravity, and Open takes you there."

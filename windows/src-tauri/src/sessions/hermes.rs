@@ -900,15 +900,18 @@ pub fn running() -> Vec<Client> {
 }
 
 /// The client showing `session`: Hermes's own client on the terminal its
-/// note names; with no note (its Ink UI writes none), the only client in
-/// the session's folder no other session claims. The first of a chain of
-/// Hermes processes on a terminal is the one the person started.
+/// note names; with no note (its Ink UI writes none, and a new session's
+/// note is written only after its first hook), the only client in the
+/// session's folder no other listed session claims. A note of a session no
+/// longer listed says nothing: terminals are used again. The first of a
+/// chain of Hermes processes on a terminal is the one the person started.
 pub fn client(
     session: &str,
     cwd: Option<&str>,
     notes: &HashMap<String, Vec<String>>,
     running: &[Client],
     claimed: &HashSet<u32>,
+    listed: &HashSet<String>,
 ) -> Option<u32> {
     let first = |candidates: Vec<&Client>| -> Option<u32> {
         let pids: HashSet<u32> = candidates.iter().map(|c| c.pid).collect();
@@ -940,10 +943,10 @@ pub fn client(
             .unwrap_or_else(|_| path.trim_end_matches(['/', '\\']).to_owned())
     };
     let wanted = standard(cwd);
-    // Terminals another session's note names are that session's.
+    // Terminals another listed session's note names are that session's.
     let noted: HashSet<String> = notes
         .iter()
-        .filter(|(s, _)| s.as_str() != session)
+        .filter(|(s, _)| s.as_str() != session && listed.contains(s.as_str()))
         .flat_map(|(_, terminals)| terminals.iter().filter_map(|t| terminal_of(t)))
         .collect();
     let here: Vec<&Client> = running
@@ -998,8 +1001,9 @@ pub struct Place {
     pub looked: Time,
 }
 
-/// How often a session whose client wasn't found is looked for again.
-pub const RETRY_AFTER: Time = 2.0;
+/// How often a session whose client wasn't found is looked for again: its
+/// note comes a moment after its first hooks.
+pub const RETRY_AFTER: Time = 0.5;
 
 pub struct Lookup<'a> {
     pub record: &'a dyn Fn(&str) -> Option<Record>,
@@ -1044,12 +1048,18 @@ impl Places {
         }
         let lost = place.pid <= 0 || !(lookup.alive)(place.pid);
         if lost && now - place.looked >= RETRY_AFTER {
-            let claimed: HashSet<u32> = self
+            let others: Vec<(&String, &Place)> = self
                 .places
                 .iter()
-                .filter(|(s, _)| s.as_str() != session)
+                .filter(|(s, p)| {
+                    s.as_str() != session && p.record.as_ref().is_none_or(Record::is_local)
+                })
+                .collect();
+            let claimed: HashSet<u32> = others
+                .iter()
                 .filter_map(|(_, p)| (p.pid > 0).then_some(p.pid as u32))
                 .collect();
+            let listed: HashSet<String> = others.iter().map(|(s, _)| (*s).clone()).collect();
             let cwd = place.record.as_ref().and_then(|r| r.cwd.clone());
             let found = client(
                 session,
@@ -1057,6 +1067,7 @@ impl Places {
                 &(lookup.notes)(),
                 &(lookup.running)(),
                 &claimed,
+                &listed,
             )
             .or_else(|| {
                 (place.record.as_ref().and_then(Record::client) == Some("desktop"))
@@ -1278,20 +1289,55 @@ mod tests {
             ("s2".to_owned(), vec!["tty-dev-pts-2".to_owned()]),
         ]
         .into();
+        let listed: HashSet<String> = ["s2".to_owned()].into();
         assert_eq!(
-            client("s1", Some("/w/x"), &notes, &running, &HashSet::new()),
+            client(
+                "s1",
+                Some("/w/x"),
+                &notes,
+                &running,
+                &HashSet::new(),
+                &listed
+            ),
             Some(101)
         );
+        // A terminal another listed session's note names is that session's;
+        // a note of one no longer listed says nothing.
         assert_eq!(
-            client("s3", Some("/w/b"), &notes, &running, &HashSet::new()),
+            client(
+                "s3",
+                Some("/w/b"),
+                &notes,
+                &running,
+                &HashSet::new(),
+                &listed
+            ),
             None
         );
         assert_eq!(
-            client("s4", Some("/w/c"), &notes, &running, &HashSet::new()),
+            client(
+                "s3",
+                Some("/w/b"),
+                &notes,
+                &running,
+                &HashSet::new(),
+                &HashSet::new()
+            ),
+            Some(201)
+        );
+        assert_eq!(
+            client(
+                "s4",
+                Some("/w/c"),
+                &notes,
+                &running,
+                &HashSet::new(),
+                &listed
+            ),
             None
         );
         assert_eq!(
-            client("s4", Some("/w/c"), &notes, &running, &[302].into()),
+            client("s4", Some("/w/c"), &notes, &running, &[302].into(), &listed),
             Some(301)
         );
     }

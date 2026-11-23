@@ -397,8 +397,10 @@ enum HermesAgentTests {
         let notes = ["s1": ["/dev/ttys009", "/dev/ttys001"], "s2": ["/dev/ttys002"]]
         suite.expect(AgentHermesClients.client(of: "s1", cwd: "/w/x", notes: notes, running: running) == 101,
                      "the note's terminal that still runs Hermes, and the first Hermes process on it")
-        suite.expect(AgentHermesClients.client(of: "s3", cwd: "/w/b", notes: notes, running: running) == nil,
-                     "a terminal another session's note names is that session's")
+        suite.expect(AgentHermesClients.client(of: "s3", cwd: "/w/b", notes: notes, running: running, listed: ["s2"]) == nil,
+                     "a terminal another listed session's note names is that session's")
+        suite.expect(AgentHermesClients.client(of: "s3", cwd: "/w/b", notes: notes, running: running) == 201,
+                     "a note of a session no longer listed says nothing: the terminal was used again")
         suite.expect(AgentHermesClients.client(of: "s4", cwd: "/w/c", notes: notes, running: running) == nil
                      && AgentHermesClients.client(of: "s4", cwd: "/w/c", notes: notes, running: running, claimed: [302]) == 301,
                      "without a note (its Ink UI writes none), the only client in the folder no other row claims")
@@ -420,7 +422,7 @@ enum HermesAgentTests {
         let none = AgentHermesPlaces(alive: { _ in false })
         _ = none.place("n1", hermes: URL(fileURLWithPath: "/h"), now: now, record: { _ in local })
         looked = 0
-        _ = none.place("n1", hermes: URL(fileURLWithPath: "/h"), now: now.addingTimeInterval(1), record: { _ in local },
+        _ = none.place("n1", hermes: URL(fileURLWithPath: "/h"), now: now.addingTimeInterval(0.2), record: { _ in local },
                        notes: { looked += 1; return [:] })
         suite.expect(looked == 0, "a client not found is looked for again only after a while")
         _ = none.place("n1", hermes: URL(fileURLWithPath: "/h"), now: now.addingTimeInterval(AgentHermesPlaces.retryAfter + 1),

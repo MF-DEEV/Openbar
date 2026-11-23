@@ -650,10 +650,13 @@ struct NotchClaudeQuestionForm: View {
                 questionView(question, index: index)
             }
             HStack(spacing: 6) {
-                NotchClaudeDecisionButton(title: text.skip, symbol: "forward", role: .deny) {
-                    service.decide(session.id, request: permission.requestID, .deny)
+                // Hermes's question has no key that skips it: it is answered there (#244).
+                if session.provider != .hermes {
+                    NotchClaudeDecisionButton(title: text.skip, symbol: "forward", role: .deny) {
+                        service.decide(session.id, request: permission.requestID, .deny)
+                    }
+                    .disabled(settling)
                 }
-                .disabled(settling)
                 Spacer(minLength: 0)
                 NotchClaudeDecisionButton(title: text.sendAnswer, symbol: "arrow.up", role: .allow, action: send)
                     .disabled(answers == nil)
@@ -701,7 +704,8 @@ struct NotchClaudeQuestionForm: View {
                 .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .transition(.opacity)
             }
-            ownAnswer(question, index: index)
+            // Hermes's question is answered with a choice's number: it takes no answer of one's own here (#244).
+            if session.provider != .hermes { ownAnswer(question, index: index) }
         }
     }
 

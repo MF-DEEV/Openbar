@@ -497,12 +497,14 @@ enum AgentHermesClients {
     }
 
     /// The client showing `session`: Hermes's own client on the terminal its
-    /// note names; with no note (its terminal UI writes none), the only
-    /// client in the session's folder no other session claims. The first of
-    /// a chain of Hermes processes on a terminal is the one the person
-    /// started.
+    /// note names; with no note (its terminal UI writes none, and a new
+    /// session's note is written only after its first hook), the only
+    /// client in the session's folder no other listed session claims. A
+    /// note of a session no longer listed says nothing: terminals are used
+    /// again. The first of a chain of Hermes processes on a terminal is the
+    /// one the person started.
     static func client(of session: String, cwd: String?, notes: [String: [String]], running: [Process],
-                       claimed: Set<Int32> = []) -> Int32? {
+                       claimed: Set<Int32> = [], listed: Set<String> = []) -> Int32? {
         let first = { (candidates: [Process]) -> Process? in
             let pids = Set(candidates.map(\.pid))
             return candidates.first { !pids.contains($0.parent) } ?? candidates.first
@@ -513,8 +515,8 @@ enum AgentHermesClients {
         guard let cwd, !cwd.isEmpty else { return nil }
         let standard = { (path: String) in URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path }
         let wanted = standard(cwd)
-        // Terminals another session's note names are that session's.
-        let noted = Set(notes.filter { $0.key != session }.values.flatMap { $0 })
+        // Terminals another listed session's note names are that session's.
+        let noted = Set(notes.filter { $0.key != session && listed.contains($0.key) }.values.flatMap { $0 })
         let here = running.filter { process in
             !claimed.contains(process.pid) && process.cwd.map(standard) == wanted && !(process.tty.map(noted.contains) ?? false)
         }
@@ -538,8 +540,9 @@ final class AgentHermesPlaces {
         var looked: Date
     }
 
-    /// How often a session whose client wasn't found is looked for again.
-    static let retryAfter: TimeInterval = 2
+    /// How often a session whose client wasn't found is looked for again:
+    /// its note comes a moment after its first hooks.
+    static let retryAfter: TimeInterval = 0.5
 
     private var places: [String: Place] = [:]
     private let alive: (Int32) -> Bool
@@ -566,9 +569,9 @@ final class AgentHermesPlaces {
         }
         let lost = place.pid <= 0 || !alive(place.pid)
         if lost, now.timeIntervalSince(place.looked) >= Self.retryAfter {
-            let claimed = Set(places.filter { $0.key != session }.map(\.value.pid))
+            let others = places.filter { $0.key != session && $0.value.record?.isLocal != false }
             place.pid = AgentHermesClients.client(of: session, cwd: place.record?.cwd, notes: notes(), running: running(),
-                                                  claimed: claimed)
+                                                  claimed: Set(others.map(\.value.pid)), listed: Set(others.keys))
                 ?? (place.record?.client == "desktop" ? app() : nil) ?? 0
             place.looked = now
         } else if lost {
