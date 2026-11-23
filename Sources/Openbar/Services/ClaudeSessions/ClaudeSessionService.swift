@@ -66,6 +66,9 @@ final class ClaudeSessionService: ObservableObject {
     /// Whether Gemini CLI, Copilot CLI, OpenCode and Cursor hold the island's
     /// hooks or plugin, and whether each seems installed; nil until checked.
     @Published private(set) var agentHooks: [ClaudeSessionProvider: (state: AgentHookInstaller.State, present: Bool)]?
+    /// Whether Hermes was told to run the island's hooks (#244); nil until
+    /// they are installed.
+    @Published private(set) var hermesApproval: AgentHermes.Approval?
     /// Why the last install into an agent failed.
     @Published private(set) var agentHookFailures: [ClaudeSessionProvider: String] = [:]
     /// Every config file the island writes hooks into, for the Hooks page
@@ -1023,10 +1026,14 @@ final class ClaudeSessionService: ObservableObject {
                 let entry = states[provider]
                 return "\(provider.rawValue)=\(entry.map { "\($0.state)" } ?? "?")\(entry?.present == true ? "" : "(absent)")"
             }.joined(separator: " ")
+            // Hermes runs a new hook only once the person allowed it there.
+            let hermes = states[.hermes]?.state == .installed
+                ? AgentHermes.approval(home: home, socket: socket, bundle: bundle) : nil
             DispatchQueue.main.async {
                 if self.agentHookSummary != summary { DiagnosticsLog.info("hooks", "agent hooks: \(summary)") }
                 self.agentHookSummary = summary
                 self.agentHooks = states
+                if self.hermesApproval != hermes { self.hermesApproval = hermes }
             }
         }
     }
