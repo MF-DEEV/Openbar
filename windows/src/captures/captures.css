@@ -19,9 +19,9 @@
   padding: 2px 4px 4px 2px;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
 }
+/* Chromium ignores these pseudo-elements when scrollbar-width or
+   scrollbar-color is set, so the rail sets neither. */
 .cp-rail::-webkit-scrollbar {
   width: 9px;
 }

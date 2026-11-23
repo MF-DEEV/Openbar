@@ -260,10 +260,9 @@ pub async fn captures_list<R: Runtime>(app: AppHandle<R>) -> Result<Vec<Entry>, 
         let root = root(&app)?;
         if let Some(folder) = super::platform::screenshots_folder()
             && folder.is_dir()
+            && let Err(error) = import_saved(&root, &folder)
         {
-            if let Err(error) = import_saved(&root, &folder) {
-                eprintln!("could not import saved screenshots: {error}");
-            }
+            eprintln!("could not import saved screenshots: {error}");
         }
         list(&root)
     })
