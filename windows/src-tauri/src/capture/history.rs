@@ -19,6 +19,8 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 pub const CHANGED: &str = "captures://changed";
 const LIMIT: usize = 30;
 const MAX_BYTES: u64 = 256 * 1024 * 1024;
+const IMPORT_MARKER: &str = ".saved-screenshots-imported";
+const MAX_IMPORT_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Default)]
 pub struct Shared(Mutex<()>);
@@ -171,12 +173,16 @@ pub fn record<R: Runtime>(app: &AppHandle<R>, frame: &Frame, png: &[u8]) -> Resu
 }
 
 fn store(root: &Path, frame: &Frame, png: &[u8]) -> Result<(), String> {
+    store_at(root, frame, png, SystemTime::now())
+}
+
+fn store_at(root: &Path, frame: &Frame, png: &[u8], created: SystemTime) -> Result<(), String> {
     let mut random = [0u8; 16];
     getrandom::fill(&mut random).map_err(|e| e.to_string())?;
     let random: String = random.iter().map(|b| format!("{b:02x}")).collect();
     let id = format!(
         "{}-{random}",
-        SystemTime::now()
+        created
             .duration_since(UNIX_EPOCH)
             .map_err(|e| e.to_string())?
             .as_millis()
@@ -203,13 +209,62 @@ fn store(root: &Path, frame: &Frame, png: &[u8]) -> Result<(), String> {
     trim(root)
 }
 
+/// Recover screenshots saved before capture history was available. Keep the
+/// originals untouched and do this only once, including after Clear All.
+fn import_saved(root: &Path, source: &Path) -> Result<(), String> {
+    if root.join(IMPORT_MARKER).exists() {
+        return Ok(());
+    }
+    if ids(root)?.is_empty() {
+        let mut files = Vec::new();
+        for item in fs::read_dir(source).map_err(|e| e.to_string())? {
+            let item = item.map_err(|e| e.to_string())?;
+            let name = item.file_name();
+            let Some(name) = name.to_str() else { continue };
+            if !name.starts_with("Screenshot ") || !name.ends_with(".png") || !regular(&item.path())
+            {
+                continue;
+            }
+            let metadata = item.metadata().map_err(|e| e.to_string())?;
+            if metadata.len() <= MAX_IMPORT_BYTES {
+                files.push((metadata.modified().unwrap_or(UNIX_EPOCH), item.path()));
+            }
+        }
+        files.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
+        for (modified, file) in files.into_iter().take(LIMIT) {
+            let Ok(png) = fs::read(file) else { continue };
+            let Ok(image) = image::load_from_memory_with_format(&png, image::ImageFormat::Png)
+            else {
+                continue;
+            };
+            let image = image.into_rgba8();
+            let frame = Frame {
+                width: image.width(),
+                height: image.height(),
+                rgba: image.into_raw(),
+            };
+            if let Err(error) = store_at(root, &frame, &png, modified) {
+                eprintln!("could not import saved screenshot: {error}");
+            }
+        }
+    }
+    fs::write(root.join(IMPORT_MARKER), []).map_err(|e| e.to_string())
+}
+
 // These blocking commands run on Tauri's async worker pool rather than the UI thread.
 #[tauri::command]
 pub async fn captures_list<R: Runtime>(app: AppHandle<R>) -> Result<Vec<Entry>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let shared = app.state::<Shared>();
         let _guard = shared.0.lock().map_err(|e| e.to_string())?;
-        list(&root(&app)?)
+        let root = root(&app)?;
+        if let Some(folder) = super::platform::screenshots_folder()
+            && folder.is_dir()
+            && let Err(error) = import_saved(&root, &folder)
+        {
+            eprintln!("could not import saved screenshots: {error}");
+        }
+        list(&root)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -270,15 +325,18 @@ async fn change<R: Runtime>(app: AppHandle<R>, id: Option<String>) -> Result<(),
         let root = root(&app)?;
         let result = match id {
             Some(id) => remove(&root, &id),
-            None => ids(&root).and_then(|ids| {
-                let mut result = Ok(());
-                for id in ids {
-                    if let Err(e) = remove(&root, &id) {
-                        result = Err(e);
+            None => fs::write(root.join(IMPORT_MARKER), [])
+                .map_err(|e| e.to_string())
+                .and_then(|_| ids(&root))
+                .and_then(|ids| {
+                    let mut result = Ok(());
+                    for id in ids {
+                        if let Err(e) = remove(&root, &id) {
+                            result = Err(e);
+                        }
                     }
-                }
-                result
-            }),
+                    result
+                }),
         };
         // Also refresh after partial failure, so removed cards disappear immediately.
         let _ = app.emit(CHANGED, ());
@@ -394,6 +452,29 @@ mod tests {
         assert_eq!(entries[0].created_at, 35);
         assert_eq!(entries.last().unwrap().created_at, 6);
         assert!(entries[0].thumbnail.is_none());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn imports_saved_screenshots_once_and_preserves_originals() {
+        let dir = fixture();
+        let saved = dir.join("saved");
+        let history = dir.join("history");
+        fs::create_dir_all(&saved).unwrap();
+        fs::create_dir_all(&history).unwrap();
+        let png = crate::shell::encode_png(&[255, 0, 0, 255], 1, 1).unwrap();
+        let original = saved.join("Screenshot 2026-10-31 162826.png");
+        fs::write(&original, &png).unwrap();
+        fs::write(saved.join("unrelated.png"), &png).unwrap();
+        import_saved(&history, &saved).unwrap();
+        let entries = list(&history).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].thumbnail.is_some());
+        assert_eq!(fs::read(&original).unwrap(), png);
+        remove(&history, &entries[0].id).unwrap();
+        import_saved(&history, &saved).unwrap();
+        assert!(list(&history).unwrap().is_empty());
+        assert_eq!(fs::read(original).unwrap(), png);
         fs::remove_dir_all(dir).unwrap();
     }
 }

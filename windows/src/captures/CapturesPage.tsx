@@ -11,7 +11,7 @@ import { subscribeCaptures, useCaptures } from "./store";
 import type { RecentCapture } from "./types";
 import "./captures.css";
 
-export function CapturesPage({ width, height }: PageProps) {
+export function CapturesPage({ width }: PageProps) {
   useLocale();
   const { entries, loading, busy, error, confirmingClear, refresh } = useCaptures();
   useEffect(() => {
@@ -22,8 +22,7 @@ export function CapturesPage({ width, height }: PageProps) {
       useCaptures.setState({ confirmingClear: false });
     };
   }, []);
-  const perRow = Math.max(1, Math.floor((width + 8) / 244));
-  const rows = Math.max(1, Math.min(Math.ceil(entries.length / perRow), Math.floor((height + 8) / 96)));
+  const columns = width >= 480 ? 2 : 1;
   return (
     <div className="cp-page" aria-label={t("recentCaptures.title")} aria-busy={loading || busy}>
       {error ? (
@@ -51,7 +50,7 @@ export function CapturesPage({ width, height }: PageProps) {
           className="cp-rail"
           role="list"
           aria-label={t("windows.captures.recentScreenshots")}
-          style={{ gridTemplateRows: `repeat(${rows}, minmax(88px, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
         >
           {entries.map((entry) => (
             <CaptureCard key={entry.id} entry={entry} busy={busy} />
