@@ -2948,9 +2948,10 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
 /// The others get a second one a moment later, for the agents whose prompt
 /// takes a quick Return as part of the paste (Gemini CLI). ZCode's sends
 /// on the first, and a second would land on the permission prompt the
-/// reply may open at once, where Return picks Deny (#245).
+/// reply may open at once, where Return picks Deny (#245). Hermes's sends on
+/// the first too, and there a second would pick Allow once (#244).
 pub fn takes_one_return(provider: Provider) -> bool {
-    provider == Provider::Zcode
+    matches!(provider, Provider::Zcode | Provider::Hermes)
 }
 
 /// Whether New session can start the agent with its first prompt. ZCode's
@@ -6998,6 +6999,8 @@ mod tests {
             vec!["chat", "-q", "go"]
         );
         assert!(starts_with_prompt(Provider::Hermes));
+        // A second Return would pick Allow once on a prompt the reply opens.
+        assert!(takes_one_return(Provider::Hermes));
         assert_eq!(name(Provider::Hermes, "search_files"), "Grep");
         assert!(
             installer::file(Provider::Hermes, Path::new("/h"), "a", None)

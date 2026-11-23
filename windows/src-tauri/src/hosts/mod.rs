@@ -363,6 +363,7 @@ impl Key {
     }
 
     /// Its name for kitty's `send-key`.
+    #[cfg(target_os = "linux")]
     pub fn kitty_name(self) -> String {
         match self {
             Key::Enter => "enter".into(),

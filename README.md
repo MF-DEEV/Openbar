@@ -31,7 +31,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/agents/agents-dark.svg">
-    <img src="docs/assets/readme/agents/agents-light.svg" width="640" alt="Works with Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Cursor, Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI and ZCode">
+    <img src="docs/assets/readme/agents/agents-light.svg" width="640" alt="Works with Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Cursor, Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode and Hermes">
   </picture>
 </p>
 
@@ -54,7 +54,7 @@
 
 - Permission requests, questions and plans open in the island with the full command or diff.
 - A reply you type or speak lands in the session's own terminal or editor.
-- Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Cursor, Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI and ZCode share one list.
+- Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Cursor, Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode and Hermes share one list.
 - Each session you start from the island gets its own git worktree.
 - Nothing leaves your machine ([privacy](docs/PRIVACY.md)).
 - A menu bar toolkit comes with it: a volume mixer, a system monitor, clipboard history and more.
