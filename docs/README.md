@@ -51,7 +51,7 @@ Every agent session on your machine, beside the camera. When one needs you, the 
 | Google Antigravity | ✓ | in Antigravity | `agy` only |
 | Grok CLI | ✓ | ✓ where its terminal takes keys; in Grok CLI otherwise | ✓ |
 | ZCode | ✓ | ✓, questions too | `zcode` in a terminal only |
-| Hermes | ✓ | ✓ in its terminal UI where the terminal takes keys; in Hermes otherwise | in a terminal only |
+| Hermes | ✓ | ✓, questions too | in a terminal only |
 
 Background sessions (`claude --bg`), plan limits and **New session** are there too. Each session started from New session gets [its own git worktree](session-worktrees.md), so agents working on one repo don't change each other's files. Sessions on [machines you reach over SSH](remote-hosts.md) can show up too, with the host's name on them. See [what each agent allows](more-session-agents.md) and [which terminals replies reach](terminal-hosts.md).
 
