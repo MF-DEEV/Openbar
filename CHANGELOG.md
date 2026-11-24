@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Factory Droid (`droid`) joins the Sessions list on Mac, Windows and Linux, with its own mark, color, pixel figure and switch, and its mark joins the closed island's stack (#242). Its hooks go into `~/.factory` next to your own, each where Droid reads its event. Allow and Deny answer its permission prompts from the island, and its questions (several tabs, multiple choices) and specs too, by keys in its terminal. Replies are typed into its terminal, and the model and last reply come from the session's own files.
+
 ## [3.5.0] - 2026-11-24
 
 Released together with Openbar for Windows 1.2.0 and Openbar for Linux 1.0.0. Mac and Linux leave beta with this release.
