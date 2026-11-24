@@ -25,6 +25,7 @@ pub mod hook_message;
 pub mod inspection;
 pub mod models;
 pub mod plan_modes;
+pub mod qwen;
 pub mod registry;
 pub mod remote;
 pub mod risk;

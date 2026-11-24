@@ -4,15 +4,16 @@
 import SwiftUI
 
 /// The makers' own marks of Gemini CLI, GitHub Copilot, OpenCode, Cursor,
-/// Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode and Hermes, drawn by the app from
+/// Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode, Hermes and Qwen Code, drawn by the app from
 /// the same paths the Windows island uses, so a session reads as its
 /// agent's whether that agent's app is on the Mac or not. Paths from
 /// @lobehub/icons-static-svg (MIT), Pi's colors from pi.dev's own logo; the
 /// marks belong to Google, GitHub, OpenCode, Anysphere, Earendil, Mistral AI,
-/// Cognition, xAI, Z.ai and Nous Research and only name whose session it is; ZCode's comes from
+/// Cognition, xAI, Z.ai, Nous Research and Alibaba and only name whose session it is; ZCode's comes from
 /// its own open-source app (zai-org/ZCode, Apache-2.0). Gemini CLI's keeps its
 /// gradient, Antigravity's arch Google's four colors across it, and Pi's,
-/// Mistral's and Devin's their colors; the other three are one color, as
+/// Mistral's and Devin's their colors, Qwen's its blue lifted for the dark
+/// island; the other three are one color, as
 /// their makers show them on dark. Each breathes while its session works, unless Reduce Motion
 /// is on.
 struct NotchHookAgentMark: View {
@@ -109,6 +110,7 @@ enum NotchHookAgentMarkPaths {
     /// ZCode's Z (Z.ai's mark, as its app shows it in its title bar): the
     /// top bar's left part, the diagonal with the top and bottom bars' long
     /// parts, and the bottom bar's right part.
+    static let qwen = "M19.713 2.825h-5.907c0-.251-.066-.503-.196-.728L12.819.728A1.46 1.46 0 0 0 11.559 0h-1.58c-.52 0-1 .275-1.26.728l-2.42 4.19a1.45 1.45 0 0 0 0 1.453l.791 1.37c.26.448.74.727 1.26.727h11.36c.52 0 1-.275 1.26-.728l.79-1.37a1.45 1.45 0 0 0 0-1.451l-.79-1.37a1.46 1.46 0 0 0-1.26-.728zM.195 9.905l2.951 5.115a1.46 1.46 0 0 0-.531.531l-.791 1.37a1.45 1.45 0 0 0 0 1.452l.79 1.37c.26.448.74.727 1.26.727h4.84c.52 0 1-.275 1.26-.728l.79-1.37a1.45 1.45 0 0 0 0-1.451L5.086 7.083a1.46 1.46 0 0 0-1.26-.728h-1.58c-.52 0-1 .276-1.26.728l-.79 1.37a1.45 1.45 0 0 0 0 1.452m15.888 13.367 2.951-5.115c.217.125.469.196.728.196h1.582c.52 0 1-.275 1.26-.728l.79-1.37a1.45 1.45 0 0 0 0-1.451l-2.42-4.191a1.46 1.46 0 0 0-1.259-.728h-1.582c-.52 0-1 .276-1.259.728l-5.678 9.838a1.45 1.45 0 0 0 0 1.452l.79 1.37c.26.448.74.727 1.26.727h1.582c.52 0 1-.275 1.26-.728z"
     static let zcode = "M12.525 3.085L11.055 5.175C10.824 5.5 10.446 5.7 10.037 5.7H2.025V3.075C2.025 3.085 12.525 3.085 12.525 3.085Z"
         + "M22.5 3.075L9.9 20.925H1.5L14.1 3.075H22.5Z"
         + "M11.475 20.924L12.955 18.823C13.187 18.498 13.564 18.299 13.974 18.299H21.975V20.924H11.475Z"
@@ -163,6 +165,7 @@ enum NotchHookAgentMarkPaths {
         .custom: Mark(layers: [Layer(path: path(custom), fill: .solid(light))]),
         .grok: Mark(layers: [Layer(path: path(grok), fill: .solid(light))]),
         .zcode: Mark(layers: [Layer(path: path(zcode), fill: .solid(light))]),
+        .qwen: Mark(layers: [Layer(path: path(qwen), fill: .solid(Color(red: 0x6F / 255, green: 0x69 / 255, blue: 0xF7 / 255)))]),
         .hermes: Mark(layers: [Layer(path: path(hermes0), fill: .solid(light)), Layer(path: path(hermes1), fill: .solid(light))]),
         .devin: Mark(layers: [
             Layer(path: path(devin0), fill: .solid(Color(red: 0x39 / 255, green: 0x69 / 255, blue: 0xCA / 255))),

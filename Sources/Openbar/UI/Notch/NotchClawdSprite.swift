@@ -313,6 +313,9 @@ enum NotchClawdSprite {
             hermesWings.forEach { put($0) }
             put(Stamp(x: 0, y: 0, rows: hermesBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .qwen:
+            put(Stamp(x: 0, y: 0, rows: qwenBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -355,6 +358,7 @@ enum NotchClawdSprite {
         case .grok: return [(3, true), (4, true), (8, false), (9, false)]
         case .zcode: return [(3, true), (4, true), (8, false), (9, false)]
         case .hermes: return [(3, true), (4, true), (8, false), (9, false)]
+        case .qwen: return [(3, true), (4, true), (8, false), (9, false)]
         }
     }
 
@@ -486,6 +490,18 @@ enum NotchClawdSprite {
     ]
     /// Hermes's figure: a round head under the winged helmet of the god it
     /// is named after (W, white whatever the costume), with a gold band (A).
+    /// Qwen Code's figure: a hexagon, as its mark's three bars make one,
+    /// with the Y they leave open below its eyes.
+    static let qwenBody = [
+        "...CCCCCCC...",
+        "..CCCCCCCCC..",
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        ".CCCCAAACCCC.",
+        "..cCCCACCCc..",
+        "...ccccccc...",
+    ]
     static let hermesBody = [
         "...AAAAAAA...",
         ".CCCCCCCCCCC.",
@@ -1084,7 +1100,7 @@ enum NotchClawdSprite {
             }
         case .hermes:
             if letter == "W" { return hermesWing }
-        case .vibe, .devin, .antigravity, .grok, .zcode:
+        case .vibe, .devin, .antigravity, .grok, .zcode, .qwen:
             break
         case .clawd:
             break

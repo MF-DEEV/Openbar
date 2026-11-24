@@ -919,6 +919,12 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [8, false],
     [9, false],
   ],
+  qwen: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -1050,6 +1056,19 @@ export const ZCODE_BODY = [
 /** Hermes's figure: a round head under the winged helmet of the god it is
  * named after (W, white whatever the costume), with a gold band (A)
  * (NotchClawdSprite.swift). */
+/** Qwen Code's figure: a hexagon, as its mark's three bars make one, with
+ * the Y they leave open below its eyes (NotchClawdSprite.qwenBody). */
+export const QWEN_BODY = [
+  "...CCCCCCC...",
+  "..CCCCCCCCC..",
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  ".CCCCAAACCCC.",
+  "..cCCCACCCc..",
+  "...ccccccc...",
+];
+
 export const HERMES_BODY = [
   "...AAAAAAA...",
   ".CCCCCCCCCCC.",
@@ -1143,6 +1162,9 @@ function compose(
     put(s(-2, -2, ["W...", "WW..", ".WWW"]));
     put(s(11, -2, ["...W", "..WW", "WWW."]));
     put(s(0, 0, HERMES_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "qwen") {
+    put(s(0, 0, QWEN_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));

@@ -203,7 +203,7 @@ enum ClaudeZellij {
             case .interrupt:
                 guard run(target, ["send-keys", "--pane-id", target.paneID, "Ctrl c"]) != nil else { return .unreachable }
             case .keys(let keys):
-                guard run(target, ["send-keys", "--pane-id", target.paneID] + keys.map(\.multiplexerName)) != nil else {
+                guard run(target, ["send-keys", "--pane-id", target.paneID] + keys.map(\.zellijName)) != nil else {
                     return .unreachable
                 }
             }

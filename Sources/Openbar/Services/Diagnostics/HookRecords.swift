@@ -169,6 +169,7 @@ extension AgentHookInstaller {
         case .grok: return (grokHooks(home: home, bundle: bundle), true)
         case .zcode: return (zcodeConfig(home: home), false)
         case .hermes: return (AgentHermes.config(home: home), false)
+        case .qwen: return (AgentQwen.settings(home: home), false)
         case .claude, .codex, .custom: return nil
         }
     }

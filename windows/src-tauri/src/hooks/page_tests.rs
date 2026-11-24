@@ -400,7 +400,8 @@ fn extra_folders() {
             Provider::Copilot,
             Provider::Pi,
             Provider::Vibe,
-            Provider::Grok
+            Provider::Grok,
+            Provider::Qwen
         ]
     );
     assert_eq!(

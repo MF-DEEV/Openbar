@@ -331,12 +331,15 @@ pub fn deliver(
 }
 
 /// A key the island presses in a session's terminal (#243): Return and
-/// Ctrl-C for Grok's prompt, the down arrow for Hermes's menu (#244).
+/// Ctrl-C for Grok's prompt, the down arrow for Hermes's menu (#244),
+/// Space and Escape for Qwen Code's dialogs (#239).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Key {
     Enter,
     Interrupt,
     Down,
+    Space,
+    Escape,
 }
 
 impl Key {
@@ -346,6 +349,8 @@ impl Key {
             Key::Enter => "\r".into(),
             Key::Interrupt => "\u{3}".into(),
             Key::Down => "\u{1b}[B".into(),
+            Key::Space => " ".into(),
+            Key::Escape => "\u{1b}".into(),
         }
     }
 
@@ -355,6 +360,16 @@ impl Key {
             Key::Enter => "Enter".into(),
             Key::Interrupt => "C-c".into(),
             Key::Down => "Down".into(),
+            Key::Space => "Space".into(),
+            Key::Escape => "Escape".into(),
+        }
+    }
+
+    /// Its name for zellij's `send-keys`, which calls Escape `Esc`.
+    pub fn zellij_name(self) -> String {
+        match self {
+            Key::Escape => "Esc".into(),
+            _ => self.multiplexer_name(),
         }
     }
 
@@ -365,6 +380,8 @@ impl Key {
             Key::Enter => "enter".into(),
             Key::Interrupt => "ctrl+c".into(),
             Key::Down => "down".into(),
+            Key::Space => "space".into(),
+            Key::Escape => "escape".into(),
         }
     }
 }
@@ -411,6 +428,8 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
             console::Action::Press {
                 key: match key {
                     Key::Down => "down".into(),
+                    Key::Space => "space".into(),
+                    Key::Escape => "escape".into(),
                     Key::Enter | Key::Interrupt => unreachable!(),
                 },
             },
@@ -419,7 +438,7 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
         .map_err(|_| DeliveryError::Unreachable),
         (Key::Enter, _) => deliver(pid, located, "", &[]),
         (
-            Key::Down,
+            Key::Down | Key::Space | Key::Escape,
             Host::Wezterm {
                 gui_pid,
                 pane,
@@ -428,7 +447,7 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
         ) => wezterm::keys(*gui_pid, *pane, socket, &key.bytes())
             .map_err(|_| DeliveryError::Unreachable),
         (
-            Key::Down,
+            Key::Down | Key::Space | Key::Escape,
             Host::Zellij {
                 session,
                 pane,
@@ -444,11 +463,10 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
                 session,
                 server: *server,
             };
-            zellij::keys(&target, *pane, &key.multiplexer_name())
-                .map_err(|_| DeliveryError::Unreachable)
+            zellij::keys(&target, *pane, &key.zellij_name()).map_err(|_| DeliveryError::Unreachable)
         }
         #[cfg(target_os = "linux")]
-        (Key::Down, Host::Tmux { .. } | Host::Kitty { .. }) => {
+        (Key::Down | Key::Space | Key::Escape, Host::Tmux { .. } | Host::Kitty { .. }) => {
             crate::linux::hosts::keys(pid, located, key)
         }
         (

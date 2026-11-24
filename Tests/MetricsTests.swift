@@ -154,6 +154,7 @@ struct MetricsTests {
                 GrokAgentTests.run(suite)
                 ZCodeAgentTests.run(suite)
                 HermesAgentTests.run(suite)
+                QwenAgentTests.run(suite)
                 ClaudeDesktopTests.run(suite)
                 HookPageTests.run(suite)
                 ClaudeFileDiffTests.run(suite)
@@ -175,6 +176,7 @@ struct MetricsTests {
                 GrokAgentTests.run(suite)
                 ZCodeAgentTests.run(suite)
                 HermesAgentTests.run(suite)
+                QwenAgentTests.run(suite)
                 HookPageTests.run(suite)
             }),
             ("claude-desktop", { ClaudeDesktopTests.run(suite) }),

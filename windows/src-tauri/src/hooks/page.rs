@@ -1243,6 +1243,7 @@ pub fn display_name(provider: Provider) -> &'static str {
         Provider::Grok => "Grok CLI",
         Provider::Zcode => "ZCode",
         Provider::Hermes => "Hermes",
+        Provider::Qwen => "Qwen Code",
         Provider::Custom => "Other tool",
     }
 }

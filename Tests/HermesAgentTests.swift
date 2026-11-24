@@ -517,7 +517,7 @@ enum HermesAgentTests {
                      && !AgentHookInstaller.isPresent(.hermes, home: home, path: nil, isExecutable: { _ in false },
                                                       exists: { $0.hasSuffix(".hermes") }),
                      "found by its command or its app, never by ~/.hermes alone")
-        suite.expect(ClaudeSessionProvider.hermes.displayName == "Hermes" && ClaudeSessionProvider.hookAgents.last == .hermes
+        suite.expect(ClaudeSessionProvider.hermes.displayName == "Hermes" && ClaudeSessionProvider.hookAgents.firstIndex(of: .hermes) == ClaudeSessionProvider.hookAgents.firstIndex(of: .zcode).map { $0 + 1 }
                      && ClaudeSessionProvider.hermes.answersPermissions && !ClaudeSessionProvider.hermes.takesRepliesDirectly
                      && AgentCLI.command(.hermes) == "hermes" && AgentCLI.startArguments(.hermes, prompt: "go") == ["chat", "-q", "go"]
                      && AgentCLI.startsWithPrompt(.hermes) && ClaudeSessionProvider.hermes.character == .hermes,

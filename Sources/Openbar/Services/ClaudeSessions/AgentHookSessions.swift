@@ -199,6 +199,13 @@ final class AgentHookSessions {
         entries[id]?.clearWait()
     }
 
+    /// The agent shows its own dialog for the request now: the island
+    /// answers it there, with keys (Qwen Code, #239).
+    func moveToDialog(_ id: String, request: String) {
+        guard entries[id]?.permission?.requestID == request else { return }
+        entries[id]?.permission?.inAgentDialog = true
+    }
+
     func acknowledge(_ id: String, now: Date) {
         entries[id]?.acknowledged = now
     }
@@ -292,9 +299,13 @@ final class AgentHookSessions {
         // A request only the agent can answer is shown as waiting there.
         // Grok's is answered with keys, where its terminal takes them.
         // Hermes's with keys in its classic terminal UI, through its gateway
-        // anywhere else.
+        // anywhere else. Qwen Code's question or plan with keys, in its own
+        // dialog; its tools' through the hook the island holds.
+        let qwenKeys = entry.provider == .qwen && entry.permission.map(AgentQwen.answeredByKeys) == true
+        let keyed = entry.provider == .grok || qwenKeys
         let inAgent = entry.permission != nil
-            && (!entry.answerable || (entry.provider == .grok && !ClaudeTyping.takesKeys(host)))
+            && (!entry.answerable || (keyed && !ClaudeTyping.takesKeys(host))
+                || (qwenKeys && entry.permission.map { !AgentQwen.keyable($0, oneBurst: AgentQwen.oneBurst(host)) } == true))
         var session = ClaudeSession(
             id: id, pid: entry.pid, cwd: entry.cwd, project: project, name: project, branch: branch, model: entry.model,
             host: host, phase: phase, phaseSince: since, turnStarted: entry.turnStarted,

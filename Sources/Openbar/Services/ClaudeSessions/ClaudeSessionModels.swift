@@ -125,6 +125,9 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     /// app), heard through shell hooks in its config.yaml, which its gateway
     /// runs for every session (#244).
     case hermes
+    /// Alibaba's Qwen Code (`qwen`), heard through hooks in its settings,
+    /// whose permission hook the island holds and answers (#239).
+    case qwen
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     case custom
@@ -139,7 +142,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .custom: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .custom: return nil
         }
     }
 
@@ -159,6 +162,7 @@ extension ClaudeSessionProvider {
         case .grok: return "Grok CLI"
         case .zcode: return "ZCode"
         case .hermes: return "Hermes"
+        case .qwen: return "Qwen Code"
         case .custom: return "Other tool"
         }
     }
@@ -173,6 +177,7 @@ extension ClaudeSessionProvider {
         case .devin: return "Devin"
         case .antigravity: return "Antigravity"
         case .grok: return "Grok"
+        case .qwen: return "Qwen"
         default: return displayName
         }
     }
@@ -182,7 +187,7 @@ extension ClaudeSessionProvider {
 
     /// The agents that report through the island's hooks or plugin.
     static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok,
-                                                      .zcode, .hermes]
+                                                      .zcode, .hermes, .qwen]
 
     var reportsThroughHooks: Bool { Self.hookAgents.contains(self) }
 
@@ -198,10 +203,12 @@ extension ClaudeSessionProvider {
     /// ZCode's permission hook answers like Claude Code's, racing its own
     /// prompt: whichever answers first wins. Hermes's hooks only hear of a
     /// dangerous command; its classic terminal UI takes Return for the
-    /// Allow once it has picked and arrow keys down to Deny.
+    /// Allow once it has picked and arrow keys down to Deny. Qwen Code's
+    /// permission hook holds its request until the island answers; its
+    /// questions and plans take keys in its terminal.
     var answersPermissions: Bool {
         switch self {
-        case .claude, .codex, .opencode, .grok, .zcode, .hermes: return true
+        case .claude, .codex, .opencode, .grok, .zcode, .hermes, .qwen: return true
         case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return false
         }
     }
@@ -341,6 +348,9 @@ struct ClaudePermission: Equatable {
     /// What it looks like it does, for the queue's Allow all (#269). Set
     /// when the island publishes it; until then it is never allowed in bulk.
     var risk: PermissionRisk = .unassessed
+    /// The agent shows its own dialog for it now, which the island answers
+    /// with keys (Qwen Code's, once its hook was let go, #239).
+    var inAgentDialog = false
 
     var asksQuestions: Bool { !questions.isEmpty }
 
@@ -362,6 +372,7 @@ extension ClaudePermission {
         copy.questions = questions
         copy.diffs = diffs
         copy.planModes = planModes
+        copy.inAgentDialog = inAgentDialog
         return copy
     }
 }

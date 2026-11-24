@@ -127,11 +127,20 @@ enum ClaudeTypingStep: Equatable {
 /// A key the island presses at an agent's menu.
 enum ClaudeKey: Equatable {
     case down
+    /// A choice's number: Qwen Code's dialogs pick it at once (#239).
+    case digit(Int)
+    /// Ticks a choice of a multiple choice (Qwen Code, #239).
+    case space
+    /// Closes a dialog unanswered (Qwen Code, #239).
+    case escape
 
     /// What a terminal sends the program for it.
     var bytes: String {
         switch self {
         case .down: return "\u{1B}[B"
+        case .digit(let number): return String(number)
+        case .space: return " "
+        case .escape: return "\u{1B}"
         }
     }
 
@@ -139,25 +148,38 @@ enum ClaudeKey: Equatable {
     var multiplexerName: String {
         switch self {
         case .down: return "Down"
+        case .digit(let number): return String(number)
+        case .space: return "Space"
+        case .escape: return "Escape"
         }
     }
+
+    /// The key's name for zellij's `send-keys`, which calls Escape `Esc`.
+    var zellijName: String { self == .escape ? "Esc" : multiplexerName }
 
     /// The key's name for kitty's `send-key`.
     var kittyName: String {
         switch self {
         case .down: return "down"
+        case .digit(let number): return String(number)
+        case .space: return "space"
+        case .escape: return "escape"
         }
     }
 
-    /// The keys as an AppleScript expression: the escape character can't
+    /// The key as an AppleScript expression: the escape character can't
     /// sit in a string literal, so it is joined in.
-    static func appleScript(_ keys: [ClaudeKey]) -> String {
-        let parts = keys.map { key -> String in
-            switch key {
-            case .down: return "(character id 27) & \"[B\""
-            }
+    var appleScript: String {
+        switch self {
+        case .down: return "(character id 27) & \"[B\""
+        case .digit(let number): return "\"\(number)\""
+        case .space: return "\" \""
+        case .escape: return "(character id 27)"
         }
-        return parts.isEmpty ? "\"\"" : parts.joined(separator: " & ")
+    }
+
+    static func appleScript(_ keys: [ClaudeKey]) -> String {
+        keys.isEmpty ? "\"\"" : keys.map(\.appleScript).joined(separator: " & ")
     }
 }
 
@@ -175,9 +197,11 @@ enum ClaudeTyping {
 
     /// How long an agent's prompt needs after a paste before a return sends
     /// it rather than breaking the line: Gemini CLI's and the other hook
-    /// agents' take a quick one as part of the paste.
+    /// agents' take a quick one as part of the paste. Qwen Code's sends on
+    /// the return that comes with the paste, and in Terminal a second one
+    /// would take the reply it suggests next into its prompt (#239).
     static func enterDelay(_ provider: ClaudeSessionProvider) -> Double? {
-        provider.reportsThroughHooks ? 0.5 : nil
+        provider.reportsThroughHooks && provider != .qwen ? 0.5 : nil
     }
 
     /// Whether the session's terminal takes keys from the island as keys,

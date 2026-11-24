@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Qwen Code (Alibaba's `qwen`) joins the Sessions list on Mac, Windows and Linux, with its own mark, color, pixel figure and switch, and its mark joins the closed island's stack (#239). Allow and Deny answer its permission requests from the island: its hook holds a request for up to a minute, and after that, or once you press Open, the card answers Qwen Code's own dialog with keys. Its questions, with several tabs and multiple choices, and its plans are answered from the island too, by keys in its terminal (in the Mac's Terminal only a single choice or a plan). Replies are typed into its terminal, and the model shows from its first hook or its chat log.
+
 ## [3.5.0-beta.5] - 2026-11-24
 
 Released together with Openbar for Windows 1.1.0 and Openbar for Linux 0.6.0.
