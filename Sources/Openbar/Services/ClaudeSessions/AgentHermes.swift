@@ -608,12 +608,191 @@ enum AgentHookKeys {
         switch decision {
         case .allow where !asked.asksQuestions: return [.enter]
         case .deny where !asked.asksQuestions: return [.keys([.down, .down, .down]), .enter]
-        case .answer(let answers):
-            guard let question = asked.questions.first,
-                  let key = AgentHookMessage.hermesAnswerKey(answers, question: question)?.first else { return nil }
-            return [.keys([.character(key)])]
         default: return nil
         }
     }
 
+}
+
+/// Answers a prompt through Hermes's own gateway, the way its Ink UI and its
+/// app do (#244): `hermes gateway attach --json` hands out a one-use ticket
+/// for the gateway's local WebSocket, the island joins the session as one
+/// more viewer (`session.resume`, which lists the prompts waiting), answers
+/// (`approval.respond`, `clarify.lock`) and leaves. Hermes's Ink UI and
+/// app close their own card when the answer comes from elsewhere, and so
+/// does its classic terminal UI for a question; it keeps an approval's menu
+/// up until a key is pressed, so there the island presses keys instead
+/// whenever the terminal takes them.
+enum AgentHermesGateway {
+    enum Answer: Equatable {
+        /// `once` or `deny` for a dangerous command.
+        case approval(String)
+        /// Each question's answer: its picks, or nil when skipped.
+        case clarify([[String]?])
+
+        var kind: String {
+            switch self {
+            case .approval: return "approval"
+            case .clarify: return "clarify"
+            }
+        }
+    }
+
+    /// What answers the island's decision, or nil for one Hermes can't take.
+    static func answer(_ decision: ClaudeHookMessage.Decision, _ asked: ClaudePermission) -> Answer? {
+        switch decision {
+        case .allow where !asked.asksQuestions: return .approval("once")
+        case .deny where !asked.asksQuestions: return .approval("deny")
+        case .deny where !asked.questions.isEmpty: return .clarify(asked.questions.map { _ in nil })
+        case .answer(let answers) where !asked.questions.isEmpty:
+            let picks: [[String]?] = asked.questions.map { question in
+                let picked = (answers[question.question] ?? (asked.questions.count == 1 && answers.count == 1 ? answers.values.first : nil))?
+                    .filter { !$0.isEmpty } ?? []
+                return picked.isEmpty ? nil : picked
+            }
+            return picks.allSatisfy { $0 == nil } ? nil : .clarify(picks)
+        default: return nil
+        }
+    }
+
+    /// The ticket `hermes gateway attach --json` prints: the socket's URL and
+    /// the subprotocols that carry the ticket.
+    static func ticket(_ output: String) -> (url: URL, protocols: [String])? {
+        guard let data = output.data(using: .utf8),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              json["state"] as? String == "ready" || json["state"] == nil,
+              let text = json["url"] as? String, let url = URL(string: text),
+              url.scheme == "ws", let host = url.host, ["127.0.0.1", "localhost", "::1"].contains(host),
+              let protocols = json["protocols"] as? [String], !protocols.isEmpty else { return nil }
+        return (url, protocols)
+    }
+
+    /// The prompt waiting in a session, from `session.resume`'s result: its
+    /// id and the run it belongs to.
+    static func pending(_ result: [String: Any], kind: String) -> (prompt: String, generation: Int)? {
+        let prompts = result["prompts"] as? [[String: Any]] ?? []
+        guard let prompt = prompts.last(where: { $0["kind"] as? String == kind }),
+              let id = prompt["prompt_id"] as? String, !id.isEmpty else { return nil }
+        let generation = (prompt["execution_generation"] as? NSNumber ?? result["execution_generation"] as? NSNumber)?.intValue ?? 0
+        return (id, generation)
+    }
+
+    /// A question Hermes's gateway asks its Ink UI and app as a request of
+    /// its own (`open_requests` in `session.resume`'s result): its id and
+    /// each question's id, answered one by one with `clarify.lock`.
+    static func openQuestion(_ result: [String: Any]) -> (request: String, questions: [String])? {
+        let open = result["open_requests"] as? [[String: Any]] ?? []
+        guard let request = open.last(where: { $0["method"] as? String == "clarify" }),
+              let id = request["id"] as? String, !id.isEmpty,
+              let questions = (request["params"] as? [String: Any])?["questions"] as? [[String: Any]] else { return nil }
+        let ids = questions.compactMap { $0["qid"] as? String }
+        return ids.isEmpty ? nil : (id, ids)
+    }
+
+    /// Answers the prompt waiting in `session`. Blocks a few seconds at most;
+    /// call it off the main thread.
+    static func send(_ answer: Answer, session: String, hermes executable: String, environment: [String: String],
+                     timeout: TimeInterval = 8) -> Bool {
+        guard let printed = ClaudeHostCommand.run(executable, ["gateway", "attach", "--json"], environment: environment,
+                                                  timeout: timeout),
+              let ticket = ticket(printed) else { return false }
+        let connection = Connection(url: ticket.url, protocols: ticket.protocols, timeout: timeout)
+        defer { connection.close() }
+        guard let resumed = connection.call("session.resume", ["session_id": session]) else { return false }
+        // A question is the gateway's own request: each answer locked in turn, the last lock
+        // settling it; a skipped one is locked empty, several picks as a list.
+        if case .clarify(let picks) = answer, let open = openQuestion(resumed) {
+            for (index, question) in open.questions.enumerated() {
+                let picked = index < picks.count ? picks[index] : nil
+                let value: Any = picked.map { $0.count == 1 ? $0[0] as Any : $0 as Any } ?? NSNull()
+                guard let locked = connection.call("clarify.lock", ["request_id": open.request, "question_id": question,
+                                                                    "answer": value]),
+                      locked["status"] as? String != "expired" else { return false }
+            }
+            return true
+        }
+        guard let waiting = pending(resumed, kind: answer.kind) else { return false }
+        var params: [String: Any] = ["session_id": session, "execution_generation": waiting.generation,
+                                     "prompt_id": waiting.prompt]
+        let method: String
+        switch answer {
+        case .approval(let choice):
+            method = "approval.respond"
+            params["choice"] = choice
+        case .clarify(let picks):
+            method = "clarify.respond"
+            params["answer"] = picks.first.flatMap { $0 }?.joined(separator: ", ") ?? ""
+        }
+        guard let result = connection.call(method, params) else { return false }
+        return ["resolved", "already_resolved"].contains(result["status"] as? String ?? "")
+    }
+
+    /// One JSON-RPC conversation over the gateway's WebSocket.
+    final class Connection {
+        private let task: URLSessionWebSocketTask
+        private let session: URLSession
+        private let timeout: TimeInterval
+        private var next = 0
+
+        init(url: URL, protocols: [String], timeout: TimeInterval) {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.timeoutIntervalForRequest = timeout
+            configuration.connectionProxyDictionary = [:]
+            session = URLSession(configuration: configuration)
+            task = session.webSocketTask(with: url, protocols: protocols)
+            self.timeout = timeout
+            task.resume()
+        }
+
+        /// The call's result, skipping the events that come between; nil on
+        /// an error, a refusal or no answer in time.
+        func call(_ method: String, _ params: [String: Any]) -> [String: Any]? {
+            next += 1
+            let id = next
+            let request: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": method, "params": params]
+            guard let data = try? JSONSerialization.data(withJSONObject: request),
+                  let text = String(data: data, encoding: .utf8) else { return nil }
+            let sent = DispatchSemaphore(value: 0)
+            var failed = false
+            task.send(.string(text)) { error in
+                failed = error != nil
+                sent.signal()
+            }
+            guard sent.wait(timeout: .now() + timeout) == .success, !failed else { return nil }
+            let deadline = Date().addingTimeInterval(timeout)
+            while Date() < deadline {
+                guard let message = receive(until: deadline),
+                      let json = (try? JSONSerialization.jsonObject(with: message)) as? [String: Any] else { return nil }
+                guard (json["id"] as? NSNumber)?.intValue == id else { continue }
+                return json["result"] as? [String: Any]
+            }
+            return nil
+        }
+
+        private func receive(until deadline: Date) -> Data? {
+            let got = DispatchSemaphore(value: 0)
+            var data: Data?
+            task.receive { result in
+                if case .success(let message) = result {
+                    switch message {
+                    case .string(let text): data = Data(text.utf8)
+                    case .data(let bytes): data = bytes
+                    @unknown default: break
+                    }
+                }
+                got.signal()
+            }
+            let left = max(0.1, deadline.timeIntervalSinceNow)
+            guard got.wait(timeout: .now() + left) == .success else {
+                task.cancel(with: .goingAway, reason: nil)
+                return nil
+            }
+            return data
+        }
+
+        func close() {
+            task.cancel(with: .normalClosure, reason: nil)
+            session.invalidateAndCancel()
+        }
+    }
 }

@@ -119,24 +119,19 @@ enum ClaudeTypingStep: Equatable {
     case enter
     /// Ctrl-C, as a key: Grok CLI's prompt takes it for no (#243).
     case interrupt
-    /// Keys pressed, never pasted: arrows or a number at an agent's menu
-    /// (Hermes's prompt, #244).
+    /// Keys pressed, never pasted: arrows at an agent's menu (Hermes's
+    /// prompt, #244).
     case keys([ClaudeKey])
 }
 
 /// A key the island presses at an agent's menu.
 enum ClaudeKey: Equatable {
     case down
-    case up
-    /// A digit or letter, as typed.
-    case character(Character)
 
     /// What a terminal sends the program for it.
     var bytes: String {
         switch self {
         case .down: return "\u{1B}[B"
-        case .up: return "\u{1B}[A"
-        case .character(let character): return String(character)
         }
     }
 
@@ -144,8 +139,6 @@ enum ClaudeKey: Equatable {
     var multiplexerName: String {
         switch self {
         case .down: return "Down"
-        case .up: return "Up"
-        case .character(let character): return String(character)
         }
     }
 
@@ -153,8 +146,6 @@ enum ClaudeKey: Equatable {
     var kittyName: String {
         switch self {
         case .down: return "down"
-        case .up: return "up"
-        case .character(let character): return String(character).lowercased()
         }
     }
 
@@ -164,8 +155,6 @@ enum ClaudeKey: Equatable {
         let parts = keys.map { key -> String in
             switch key {
             case .down: return "(character id 27) & \"[B\""
-            case .up: return "(character id 27) & \"[A\""
-            case .character(let character): return AppleScriptRunner.literal(String(character))
             }
         }
         return parts.isEmpty ? "\"\"" : parts.joined(separator: " & ")

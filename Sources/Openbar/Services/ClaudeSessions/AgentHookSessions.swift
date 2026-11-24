@@ -290,12 +290,11 @@ final class AgentHookSessions {
         }
         let cost = entry.usage.values.reduce(0) { $0 + $1.cost }
         // A request only the agent can answer is shown as waiting there.
-        // Grok's is answered with keys, where its terminal takes them, and
-        // Hermes's too, in its classic terminal UI only.
-        let byKeys = entry.provider == .grok || entry.provider == .hermes
+        // Grok's is answered with keys, where its terminal takes them.
+        // Hermes's with keys in its classic terminal UI, through its gateway
+        // anywhere else.
         let inAgent = entry.permission != nil
-            && (!entry.answerable || (byKeys && !ClaudeTyping.takesKeys(host))
-                || (entry.provider == .hermes && !AgentHookSessions.hermesTakesKeys(entry.client)))
+            && (!entry.answerable || (entry.provider == .grok && !ClaudeTyping.takesKeys(host)))
         var session = ClaudeSession(
             id: id, pid: entry.pid, cwd: entry.cwd, project: project, name: project, branch: branch, model: entry.model,
             host: host, phase: phase, phaseSince: since, turnStarted: entry.turnStarted,

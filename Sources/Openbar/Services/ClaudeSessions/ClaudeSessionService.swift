@@ -486,14 +486,46 @@ final class ClaudeSessionService: ObservableObject {
             default:
                 guard inspection.allows(id, current, revision: revision, token: inspectionToken) else { return }
             }
-            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .grok || entry.provider == .hermes {
+            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .hermes {
+                // Hermes's classic prompt takes Return for the Allow once it
+                // has picked, arrows down to Deny and a question's number;
+                // anywhere else (its Ink UI, its app, a terminal that takes no
+                // keys) the answer goes through Hermes's gateway (#244).
+                let shown = latest.first(where: { $0.id == id })
+                if AgentHookSessions.hermesTakesKeys(entry.client), let shown, ClaudeTyping.takesKeys(shown.host),
+                   let keys = AgentHookKeys.hermes(decision, current) {
+                    actions.async { [self] in
+                        guard ClaudeTerminalReply.press(keys, to: shown) == nil else { return }
+                        queue.async { [self] in
+                            hookAgents.resolve(id, request: request)
+                            hookAgents.acknowledge(id, now: Date())
+                            publish(now: Date())
+                        }
+                    }
+                    return
+                }
+                guard let answer = AgentHermesGateway.answer(decision, current) else { return }
+                let home = home, session = entry.sessionID
+                actions.async { [self] in
+                    let shell = ClaudeCLI.shell(home: home)
+                    guard let hermes = AgentCLI.locate(.hermes, path: shell.environment["PATH"], home: home),
+                          AgentHermesGateway.send(answer, session: session, hermes: hermes, environment: shell.environment)
+                    else {
+                        DiagnosticsLog.info("sessions", "hermes: the gateway took no answer")
+                        return
+                    }
+                    queue.async { [self] in
+                        hookAgents.resolve(id, request: request)
+                        hookAgents.acknowledge(id, now: Date())
+                        publish(now: Date())
+                    }
+                }
+                return
+            }
+            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .grok {
                 // Grok's prompt takes Return for the yes it has picked and
                 // Ctrl-C for no; its hooks tell when it moves on (#243).
-                // Hermes's classic prompt takes Return for the Allow once it
-                // has picked and arrows down to Deny, and a question's number
-                // for its answer (#244).
-                guard let keys = entry.provider == .grok ? AgentHookKeys.grok(decision)
-                        : AgentHookSessions.hermesTakesKeys(entry.client) ? AgentHookKeys.hermes(decision, current) : nil else { return }
+                guard let keys = AgentHookKeys.grok(decision) else { return }
                 guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host) else { return }
                 actions.async { [self] in
                     guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
@@ -1532,6 +1564,12 @@ final class ClaudeSessionService: ObservableObject {
                     app: { AgentHermesClients.app() }) else { continue }
                 agent = place.pid
                 cwd = place.record?.cwd
+                // Where the session is shown, as Hermes recorded it when it was made.
+                if let client = place.record?.client, AgentHookMessage.hermesClients.contains(client),
+                   hookAgents.entry(event.id)?.client != client {
+                    hookAgents.ingest(AgentHookEvent(provider: .hermes, sessionID: event.sessionID, pid: agent, cwd: cwd,
+                                                     date: event.date, kind: .client(client)), now: now)
+                }
                 // A title is made from the prompt: only read with previews on.
                 if engine.policy.previews, let title = place.record?.title, hookAgents.entry(event.id)?.title != title {
                     hookAgents.ingest(AgentHookEvent(provider: .hermes, sessionID: event.sessionID, pid: agent, cwd: cwd,

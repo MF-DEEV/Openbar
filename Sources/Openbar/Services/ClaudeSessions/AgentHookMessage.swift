@@ -569,7 +569,11 @@ enum AgentHookMessage {
         func add(_ kind: AgentHookEvent.Kind) {
             events.append(AgentHookEvent(provider: .hermes, sessionID: session, pid: pid, cwd: nil, date: now, kind: kind))
         }
-        if let platform = text(extra, "platform"), hermesClients.contains(platform) { add(.client(platform)) }
+        // A session the island joins to answer through the gateway opens again
+        // (`reason: resume`) under no client of its own.
+        if let platform = text(extra, "platform"), hermesClients.contains(platform), text(extra, "reason") != "resume" {
+            add(.client(platform))
+        }
         let raw = text(json, "tool_name") ?? ""
         let tool = AgentHookTools.name(.hermes, raw)
         let input = hermesInput(raw, arguments(json["tool_input"]))
@@ -598,8 +602,7 @@ enum AgentHookMessage {
             switch text(extra, "kind") {
             case "approval": add(.permission(hermesApproval(text(extra, "prompt") ?? "", request: request, at: now)))
             case "clarify":
-                // Filled in from the question its clarify tool named, when
-                // the island can answer it; else answered in Hermes.
+                // Filled in from the questions its clarify tool named.
                 add(.permission(ClaudePermission(requestID: request, tool: "", summary: nil, offersAlways: false, since: now)))
             default:
                 // A sudo or vault password is only ever typed in Hermes.
@@ -655,30 +658,24 @@ enum AgentHookMessage {
         return permission
     }
 
-    /// The most choices a key picks: Hermes's prompt numbers them 1 to 9.
-    static let hermesChoiceLimit = 9
-
-    /// The question a clarify call asks, when the island can answer it with
-    /// a key: one question, one answer, with choices. Several questions, a
-    /// free answer or more than one pick are answered in Hermes.
+    /// The questions a clarify call asks (one to five, each with up to four
+    /// choices, one pick or several, or none for a free answer), answered
+    /// through Hermes's gateway.
     static func hermesQuestion(_ input: [String: Any], at date: Date) -> ClaudePermission? {
-        guard let list = input["questions"] as? [[String: Any]], list.count == 1, let item = list.first,
-              let text = (item["question"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
-              !flag(item["multi_select"]),
-              let choices = item["choices"] as? [String], (1...hermesChoiceLimit).contains(choices.count),
-              choices.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return nil }
-        let question = ClaudeQuestion(question: text, options: choices.map { ClaudeQuestion.Option(label: $0) })
+        guard let list = input["questions"] as? [[String: Any]], !list.isEmpty else { return nil }
+        var questions: [ClaudeQuestion] = []
+        for item in list {
+            guard let text = (item["question"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+            else { return nil }
+            let choices = (item["choices"] as? [String] ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            questions.append(ClaudeQuestion(question: text, options: choices.map { ClaudeQuestion.Option(label: $0) },
+                                            multiSelect: flag(item["multi_select"]) && !choices.isEmpty))
+        }
         var permission = ClaudePermission(requestID: UUID().uuidString, tool: ClaudeQuestion.tool,
-                                          summary: ClaudeToolSummary.clip(text), offersAlways: false, since: date)
-        permission.questions = [question]
+                                          summary: ClaudeToolSummary.clip(questions[0].question), offersAlways: false, since: date)
+        permission.questions = questions
         return permission
-    }
-
-    /// The key that picks an answer on Hermes's question: its number.
-    static func hermesAnswerKey(_ answers: [String: [String]], question: ClaudeQuestion) -> String? {
-        guard let picked = answers[question.question] ?? (answers.count == 1 ? answers.values.first : nil), picked.count == 1,
-              let index = question.options.firstIndex(where: { $0.label == picked[0] }), index < hermesChoiceLimit else { return nil }
-        return String(index + 1)
     }
 
     // MARK: Grok CLI

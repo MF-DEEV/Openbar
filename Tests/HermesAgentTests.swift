@@ -124,16 +124,19 @@ enum HermesAgentTests {
                      && listed[0].permission?.content?.complete == true && listed[0].permission?.offersAlways == false
                      && listed[0].waitingFor == nil,
                      "a dangerous command waits on the island's card, shown whatever the previews: \(listed[0].permission as Any)")
-        // In Hermes's terminal UI or app the card says to answer there.
+        // Its Ink UI's and app's prompts are answered on the card too, through Hermes's gateway.
         let tui = AgentHookSessions()
         send(tui, "on_session_open", ["platform": "tui", "reason": "create"])
         send(tui, "on_human_input_request", ["kind": "approval", "request_id": "r1", "prompt": "rm -rf build"])
         listed = T.snapshot(tui).sessions
-        suite.expect(listed[0].phase == .waitingPermission && listed[0].permission == nil
-                     && listed[0].waitingFor == CodexSessionState.answerInTerminal,
-                     "its Ink UI's prompt is answered in Hermes: \(listed[0])")
+        suite.expect(listed[0].phase == .waitingPermission && listed[0].permission?.requestID == "r1"
+                     && listed[0].waitingFor == nil && tui.entry("hermes:\(session)")?.client == "tui",
+                     "its Ink UI's prompt is on the island's card: \(listed[0])")
+        send(tui, "on_session_open", ["platform": "cli", "reason": "resume"])
+        suite.expect(tui.entry("hermes:\(session)")?.client == "tui",
+                     "the island joining the session to answer doesn't change where it is shown")
         let ghostty = tracker.snapshot(now: now, previews: true, host: { _ in .ghostty(tty: "/dev/ttys004") }, branch: { _ in nil })
-        suite.expect(ghostty.sessions[0].permission == nil && ghostty.sessions[0].waitingFor == CodexSessionState.answerInTerminal,
+        suite.expect(ghostty.sessions[0].permission != nil && ghostty.sessions[0].waitingFor == nil,
                      "and so is one in a terminal the island can't press keys in")
         send(tracker, "on_human_input_resolved", ["kind": "approval", "request_id": "6630f540", "outcome": "answered"])
         send(tracker, "post_tool_call", tool: "terminal", input: ["command": "rm -rf build"],
@@ -154,19 +157,21 @@ enum HermesAgentTests {
         listed = T.snapshot(tracker).sessions
         suite.expect(listed[0].permission == nil && !listed[0].timeline.contains { $0.name == "AskUserQuestion" },
                      "an answered question leaves no tool behind")
-        // Several questions, a free answer or many picks are answered in Hermes.
-        for input: [String: Any] in [
-            ["questions": [["question": "A?", "choices": ["x"]], ["question": "B?", "choices": ["y"]]]],
-            ["questions": [["question": "Why?"]]],
-            ["questions": [["question": "Which?", "choices": ["a", "b"], "multi_select": true]]],
-        ] {
-            let other = AgentHookSessions()
-            send(other, "pre_tool_call", tool: "clarify", input: input)
-            send(other, "on_human_input_request", ["kind": "clarify", "request_id": "q2", "prompt": "?"])
-            let row = T.snapshot(other).sessions[0]
-            suite.expect(row.phase == .waitingInput && row.permission == nil && row.waitingFor == CodexSessionState.answerInTerminal,
-                         "\(input) is answered in Hermes")
-        }
+        // Several questions, a free answer and many picks are on the card too.
+        let several = AgentHookSessions()
+        send(several, "pre_tool_call", tool: "clarify", input: ["questions": [
+            ["question": "A?", "choices": ["x", " "]], ["question": "Why?"],
+            ["question": "Which?", "choices": ["a", "b"], "multi_select": true],
+        ]])
+        send(several, "on_human_input_request", ["kind": "clarify", "request_id": "q2", "prompt": "?"])
+        let row = T.snapshot(several).sessions[0]
+        suite.expect(row.phase == .waitingPermission && row.permission?.questions.map(\.question) == ["A?", "Why?", "Which?"]
+                     && row.permission?.questions.map(\.options.count) == [1, 0, 2]
+                     && row.permission?.questions.map(\.multiSelect) == [false, false, true],
+                     "several questions, a free answer and many picks are on the card: \(row.permission as Any)")
+        suite.expect(AgentHookMessage.hermesQuestion(["questions": [["question": " "]]], at: now) == nil
+                     && AgentHookMessage.hermesQuestion(["questions": []], at: now) == nil,
+                     "a question with no text isn't shown")
         // A password is only ever typed in Hermes.
         let sudo = AgentHookSessions()
         send(sudo, "on_human_input_request", ["kind": "sudo", "request_id": "p1", "prompt": "[sudo] password"])
@@ -184,29 +189,62 @@ enum HermesAgentTests {
         suite.expect(AgentHookKeys.hermes(.deny, command) == [.keys([.down, .down, .down]), .enter],
                      "Deny goes down to it: the arrows stop there whichever choices are offered")
         suite.expect(AgentHookKeys.hermes(.allowAlways, command) == nil, "nothing else is offered")
-        guard var question = AgentHookMessage.hermesQuestion(["questions": [["question": "Which color?",
-                                                                              "choices": ["Red", "Blue", "Green"]]]], at: now) else {
-            return suite.expect(false, "a one-choice question can be answered")
+        if let question = AgentHookMessage.hermesQuestion(["questions": [["question": "Which color?", "choices": ["Red", "Blue"]]]],
+                                                          at: now) {
+            suite.expect(AgentHookKeys.hermes(.answer(["Which color?": ["Blue"]]), question) == nil
+                         && AgentHookKeys.hermes(.deny, question) == nil,
+                         "a question is never answered with keys: it goes through the gateway")
         }
-        suite.expect(AgentHookKeys.hermes(.answer(["Which color?": ["Blue"]]), question) == [.keys([.character("2")])],
-                     "an answer is the choice's number")
-        suite.expect(AgentHookKeys.hermes(.answer(["Which color?": ["Purple"]]), question) == nil
-                     && AgentHookKeys.hermes(.answer(["Which color?": ["Red", "Blue"]]), question) == nil
-                     && AgentHookKeys.hermes(.allow, question) == nil && AgentHookKeys.hermes(.deny, question) == nil,
-                     "an answer of its own, two picks or Allow are not keys Hermes takes")
-        question.questions = []
-        suite.expect(AgentHookMessage.hermesQuestion(["questions": [["question": "Q", "choices": (1...10).map(String.init)]]],
-                                                     at: now) == nil, "ten choices are more than its numbers")
+        // Through the gateway: Hermes's own choice names, each question's answer.
+        let asked = AgentHookMessage.hermesApproval("rm -rf build", request: "r", at: now)
+        suite.expect(AgentHermesGateway.answer(.allow, asked) == .approval("once")
+                     && AgentHermesGateway.answer(.deny, asked) == .approval("deny")
+                     && AgentHermesGateway.answer(.allowAlways, asked) == nil,
+                     "the gateway gets Allow once or Deny")
+        if let card = AgentHookMessage.hermesQuestion(["questions": [["question": "Which color?", "choices": ["Red", "Blue"]]]], at: now) {
+            suite.expect(AgentHermesGateway.answer(.answer(["Which color?": ["Blue"]]), card) == .clarify([["Blue"]])
+                         && AgentHermesGateway.answer(.answer(["Which color?": ["Purple"]]), card) == .clarify([["Purple"]])
+                         && AgentHermesGateway.answer(.deny, card) == .clarify([nil]) && AgentHermesGateway.answer(.allow, card) == nil,
+                         "and a question's answer, one of its own too, or nothing for Skip")
+        }
+        if let card = AgentHookMessage.hermesQuestion(["questions": [["question": "A?", "choices": ["x", "y"]],
+                                                                     ["question": "Which?", "choices": ["a", "b"], "multi_select": true]]],
+                                                      at: now) {
+            suite.expect(AgentHermesGateway.answer(.answer(["Which?": ["a", "b"]]), card) == .clarify([nil, ["a", "b"]])
+                         && AgentHermesGateway.answer(.answer([:]), card) == nil,
+                         "each question gets its own answer, several picks as a list, one left out skipped")
+        }
+        let printed = #"{"state":"ready","url":"ws://127.0.0.1:56033/api/ws","protocols":["hermes-gateway-v1","hermes-gateway-ticket.Al0c"],"ticket":"Al0c"}"#
+        suite.expect(AgentHermesGateway.ticket(printed)?.url.absoluteString == "ws://127.0.0.1:56033/api/ws"
+                     && AgentHermesGateway.ticket(printed)?.protocols == ["hermes-gateway-v1", "hermes-gateway-ticket.Al0c"],
+                     "the ticket gives the gateway's socket and the subprotocols that carry it")
+        suite.expect(AgentHermesGateway.ticket(#"{"state":"ready","url":"ws://example.com/api/ws","protocols":["x"]}"#) == nil
+                     && AgentHermesGateway.ticket(#"{"state":"absent"}"#) == nil && AgentHermesGateway.ticket("nope") == nil,
+                     "only a local gateway that is ready is joined")
+        let resumed: [String: Any] = ["execution_generation": 3, "prompts": [
+            ["kind": "clarify", "prompt_id": "c1", "execution_generation": 2],
+            ["kind": "approval", "prompt_id": "a1", "execution_generation": 2, "command": "rm -rf build", "choices": ["once", "deny"]],
+        ]]
+        suite.expect(AgentHermesGateway.pending(resumed, kind: "approval").map { "\($0.prompt)@\($0.generation)" } == "a1@2"
+                     && AgentHermesGateway.pending(resumed, kind: "clarify")?.prompt == "c1"
+                     && AgentHermesGateway.pending(["prompts": []], kind: "approval") == nil,
+                     "the prompt waiting is found in what joining the session returns")
+        let asking: [String: Any] = ["open_requests": [
+            ["id": "srq-1", "method": "sudo", "params": [:]],
+            ["id": "srq-3c49", "method": "clarify", "params": ["questions": [["qid": "q0", "question": "Which color?",
+                                                                                "choices": ["Red (Recommended)", "Blue"]]]]],
+        ]]
+        suite.expect(AgentHermesGateway.openQuestion(asking).map { "\($0.request):\($0.questions)" } == "srq-3c49:[\"q0\"]"
+                     && AgentHermesGateway.openQuestion(["open_requests": [["id": "srq-1", "method": "sudo"]]]) == nil,
+                     "its Ink UI's question is the gateway's own request, answered question by question")
         let terminal = ClaudeTerminalScripts.press([.keys([.down, .down, .down]), .enter], tty: "/dev/ttys001")
         suite.expect(terminal.contains("do script ((character id 27) & \"[B\" & (character id 27) & \"[B\" & (character id 27) & \"[B\") in theTab")
                      && terminal.components(separatedBy: "do script").count == 2,
                      "Terminal sends the arrows with the return it adds, in one go: \(terminal)")
-        let digit = ClaudeTerminalScripts.press([.keys([.character("2")])], tty: "/dev/ttys001")
-        suite.expect(digit.contains("do script (\"2\") in theTab"), "and a number on its own: \(digit)")
         suite.expect(ClaudeTTYTerminalScripts.itermType([.keys([.down])], tty: "/dev/ttys001")
                         .contains("write text ((character id 27) & \"[B\") newline no"), "iTerm2 writes the arrow with no newline")
-        suite.expect(ClaudeKey.down.multiplexerName == "Down" && ClaudeKey.character("3").kittyName == "3"
-                     && ClaudeKey.up.bytes == "\u{1B}[A", "tmux, zellij and kitty get the keys by name, WezTerm as bytes")
+        suite.expect(ClaudeKey.down.multiplexerName == "Down" && ClaudeKey.down.kittyName == "down"
+                     && ClaudeKey.down.bytes == "\u{1B}[B", "tmux, zellij and kitty get the keys by name, WezTerm as bytes")
     }
 
     // MARK: config.yaml
