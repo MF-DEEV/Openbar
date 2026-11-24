@@ -6959,7 +6959,11 @@ mod tests {
         assert_eq!(name(Provider::Zcode, "ApplyPatch"), "Edit");
         assert_eq!(name(Provider::Zcode, "Bash"), "Bash");
         assert!(Provider::Zcode.answers_permissions());
-        assert!(Provider::HOOK_AGENTS.ends_with(&[Provider::Zcode, Provider::Hermes]));
+        assert!(Provider::HOOK_AGENTS.ends_with(&[
+            Provider::Zcode,
+            Provider::Hermes,
+            Provider::Qwen
+        ]));
         assert_eq!(Provider::from_key("zcode"), Some(Provider::Zcode));
     }
 
