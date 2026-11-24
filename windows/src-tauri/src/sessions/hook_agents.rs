@@ -40,7 +40,7 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 12] = [
+    pub const HOOK_AGENTS: [Provider; 13] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -53,6 +53,7 @@ impl Provider {
         Provider::Zcode,
         Provider::Hermes,
         Provider::Qwen,
+        Provider::Droid,
     ];
 
     pub fn reports_through_hooks(self) -> bool {
@@ -70,7 +71,9 @@ impl Provider {
     /// dangerous command; its classic prompt takes Return for the Allow once
     /// it has picked and arrows down to Deny (#244). Qwen Code's permission
     /// hook holds its request until the island answers; its questions and
-    /// plans take keys in its terminal (#239).
+    /// plans take keys in its terminal (#239). Factory Droid's prompts take
+    /// Return for yes, arrows down to its no, and numbers for its questions
+    /// and specs (#242).
     pub fn answers_permissions(self) -> bool {
         matches!(
             self,
@@ -81,6 +84,7 @@ impl Provider {
                 | Provider::Zcode
                 | Provider::Hermes
                 | Provider::Qwen
+                | Provider::Droid
         )
     }
 
@@ -100,6 +104,7 @@ impl Provider {
             Provider::Zcode => "zcode",
             Provider::Hermes => "hermes",
             Provider::Qwen => "qwen",
+            Provider::Droid => "droid",
             Provider::Custom => "custom",
         }
     }
@@ -126,6 +131,7 @@ impl Provider {
             Provider::Zcode,
             Provider::Hermes,
             Provider::Qwen,
+            Provider::Droid,
             Provider::Custom,
         ]
         .into_iter()
@@ -220,6 +226,9 @@ pub struct Decoded {
     /// the event says of the turn (#239).
     pub turn: Option<String>,
     pub qwen: Option<super::qwen::Fact>,
+    /// The reply a Factory Droid `Stop` names, read from its transcript with
+    /// previews on (#242).
+    pub reply_id: Option<String>,
     pub provider: Option<Provider>,
     pub pid: i32,
 }
@@ -342,6 +351,7 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
         }
         Provider::Zcode => zcode(&hook, event, pid, now, policy, &mut decoded),
         Provider::Qwen => qwen(&hook, event, pid, now, policy, &mut decoded),
+        Provider::Droid => droid(&hook, event, pid, now, policy, &mut decoded),
         Provider::Hermes => decoded.events = hermes(&hook, event, pid, now, policy),
         Provider::Grok => {
             decoded.events = grok(&hook, event, pid, now, policy);
@@ -373,7 +383,7 @@ pub fn timestamp(value: Option<&Value>) -> Option<Time> {
     }
 }
 
-fn reply_preview(value: Option<&Value>) -> Option<String> {
+pub(crate) fn reply_preview(value: Option<&Value>) -> Option<String> {
     preview(str_of(value), REPLY_LIMIT)
 }
 
@@ -401,7 +411,7 @@ fn tool_use(name: &str, input: &Map<String, Value>, at: Time, policy: ContentPol
     tool
 }
 
-fn rand_id() -> u128 {
+pub(crate) fn rand_id() -> u128 {
     use std::hash::{BuildHasher, Hasher};
     let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
     hasher.write_u128(
@@ -1742,6 +1752,100 @@ fn grok(
     events
 }
 
+// MARK: Factory Droid
+
+/// Factory Droid's hooks (docs.factory.ai, "Hooks"), in Claude Code's format
+/// (AgentHookMessage.droid). A call it asks about is told by the tool's
+/// `PreToolUse`, then a `permission_prompt` notification with no tool; a
+/// question (`AskUser`) the same way with `elicitation_dialog`. The island
+/// answers both with keys (`droid::keys`). A turn the person stops ends
+/// with `idle_prompt` and no `Stop`.
+fn droid(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+    decoded: &mut Decoded,
+) {
+    use super::droid::{PLAN_TOOL, QUESTION_TOOL};
+    let Some(session) = text(json, "session_id") else {
+        return;
+    };
+    let cwd = text(json, "cwd");
+    decoded.transcript = text(json, "transcript_path");
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Droid,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    let raw = str_of(json.get("tool_name")).unwrap_or("");
+    let tool = name(Provider::Droid, raw);
+    let input = arguments(json.get("tool_input"));
+    let dialog = raw == QUESTION_TOOL || raw == PLAN_TOOL;
+    let event = text(json, "hook_event_name").unwrap_or_else(|| hook.to_owned());
+    match event.as_str() {
+        "SessionStart" => add(Kind::Started),
+        "SessionEnd" => add(Kind::Ended),
+        "UserPromptSubmit" => add(Kind::Prompt(
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
+        )),
+        "PreToolUse" => {
+            if !dialog {
+                add(Kind::ToolStarted(tool_use(&tool, &input, now, policy)));
+            }
+            match super::droid::ask(&tool, raw, &input, cwd.as_deref(), now) {
+                Some(ask) => add(Kind::MayAsk(ask)),
+                // A question the island can't show is answered in Droid.
+                None => add(Kind::Question),
+            }
+        }
+        "PostToolUse" => {
+            // A tool that ran was let through, here or in Droid.
+            add(Kind::PermissionSettled(None));
+            if !dialog {
+                add(Kind::ToolFinished {
+                    id: None,
+                    input_key: Some(tool_summary::input_key(&tool, &input)),
+                    name: tool,
+                    failed: super::droid::failed(json.get("tool_response")),
+                    started: None,
+                });
+            }
+        }
+        "Notification" => match text(json, "notification_type").as_deref() {
+            // Filled in from what the session's last PreToolUse named.
+            Some("permission_prompt" | "elicitation_dialog") => add(Kind::Permission(
+                Permission::new(&format!("{:x}", rand_id()), "", None, false, now),
+            )),
+            // The person stopped the turn: nothing more comes for it.
+            Some("idle_prompt") => add(Kind::Stopped {
+                last_text: None,
+                failed: true,
+            }),
+            _ => {}
+        },
+        "Stop" => {
+            decoded.reply_id = text(json, "message_id");
+            add(Kind::Stopped {
+                last_text: None,
+                failed: false,
+            });
+        }
+        _ => {}
+    }
+    decoded.events = events;
+}
+
 /// What Grok's prompt would ask about the tool: the whole command or file,
 /// as Claude Code's request carries it, since Grok's shell, write and
 /// search_replace take Claude Code's arguments. The island allows only what
@@ -2355,6 +2459,14 @@ pub fn name(provider: Provider, tool: &str) -> String {
         ],
         // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.
         Provider::Zcode => &[("ApplyPatch", "Edit"), ("Agent", "Task")],
+        Provider::Droid => &[
+            ("Execute", "Bash"),
+            ("Create", "Write"),
+            ("ApplyPatch", "Edit"),
+            ("FetchUrl", "WebFetch"),
+            ("AskUser", "AskUserQuestion"),
+            ("ExitSpecMode", "ExitPlanMode"),
+        ],
         Provider::Qwen => &[
             ("run_shell_command", "Bash"),
             ("read_file", "Read"),
@@ -2740,11 +2852,13 @@ impl Tracker {
                 }
             }
             Kind::Permission(_)
-                if entry.provider == Provider::Hermes
+                if (entry.provider == Provider::Hermes
+                    || (entry.provider == Provider::Droid && entry.asking))
                     && entry.next_ask.is_none()
                     && matches!(&event.kind, Kind::Permission(p) if p.tool.is_empty()) =>
             {
                 // Hermes asks a question the island can't answer with a key: in Hermes.
+                // So does Droid one it couldn't read, which made the session wait already.
                 entry.open_turn(date);
                 entry.asking = true;
             }
@@ -3026,6 +3140,7 @@ fn session(
     // Qwen Code's question or plan with keys, in its own dialog; its tools'
     // through the hook the island holds (#239).
     let keyed = entry.provider == Provider::Grok
+        || entry.provider == Provider::Droid
         || (entry.provider == Provider::Qwen
             && (entry.in_dialog
                 || entry
@@ -3161,6 +3276,7 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Zcode => Some("zcode"),
         Provider::Hermes => Some("hermes"),
         Provider::Qwen => Some("qwen"),
+        Provider::Droid => Some("droid"),
         Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
 }
@@ -3203,7 +3319,8 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         }
         Provider::Opencode => vec!["--prompt".into(), prompt.into()],
         Provider::Cursor | Provider::Pi | Provider::Vibe => vec![prompt.into()],
-        Provider::Devin | Provider::Grok => vec!["--".into(), prompt.into()],
+        // After `--` a prompt that starts like one of Droid's commands is still a prompt.
+        Provider::Devin | Provider::Grok | Provider::Droid => vec!["--".into(), prompt.into()],
         // On a terminal, `hermes chat -q` opens the session with it as the first turn.
         Provider::Hermes => vec!["chat".into(), "-q".into(), prompt.into()],
         Provider::Zcode | Provider::Claude | Provider::Codex | Provider::Custom => Vec::new(),
@@ -3435,7 +3552,7 @@ pub mod installer {
     ];
     /// The agents whose config folder can be named by hand, beside the one
     /// their home variable or default names (#236).
-    pub const FOLDERS_BY_HAND: [Provider; 7] = [
+    pub const FOLDERS_BY_HAND: [Provider; 8] = [
         Provider::Codex,
         Provider::Gemini,
         Provider::Copilot,
@@ -3443,6 +3560,7 @@ pub mod installer {
         Provider::Vibe,
         Provider::Grok,
         Provider::Qwen,
+        Provider::Droid,
     ];
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
@@ -3599,6 +3717,7 @@ pub mod installer {
             Provider::Zcode => zcode_config(home).parent()?.to_path_buf(),
             Provider::Hermes => super::super::hermes::home(home),
             Provider::Qwen => qwen_folder(home),
+            Provider::Droid => super::super::droid::folder(home),
             Provider::Claude | Provider::Custom => return None,
         })
     }
@@ -3618,6 +3737,8 @@ pub mod installer {
             Provider::Codex => folder.join("hooks.json"),
             Provider::Grok => folder.join("hooks").join(format!("{}.json", own_name(app))),
             Provider::Qwen => folder.join("settings.json"),
+            // Droid's `.factory` folder: its hooks.json takes the events it already holds.
+            Provider::Droid => folder.join("settings.json"),
             _ => return None,
         })
     }
@@ -3684,7 +3805,13 @@ pub mod installer {
             .and_then(crate::agent_usage::agent_executable)
             .is_some()
         {
-            return provider != Provider::Pi || home.join(".pi").join("agent").is_dir();
+            // Pi's and Droid's commands have names other tools take too;
+            // their own folders say whose they are.
+            return match provider {
+                Provider::Pi => home.join(".pi").join("agent").is_dir(),
+                Provider::Droid => super::super::droid::folder(home).is_dir(),
+                _ => true,
+            };
         }
         if provider == Provider::Antigravity {
             return antigravity_apps(home).iter().any(|p| p.is_file());
@@ -4317,6 +4444,12 @@ pub mod installer {
                 Ok(s) => qwen_state(&s, exe, app),
                 Err(_) => State::Unreadable,
             },
+            Provider::Droid => match path.parent() {
+                Some(folder) => {
+                    super::super::droid::state(folder, exe, app).unwrap_or(State::Unreadable)
+                }
+                None => State::Missing,
+            },
             Provider::Hermes => match vibe_text(&path) {
                 Ok(None) => State::Missing,
                 Ok(Some(text)) => super::super::hermes::state(&text, exe, app),
@@ -4541,6 +4674,10 @@ pub mod installer {
             Provider::Qwen => {
                 claude::update(&path, |s| qwen_installing(s, exe, app)).map_err(failure)
             }
+            Provider::Droid => match path.parent() {
+                Some(folder) => super::super::droid::install(folder, exe, app).map_err(failure),
+                None => Ok(()),
+            },
             Provider::Hermes => {
                 use super::super::hermes;
                 let entries = hermes::entries(exe, app);
@@ -4584,6 +4721,11 @@ pub mod installer {
             Provider::Copilot | Provider::Opencode | Provider::Pi | Provider::Grok => {
                 remove_own(&path, app)
             }
+            // Its hooks.json may hold the island's entries without a settings.json.
+            Provider::Droid => match path.parent() {
+                Some(folder) => super::super::droid::remove(folder, app).map_err(failure),
+                None => Ok(()),
+            },
             _ if !path.exists() => Ok(()),
             Provider::Gemini | Provider::Devin | Provider::Codex | Provider::Qwen => {
                 claude::update(&path, |s| claude::removing(s, app)).map_err(failure)
@@ -4936,6 +5078,137 @@ mod tests {
             },
             |_| Some("main".into()),
         )
+    }
+
+    fn droid_event(hook: &str, extra: Value) -> Vec<u8> {
+        let mut event = json!({
+            "session_id": "63741b7f", "cwd": "/w/rocket", "hook_event_name": hook,
+            "transcript_path": "/h/.factory/sessions/-w-rocket/63741b7f.jsonl",
+            "permission_mode": "auto-medium",
+        });
+        for (k, v) in extra.as_object().unwrap() {
+            event[k] = v.clone();
+        }
+        envelope("droid", hook, event)
+    }
+
+    #[test]
+    fn droid_sessions_prompts_and_questions() {
+        let mut tracker = Tracker::default();
+        feed(
+            &mut tracker,
+            &droid_event("SessionStart", json!({"source": "startup"})),
+            ON,
+        );
+        feed(
+            &mut tracker,
+            &droid_event("UserPromptSubmit", json!({"prompt": "danger"})),
+            ON,
+        );
+        let danger = json!({"tool_name": "Execute", "tool_input": {"summary": "Remove it", "command": "rm -rf ./scratch-dir", "riskLevel": "high"}});
+        assert!(!waits(&droid_event("PreToolUse", danger.clone())));
+        feed(&mut tracker, &droid_event("PreToolUse", danger.clone()), ON);
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].id, "droid:63741b7f");
+        assert_eq!(sessions[0].provider, Provider::Droid);
+        assert_eq!(sessions[0].phase, SessionPhase::RunningTool);
+        assert!(sessions[0].permission.is_none());
+        let prompt = json!({"notification_type": "permission_prompt", "message": "Factory CLI needs permission to execute 1 tool(s)"});
+        feed(
+            &mut tracker,
+            &droid_event("Notification", prompt.clone()),
+            ON,
+        );
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].phase, SessionPhase::WaitingPermission);
+        let asked = sessions[0].permission.as_ref().expect("a card");
+        assert_eq!(asked.tool, "Bash");
+        assert_eq!(asked.detail, "rm -rf ./scratch-dir");
+        let mut ran = danger.clone();
+        ran["tool_response"] =
+            json!("Command completed successfully\n\n[Process exited with code 0]");
+        feed(&mut tracker, &droid_event("PostToolUse", ran), ON);
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert!(sessions[0].permission.is_none());
+        // A question, filled in from its PreToolUse.
+        let ask = json!({"tool_name": "AskUser", "tool_input": {"questionnaire": "1. [question] Color?\n[option] Red\n[option] Blue"}});
+        feed(&mut tracker, &droid_event("PreToolUse", ask), ON);
+        feed(
+            &mut tracker,
+            &droid_event(
+                "Notification",
+                json!({"notification_type": "elicitation_dialog", "message": "q"}),
+            ),
+            ON,
+        );
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        let asked = sessions[0].permission.as_ref().expect("a question");
+        assert_eq!(asked.questions.len(), 1);
+        assert_eq!(asked.questions[0].options.len(), 2);
+        assert!(
+            sessions[0].current_tool.is_none()
+                || sessions[0].current_tool.as_ref().unwrap().name != "AskUserQuestion"
+        );
+        // One it can't read waits in Droid.
+        let mut bare = Tracker::default();
+        feed(
+            &mut bare,
+            &droid_event("UserPromptSubmit", json!({"prompt": "ask"})),
+            ON,
+        );
+        feed(
+            &mut bare,
+            &droid_event(
+                "PreToolUse",
+                json!({"tool_name": "AskUser", "tool_input": {"questionnaire": "What now?"}}),
+            ),
+            ON,
+        );
+        feed(
+            &mut bare,
+            &droid_event(
+                "Notification",
+                json!({"notification_type": "elicitation_dialog", "message": "q"}),
+            ),
+            ON,
+        );
+        let (sessions, _) = snap(&mut bare, NOW, true);
+        assert_eq!(sessions[0].phase, SessionPhase::WaitingInput);
+        assert!(sessions[0].permission.is_none());
+        // Escape mid-turn ends it, not done; Stop names its reply.
+        feed(
+            &mut tracker,
+            &droid_event(
+                "Notification",
+                json!({"notification_type": "idle_prompt", "message": "stopped"}),
+            ),
+            ON,
+        );
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].phase, SessionPhase::Idle);
+        let stop = decode(&droid_event("Stop", json!({"message_id": "m-1"})), NOW, ON).unwrap();
+        assert_eq!(stop.reply_id.as_deref(), Some("m-1"));
+        feed(
+            &mut tracker,
+            &droid_event("SessionEnd", json!({"reason": "other"})),
+            ON,
+        );
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert!(sessions.is_empty());
+        assert_eq!(name(Provider::Droid, "Execute"), "Bash");
+        assert_eq!(name(Provider::Droid, "Create"), "Write");
+        assert_eq!(command_name(Provider::Droid), Some("droid"));
+        assert_eq!(
+            start_arguments(Provider::Droid, "exec it"),
+            vec!["--", "exec it"]
+        );
+        assert!(Provider::Droid.answers_permissions() && Provider::Droid.reports_through_hooks());
+        assert_eq!(Provider::from_key("droid"), Some(Provider::Droid));
+        assert!(installer::FOLDERS_BY_HAND.contains(&Provider::Droid));
+        assert_eq!(
+            installer::file_in(Provider::Droid, Path::new("/f/.factory"), "app"),
+            Some(PathBuf::from("/f/.factory/settings.json"))
+        );
     }
 
     fn qwen_event(hook: &str, extra: Value) -> Vec<u8> {
@@ -6986,7 +7259,8 @@ mod tests {
         assert!(Provider::HOOK_AGENTS.ends_with(&[
             Provider::Zcode,
             Provider::Hermes,
-            Provider::Qwen
+            Provider::Qwen,
+            Provider::Droid
         ]));
         assert_eq!(Provider::from_key("zcode"), Some(Provider::Zcode));
     }

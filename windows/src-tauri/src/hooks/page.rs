@@ -1244,6 +1244,7 @@ pub fn display_name(provider: Provider) -> &'static str {
         Provider::Zcode => "ZCode",
         Provider::Hermes => "Hermes",
         Provider::Qwen => "Qwen Code",
+        Provider::Droid => "Factory Droid",
         Provider::Custom => "Other tool",
     }
 }

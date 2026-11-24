@@ -17,6 +17,7 @@ pub mod auto_mode;
 pub mod background;
 pub mod claude_desktop;
 pub mod codex;
+pub mod droid;
 pub mod engine;
 pub mod file_diff;
 pub mod hermes;

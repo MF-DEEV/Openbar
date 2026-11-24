@@ -925,6 +925,12 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [8, false],
     [9, false],
   ],
+  droid: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -1058,6 +1064,19 @@ export const ZCODE_BODY = [
  * (NotchClawdSprite.swift). */
 /** Qwen Code's figure: a hexagon, as its mark's three bars make one, with
  * the Y they leave open below its eyes (NotchClawdSprite.qwenBody). */
+/** Factory Droid's figure: a round body with the petals of its mark (A)
+ * crossing under the eyes (NotchClawdSprite.droidBody). */
+export const DROID_BODY = [
+  "...CCCCCCC...",
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCACACCCCC",
+  "CCCCCCACCCCCC",
+  ".cCCCACACCCc.",
+  "...ccccccc...",
+];
+
 export const QWEN_BODY = [
   "...CCCCCCC...",
   "..CCCCCCCCC..",
@@ -1165,6 +1184,9 @@ function compose(
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else if (character === "qwen") {
     put(s(0, 0, QWEN_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "droid") {
+    put(s(0, 0, DROID_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));

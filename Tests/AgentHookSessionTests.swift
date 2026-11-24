@@ -42,9 +42,10 @@ enum AgentHookSessionTests {
         for event in decode(data, policy: policy, at: date) { tracker.ingest(event, now: date) }
     }
 
-    static func snapshot(_ tracker: AgentHookSessions, at date: Date = now, previews: Bool = true)
+    static func snapshot(_ tracker: AgentHookSessions, at date: Date = now, previews: Bool = true,
+                         host: ClaudeSessionHost = .terminal(tty: "/dev/ttys009"))
         -> (sessions: [ClaudeSession], events: [ClaudeSessionEvent]) {
-        tracker.snapshot(now: date, previews: previews, host: { _ in .terminal(tty: "/dev/ttys009") }, branch: { _ in "main" })
+        tracker.snapshot(now: date, previews: previews, host: { _ in host }, branch: { _ in "main" })
     }
 
     // MARK: Envelopes

@@ -410,7 +410,7 @@ enum QwenAgentTests {
                                                       exists: { $0.hasSuffix(".qwen") }),
                      "found by its command, never by ~/.qwen alone")
         suite.expect(ClaudeSessionProvider.qwen.displayName == "Qwen Code" && ClaudeSessionProvider.qwen.shortName == "Qwen"
-                     && ClaudeSessionProvider.hookAgents.last == .qwen && ClaudeSessionProvider.qwen.answersPermissions
+                     && ClaudeSessionProvider.hookAgents.contains(.qwen) && ClaudeSessionProvider.qwen.answersPermissions
                      && ClaudeSessionProvider.qwen.reportsThroughHooks && !ClaudeSessionProvider.qwen.takesRepliesDirectly
                      && AgentCLI.command(.qwen) == "qwen" && AgentCLI.startArguments(.qwen, prompt: "go") == ["-i", "go"]
                      && AgentCLI.startsWithPrompt(.qwen) && AgentHookInstaller.foldersByHand.contains(.qwen)

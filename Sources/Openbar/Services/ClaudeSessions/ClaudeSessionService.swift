@@ -539,6 +539,21 @@ final class ClaudeSessionService: ObservableObject {
                 }
                 return
             }
+            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .droid {
+                // Droid's prompts take keys: Return for its yes, arrows to its no,
+                // numbers for questions and specs; its hooks tell when it moves on (#242).
+                guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host),
+                      let keys = AgentDroid.keys(decision, current, oneBurst: AgentQwen.oneBurst(session.host)) else { return }
+                actions.async { [self] in
+                    guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
+                    queue.async { [self] in
+                        hookAgents.resolve(id, request: request)
+                        hookAgents.acknowledge(id, now: Date())
+                        publish(now: Date())
+                    }
+                }
+                return
+            }
             if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .grok {
                 // Grok's prompt takes Return for the yes it has picked and
                 // Ctrl-C for no; its hooks tell when it moves on (#243).
@@ -1215,7 +1230,13 @@ final class ClaudeSessionService: ObservableObject {
     /// files reads the rows again, and puts lost hooks back.
     private func watchHookFiles(_ targets: [HookTarget]) {
         guard running else { return }
-        let files = Set(targets.compactMap { $0.file?.resolvingSymlinksInPath().path })
+        let files = Set(targets.flatMap { target -> [String] in
+            guard let file = target.file?.resolvingSymlinksInPath() else { return [] }
+            // Factory Droid's hooks.json beside its settings decides where its entries go (#242).
+            guard target.provider == .droid else { return [file.path] }
+            let folder = file.deletingLastPathComponent()
+            return [file.path, folder.appending(path: "hooks.json").path, folder.appending(path: "hooks/hooks.json").path]
+        })
         guard files != watchedHookFiles else { return }
         watchedHookFiles = files
         let folders = Set(files.map { URL(fileURLWithPath: $0).deletingLastPathComponent().path }
@@ -1660,6 +1681,21 @@ final class ClaudeSessionService: ObservableObject {
                                                          date: event.date, kind: .model(model)), now: now)
                     }
                 default: break
+                }
+            }
+            if event.provider == .droid, let path = decoded.transcript {
+                switch kind {
+                case .prompt, .stopped, .started:
+                    // The model can change at any prompt: the session's own settings name it.
+                    if let model = AgentDroid.model(transcript: path, home: home), hookAgents.entry(event.id)?.model != model {
+                        hookAgents.ingest(AgentHookEvent(provider: .droid, sessionID: event.sessionID, pid: agent, cwd: cwd,
+                                                         date: event.date, kind: .model(model)), now: now)
+                    }
+                default: break
+                }
+                // Droid's Stop names its reply: with previews on, its transcript holds the text.
+                if engine.policy.previews, case .stopped(nil, let failed) = kind, let message = decoded.replyID {
+                    kind = .stopped(lastText: AgentDroid.reply(transcript: path, message: message), failed: failed)
                 }
             }
             let placed = AgentHookEvent(provider: event.provider, sessionID: event.sessionID, pid: agent,

@@ -924,6 +924,8 @@ enum DefaultsKey {
     static let notchSessionsAgentZCode = "notchSessionsAgentZCode"
     /// Qwen Code's sessions (#239).
     static let notchSessionsAgentQwen = "notchSessionsAgentQwen"
+    /// Factory Droid's sessions (#242).
+    static let notchSessionsAgentDroid = "notchSessionsAgentDroid"
     /// Hermes's sessions (#244): off until turned on, since Hermes asks the
     /// person to approve each new hook in its terminal.
     static let notchSessionsAgentHermes = "notchSessionsAgentHermes"
@@ -1643,6 +1645,7 @@ enum Defaults {
         DefaultsKey.notchSessionsAgentGrok: true,
         DefaultsKey.notchSessionsAgentZCode: true,
         DefaultsKey.notchSessionsAgentQwen: true,
+        DefaultsKey.notchSessionsAgentDroid: true,
         DefaultsKey.notchSessionsAgentHermes: false,
         DefaultsKey.notchSessionsClaudeDesktop: true,
         DefaultsKey.notchSessionsClaudeCowork: false,

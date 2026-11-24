@@ -93,6 +93,9 @@ enum AgentHookMessage {
         /// what the event says of the turn (#239).
         var turn: String? = nil
         var qwen: AgentQwen.Turns.Fact? = nil
+        /// The reply a Factory Droid `Stop` names, read from its transcript
+        /// with previews on (#242).
+        var replyID: String? = nil
         let provider: ClaudeSessionProvider
         let pid: Int32
     }
@@ -163,6 +166,7 @@ enum AgentHookMessage {
         case .zcode: zcode(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .hermes: decoded.events = hermes(hook, event, pid: pid, now: now, policy: policy)
         case .qwen: qwen(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
+        case .droid: droid(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .claude: return nil
         }
         return decoded
@@ -654,6 +658,72 @@ enum AgentHookMessage {
         }
     }
 
+    // MARK: Factory Droid
+
+    /// Factory Droid's hooks (docs.factory.ai, "Hooks"), in Claude Code's
+    /// format. A call it asks about is told in two steps, the tool's
+    /// `PreToolUse` and then a `permission_prompt` notification with no tool
+    /// in it; a question (`AskUser`) the same way with `elicitation_dialog`.
+    /// The island answers both with keys (`AgentDroid.keys`). A turn the
+    /// person stops ends with `idle_prompt` and no `Stop`.
+    private static func droid(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                              policy: ClaudeContentPolicy, into decoded: inout Decoded) {
+        guard let session = text(json, "session_id") else { return }
+        let cwd = text(json, "cwd")
+        func add(_ kind: AgentHookEvent.Kind) {
+            decoded.events.append(AgentHookEvent(provider: .droid, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+        }
+        decoded.transcript = text(json, "transcript_path")
+        let raw = json["tool_name"] as? String ?? ""
+        let tool = AgentHookTools.name(.droid, raw)
+        let input = arguments(json["tool_input"])
+        let dialog = raw == AgentDroid.questionTool || raw == AgentDroid.planTool
+        switch text(json, "hook_event_name") ?? hook {
+        case "SessionStart": add(.started)
+        case "SessionEnd": add(.ended)
+        case "UserPromptSubmit": add(.prompt(policy.previews ? preview(json["prompt"]) : nil))
+        case "PreToolUse":
+            if !dialog { add(.toolStarted(toolUse(tool, input: input, at: now, policy: policy))) }
+            if let ask = AgentDroid.ask(tool, raw: raw, input: input, cwd: cwd, at: now) {
+                add(.mayAsk(ask))
+            } else {
+                // A question the island can't show is answered in Droid.
+                add(.question)
+            }
+        case "PostToolUse":
+            // A tool that ran was let through, here or in Droid.
+            add(.permissionSettled(nil))
+            if dialog { break }
+            add(.toolFinished(id: nil, name: tool, inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                              failed: droidFailed(json["tool_response"]), started: nil))
+        case "Notification":
+            switch text(json, "notification_type") {
+            case "permission_prompt", "elicitation_dialog":
+                // Filled in from what the session's last PreToolUse named.
+                add(.permission(ClaudePermission(requestID: UUID().uuidString, tool: "", summary: nil,
+                                                 offersAlways: false, since: now)))
+            case "idle_prompt":
+                // The person stopped the turn: nothing more comes for it.
+                add(.stopped(lastText: nil, failed: true))
+            default: break
+            }
+        case "Stop":
+            decoded.replyID = text(json, "message_id")
+            add(.stopped(lastText: nil, failed: false))
+        default: break
+        }
+    }
+
+    /// Whether a tool's response says it failed: a command that exited
+    /// with a code other than 0, or an error.
+    static func droidFailed(_ response: Any?) -> Bool {
+        if let object = response as? [String: Any] { return object["error"] != nil && !(object["error"] is NSNull) }
+        guard let text = response as? String, let range = text.range(of: "[Process exited with code ", options: .backwards)
+        else { return false }
+        let code = text[range.upperBound...].prefix { $0.isNumber || $0 == "-" }
+        return Int(code).map { $0 != 0 } ?? false
+    }
+
     // MARK: Hermes
 
     /// Hermes Agent's shell hooks (website/docs/user-guide/features/hooks.md
@@ -1111,6 +1181,8 @@ enum AgentHookTools {
                 "web_search": "WebSearch", "todo_write": "TodoWrite", "agent": "Task", "monitor": "BashOutput",
                 "notebook_edit": "NotebookEdit", "ask_user_question": "AskUserQuestion",
                 "enter_plan_mode": "EnterPlanMode", "exit_plan_mode": "ExitPlanMode"],
+        .droid: ["Execute": "Bash", "Create": "Write", "ApplyPatch": "Edit", "FetchUrl": "WebFetch",
+                 "AskUser": "AskUserQuestion", "ExitSpecMode": "ExitPlanMode"],
         // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.
         .zcode: ["ApplyPatch": "Edit", "Agent": "Task"],
         .devin: ["exec": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "apply_patch": "Edit", "grep": "Grep",

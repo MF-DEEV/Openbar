@@ -170,6 +170,7 @@ extension AgentHookInstaller {
         case .zcode: return (zcodeConfig(home: home), false)
         case .hermes: return (AgentHermes.config(home: home), false)
         case .qwen: return (AgentQwen.settings(home: home), false)
+        case .droid: return (AgentDroid.settings(home: home), false)
         case .claude, .codex, .custom: return nil
         }
     }

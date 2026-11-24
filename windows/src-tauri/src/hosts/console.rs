@@ -21,7 +21,9 @@ use windows::Win32::System::Console::{
     AttachConsole, FreeConsole, GetConsoleTitleW, GetConsoleWindow, INPUT_RECORD, INPUT_RECORD_0,
     KEY_EVENT, KEY_EVENT_RECORD, KEY_EVENT_RECORD_0, WriteConsoleInputW,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::{VK_DOWN, VK_ESCAPE, VK_RETURN, VK_SPACE};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    VK_DOWN, VK_ESCAPE, VK_RETURN, VK_SPACE, VK_TAB,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GA_ROOTOWNER, GW_OWNER, GetAncestor, GetWindow, GetWindowThreadProcessId,
     IsIconic, IsWindowVisible, SW_RESTORE, SetForegroundWindow, ShowWindow,
@@ -444,6 +446,12 @@ unsafe fn press_key(name: &str) -> windows::core::Result<()> {
         // Qwen Code's dialogs (#239).
         "space" => key(VK_SPACE.0, ' '),
         "escape" => key(VK_ESCAPE.0, '\u{1b}'),
+        // Factory Droid's dialogs (#242): Tab moves on, a number picks.
+        "tab" => key(VK_TAB.0, '\t'),
+        digit if digit.len() == 1 && ('1'..='9').contains(&digit.chars().next().unwrap_or('0')) => {
+            let ch = digit.chars().next().unwrap_or('1');
+            key(ch as u16, ch)
+        }
         _ => return Ok(()),
     };
     let input = unsafe { console_input()? };

@@ -132,11 +132,13 @@ final class AgentHookSessions {
         case .permission(var permission):
             entry.openTurn(at: date)
             // Hermes asks a question the island can't answer with a key: in Hermes.
-            if permission.tool.isEmpty, event.provider == .hermes, entry.nextAsk == nil {
+            // So does Droid one it couldn't read, which made the session wait already.
+            if permission.tool.isEmpty, entry.nextAsk == nil,
+               event.provider == .hermes || (event.provider == .droid && entry.asking) {
                 entry.asking = true
                 break
             }
-            // Grok's prompt names no tool: the one its last PreToolUse named waits.
+            // Grok's and Droid's prompts name no tool: the one their last PreToolUse named waits.
             if permission.tool.isEmpty {
                 let asked = permission
                 permission = entry.nextAsk ?? ClaudePermission(requestID: asked.requestID, tool: "Tool", summary: nil,
@@ -297,12 +299,12 @@ final class AgentHookSessions {
         }
         let cost = entry.usage.values.reduce(0) { $0 + $1.cost }
         // A request only the agent can answer is shown as waiting there.
-        // Grok's is answered with keys, where its terminal takes them.
+        // Grok's and Factory Droid's are answered with keys, where their terminal takes them.
         // Hermes's with keys in its classic terminal UI, through its gateway
         // anywhere else. Qwen Code's question or plan with keys, in its own
         // dialog; its tools' through the hook the island holds.
         let qwenKeys = entry.provider == .qwen && entry.permission.map(AgentQwen.answeredByKeys) == true
-        let keyed = entry.provider == .grok || qwenKeys
+        let keyed = entry.provider == .grok || entry.provider == .droid || qwenKeys
         let inAgent = entry.permission != nil
             && (!entry.answerable || (keyed && !ClaudeTyping.takesKeys(host))
                 || (qwenKeys && entry.permission.map { !AgentQwen.keyable($0, oneBurst: AgentQwen.oneBurst(host)) } == true))

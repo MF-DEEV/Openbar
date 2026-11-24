@@ -133,6 +133,8 @@ enum ClaudeKey: Equatable {
     case space
     /// Closes a dialog unanswered (Qwen Code, #239).
     case escape
+    /// Moves on from a multiple choice (Factory Droid's questions, #242).
+    case tab
 
     /// What a terminal sends the program for it.
     var bytes: String {
@@ -141,6 +143,7 @@ enum ClaudeKey: Equatable {
         case .digit(let number): return String(number)
         case .space: return " "
         case .escape: return "\u{1B}"
+        case .tab: return "\t"
         }
     }
 
@@ -151,6 +154,7 @@ enum ClaudeKey: Equatable {
         case .digit(let number): return String(number)
         case .space: return "Space"
         case .escape: return "Escape"
+        case .tab: return "Tab"
         }
     }
 
@@ -164,6 +168,7 @@ enum ClaudeKey: Equatable {
         case .digit(let number): return String(number)
         case .space: return "space"
         case .escape: return "escape"
+        case .tab: return "tab"
         }
     }
 
@@ -175,6 +180,7 @@ enum ClaudeKey: Equatable {
         case .digit(let number): return "\"\(number)\""
         case .space: return "\" \""
         case .escape: return "(character id 27)"
+        case .tab: return "(character id 9)"
         }
     }
 

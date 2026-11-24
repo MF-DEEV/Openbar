@@ -275,6 +275,7 @@ pub fn hook_file(provider: Provider, home: &Path, app: &str) -> Option<(PathBuf,
         Provider::Zcode => (agents::zcode_config(home), false),
         Provider::Hermes => (crate::sessions::hermes::config(home), false),
         Provider::Qwen => (agents::qwen_settings(home), false),
+        Provider::Droid => (crate::sessions::droid::settings(home), false),
         Provider::Claude | Provider::Codex | Provider::Custom => return None,
     })
 }

@@ -316,6 +316,9 @@ enum NotchClawdSprite {
         case .qwen:
             put(Stamp(x: 0, y: 0, rows: qwenBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .droid:
+            put(Stamp(x: 0, y: 0, rows: droidBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -359,6 +362,7 @@ enum NotchClawdSprite {
         case .zcode: return [(3, true), (4, true), (8, false), (9, false)]
         case .hermes: return [(3, true), (4, true), (8, false), (9, false)]
         case .qwen: return [(3, true), (4, true), (8, false), (9, false)]
+        case .droid: return [(3, true), (4, true), (8, false), (9, false)]
         }
     }
 
@@ -500,6 +504,18 @@ enum NotchClawdSprite {
         "CCCCCCCCCCCCC",
         ".CCCCAAACCCC.",
         "..cCCCACCCc..",
+        "...ccccccc...",
+    ]
+    /// Factory Droid's figure: a round body with the petals of its mark
+    /// (A) crossing under the eyes.
+    static let droidBody = [
+        "...CCCCCCC...",
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCACACCCCC",
+        "CCCCCCACCCCCC",
+        ".cCCCACACCCc.",
         "...ccccccc...",
     ]
     static let hermesBody = [
@@ -1100,7 +1116,7 @@ enum NotchClawdSprite {
             }
         case .hermes:
             if letter == "W" { return hermesWing }
-        case .vibe, .devin, .antigravity, .grok, .zcode, .qwen:
+        case .vibe, .devin, .antigravity, .grok, .zcode, .qwen, .droid:
             break
         case .clawd:
             break

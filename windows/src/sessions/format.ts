@@ -43,6 +43,8 @@ export const ZCODE_TINT = "#E070C7";
 export const HERMES_TINT = "#F5D666";
 /** Qwen Code's indigo, from its mark, between Antigravity's blue and Devin's violet. */
 export const QWEN_TINT = "#7873FF";
+/** Factory Droid's tangerine, from its terminal's own highlights: redder than Vibe's amber, brighter than Claude's clay. */
+export const DROID_TINT = "#FF6B21";
 
 const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   claude: CLAUDE_TINT,
@@ -59,6 +61,7 @@ const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   zcode: ZCODE_TINT,
   hermes: HERMES_TINT,
   qwen: QWEN_TINT,
+  droid: DROID_TINT,
   // A tool added by hand has no color of its own (#236).
   custom: CURSOR_TINT,
 };

@@ -421,6 +421,9 @@ extension ClaudeSessionProvider {
     /// too, a magenta no other agent wears. Hermes takes the pale gold of
     /// its terminal's own colors, apart from Vibe's amber, and Qwen Code the
     /// indigo of its mark, between Antigravity's blue and Devin's violet.
+    /// Factory Droid, white on black too, the bright tangerine of its
+    /// terminal's own highlights, redder than Vibe's amber and brighter
+    /// than Claude's clay.
     var tint: Color {
         if let agent { return agent.tint }
         switch self {
@@ -433,6 +436,7 @@ extension ClaudeSessionProvider {
         case .zcode: return Color(red: 0.88, green: 0.44, blue: 0.78)
         case .hermes: return Color(red: 0.96, green: 0.84, blue: 0.40)
         case .qwen: return Color(red: 0.47, green: 0.45, blue: 1.0)
+        case .droid: return Color(red: 1.0, green: 0.42, blue: 0.13)
         default: return Color(red: 0.80, green: 0.82, blue: 0.90)
         }
     }

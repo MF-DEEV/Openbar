@@ -847,6 +847,7 @@ enum AgentCLI {
         case .zcode: return "zcode"
         case .hermes: return "hermes"
         case .qwen: return "qwen"
+        case .droid: return "droid"
         case .claude, .codex, .custom: return nil
         }
     }
@@ -869,14 +870,15 @@ enum AgentCLI {
 
     /// The arguments that open the agent's terminal UI with a first prompt
     /// already sent: `gemini -i`, `copilot -i`, `agy -i`, `qwen -i`, `opencode --prompt`,
-    /// `devin --`, `grok --`, and `cursor-agent`, `pi` and `vibe` take it as it is.
+    /// `devin --`, `grok --`, `droid --`, and `cursor-agent`, `pi` and `vibe` take it as it is.
     static func startArguments(_ provider: ClaudeSessionProvider, prompt: String?) -> [String] {
         guard let prompt, !prompt.isEmpty else { return [] }
         switch provider {
         case .gemini, .copilot, .antigravity, .qwen: return ["-i", prompt]
         case .opencode: return ["--prompt", prompt]
         case .cursor, .pi, .vibe: return [prompt]
-        case .devin, .grok: return ["--", prompt]
+        // After `--` a prompt that starts like one of Droid's commands is still a prompt.
+        case .devin, .grok, .droid: return ["--", prompt]
         // On a terminal, `hermes chat -q` opens the session with it as the first turn.
         case .hermes: return ["chat", "-q", prompt]
         case .zcode, .claude, .codex, .custom: return []

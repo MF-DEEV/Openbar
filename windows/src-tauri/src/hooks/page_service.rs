@@ -114,7 +114,17 @@ fn watch(targets: &[Target], settled: bool) {
     let before = std::mem::take(&mut watch.stamps);
     watch.stamps = targets
         .iter()
-        .filter_map(|t| t.file.clone())
+        .flat_map(|t| {
+            let mut files: Vec<PathBuf> = t.file.iter().cloned().collect();
+            // Factory Droid's hooks.json beside its settings decides where its entries go (#242).
+            if t.provider == Provider::Droid
+                && let Some(folder) = t.file.as_ref().and_then(|f| f.parent())
+            {
+                files.push(folder.join("hooks.json"));
+                files.push(folder.join("hooks").join("hooks.json"));
+            }
+            files
+        })
         .map(|f| {
             let s = match before.get(&f) {
                 Some(s) if !settled => *s,

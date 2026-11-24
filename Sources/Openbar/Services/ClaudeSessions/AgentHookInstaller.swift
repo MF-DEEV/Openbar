@@ -5,7 +5,7 @@ import CryptoKit
 import Foundation
 
 /// Puts the island's hooks into Gemini CLI, Copilot CLI, Cursor, Mistral
-/// Vibe, Devin CLI, Grok CLI, ZCode and Qwen Code, and its plugin into OpenCode and Pi, and takes them
+/// Vibe, Devin CLI, Grok CLI, ZCode, Qwen Code and Factory Droid, and its plugin into OpenCode and Pi, and takes them
 /// out again, only when the person presses Install or Remove. Where the
 /// agent keeps every hook in one file (Gemini's settings, Cursor's
 /// hooks.json, Vibe's hooks.toml, Devin's and ZCode's config.json, Qwen Code's settings.json) the island's entries
@@ -148,7 +148,7 @@ enum AgentHookInstaller {
 
     /// The agents whose config folder can be named by hand, beside the one
     /// their home variable or default names (#236).
-    static let foldersByHand: [ClaudeSessionProvider] = [.codex, .gemini, .copilot, .pi, .vibe, .grok, .qwen]
+    static let foldersByHand: [ClaudeSessionProvider] = [.codex, .gemini, .copilot, .pi, .vibe, .grok, .qwen, .droid]
 
     /// The agent's hook file in a config folder the person added (#236): the
     /// folder Gemini keeps as `.gemini`, Copilot's `COPILOT_HOME`, Pi's
@@ -162,6 +162,8 @@ enum AgentHookInstaller {
         case .codex: return folder.appending(path: "hooks.json")
         case .grok: return folder.appending(path: "hooks/\(ownName(bundle)).json")
         case .qwen: return folder.appending(path: "settings.json")
+        // Droid's `.factory` folder: its hooks.json takes the events it already holds.
+        case .droid: return folder.appending(path: "settings.json")
         default: return nil
         }
     }
@@ -202,6 +204,7 @@ enum AgentHookInstaller {
         case .zcode: return zcodeConfig(home: home).deletingLastPathComponent()
         case .hermes: return AgentHermes.home(home: home, environment: environment)
         case .qwen: return AgentQwen.folder(home: home, environment: environment)
+        case .droid: return AgentDroid.folder(home: home, environment: environment)
         case .codex:
             return environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
                 ?? home.appending(path: ".codex")
@@ -219,8 +222,10 @@ enum AgentHookInstaller {
                           isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:),
                           exists: (String) -> Bool = FileManager.default.fileExists(atPath:)) -> Bool {
         if AgentCLI.locate(provider, path: path, home: home, isExecutable: isExecutable) != nil {
-            // Pi's command has a name other tools take too; Pi's own folder says it is Pi's.
-            return provider != .pi || exists(home.appending(path: ".pi/agent").path)
+            // Pi's and Droid's commands have names other tools take too; their own folders say whose they are.
+            if provider == .pi { return exists(home.appending(path: ".pi/agent").path) }
+            if provider == .droid { return exists(AgentDroid.folder(home: home).path) }
+            return true
         }
         let apps: [String]
         switch provider {
@@ -454,6 +459,8 @@ enum AgentHookInstaller {
                 return zcodeState(try ClaudeHookInstaller.read(url), socket: socket, bundle: bundle)
             case .qwen:
                 return qwenState(try ClaudeHookInstaller.read(url), socket: socket, bundle: bundle)
+            case .droid:
+                return try AgentDroid.state(folder: url.deletingLastPathComponent(), socket: socket, bundle: bundle)
             case .hermes:
                 guard let text = try vibeText(url) else { return .missing }
                 return hermesState(text, socket: socket, bundle: bundle)
@@ -537,6 +544,8 @@ enum AgentHookInstaller {
             try ClaudeHookInstaller.update(url) { zcodeInstalling(into: $0, socket: socket, bundle: bundle) }
         case .qwen:
             try ClaudeHookInstaller.update(url) { qwenInstalling(into: $0, socket: socket, bundle: bundle) }
+        case .droid:
+            try AgentDroid.install(folder: url.deletingLastPathComponent(), socket: socket, bundle: bundle)
         case .hermes:
             // Hooks written in a form the island can't add to are left to the person.
             if let text = try vibeText(url), hermesBlocked(text, bundle: bundle) { throw Failure.unreadable }
@@ -582,6 +591,8 @@ enum AgentHookInstaller {
         case .antigravity:
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
             try ClaudeHookInstaller.update(url) { antigravityRemoving(from: $0, bundle: bundle) }
+        case .droid:
+            try AgentDroid.remove(folder: url.deletingLastPathComponent(), bundle: bundle)
         case .zcode:
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
             let before = zcodeEnabledBefore(url)
