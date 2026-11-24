@@ -66,6 +66,9 @@ final class ClaudeSessionService: ObservableObject {
     /// Whether Gemini CLI, Copilot CLI, OpenCode and Cursor hold the island's
     /// hooks or plugin, and whether each seems installed; nil until checked.
     @Published private(set) var agentHooks: [ClaudeSessionProvider: (state: AgentHookInstaller.State, present: Bool)]?
+    /// Whether Hermes was told to run the island's hooks (#244); nil until
+    /// they are installed.
+    @Published private(set) var hermesApproval: AgentHermes.Approval?
     /// Why the last install into an agent failed.
     @Published private(set) var agentHookFailures: [ClaudeSessionProvider: String] = [:]
     /// Every config file the island writes hooks into, for the Hooks page
@@ -189,6 +192,8 @@ final class ClaudeSessionService: ObservableObject {
     private var agentPending: [String: (connection: ClaudeHookServer.Connection, session: String, since: Date)] = [:]
     /// The input of each ZCode question waiting, handed back with the answers.
     private var agentInputs: [String: [String: Any]] = [:]
+    /// Where each Hermes session runs: its hooks name only its gateway (#244).
+    private let hermesPlaces = AgentHermesPlaces()
     /// Each OpenCode's plugin listening for replies, by its process.
     private var listeners: [Int32: ClaudeHookServer.Connection] = [:]
     /// The Mistral Vibe sessions a New session runs through the island's
@@ -481,15 +486,46 @@ final class ClaudeSessionService: ObservableObject {
             default:
                 guard inspection.allows(id, current, revision: revision, token: inspectionToken) else { return }
             }
-            if hookAgents.owns(id), hookAgents.entry(id)?.provider == .grok {
+            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .hermes {
+                // Hermes's classic prompt takes Return for the Allow once it
+                // has picked, arrows down to Deny and a question's number;
+                // anywhere else (its Ink UI, its app, a terminal that takes no
+                // keys) the answer goes through Hermes's gateway (#244).
+                let shown = latest.first(where: { $0.id == id })
+                if AgentHookSessions.hermesTakesKeys(entry.client), let shown, ClaudeTyping.takesKeys(shown.host),
+                   let keys = AgentHookKeys.hermes(decision, current) {
+                    actions.async { [self] in
+                        guard ClaudeTerminalReply.press(keys, to: shown) == nil else { return }
+                        queue.async { [self] in
+                            hookAgents.resolve(id, request: request)
+                            hookAgents.acknowledge(id, now: Date())
+                            publish(now: Date())
+                        }
+                    }
+                    return
+                }
+                guard let answer = AgentHermesGateway.answer(decision, current) else { return }
+                let home = home, session = entry.sessionID
+                actions.async { [self] in
+                    let shell = ClaudeCLI.shell(home: home)
+                    guard let hermes = AgentCLI.locate(.hermes, path: shell.environment["PATH"], home: home),
+                          AgentHermesGateway.send(answer, session: session, hermes: hermes, environment: shell.environment)
+                    else {
+                        DiagnosticsLog.info("sessions", "hermes: the gateway took no answer")
+                        return
+                    }
+                    queue.async { [self] in
+                        hookAgents.resolve(id, request: request)
+                        hookAgents.acknowledge(id, now: Date())
+                        publish(now: Date())
+                    }
+                }
+                return
+            }
+            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .grok {
                 // Grok's prompt takes Return for the yes it has picked and
                 // Ctrl-C for no; its hooks tell when it moves on (#243).
-                let keys: [ClaudeTypingStep]
-                switch decision {
-                case .allow: keys = [.enter]
-                case .deny: keys = [.interrupt]
-                default: return
-                }
+                guard let keys = AgentHookKeys.grok(decision) else { return }
                 guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host) else { return }
                 actions.async { [self] in
                     guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
@@ -1022,10 +1058,14 @@ final class ClaudeSessionService: ObservableObject {
                 let entry = states[provider]
                 return "\(provider.rawValue)=\(entry.map { "\($0.state)" } ?? "?")\(entry?.present == true ? "" : "(absent)")"
             }.joined(separator: " ")
+            // Hermes runs a new hook only once the person allowed it there.
+            let hermes = states[.hermes]?.state == .installed
+                ? AgentHermes.approval(home: home, socket: socket, bundle: bundle) : nil
             DispatchQueue.main.async {
                 if self.agentHookSummary != summary { DiagnosticsLog.info("hooks", "agent hooks: \(summary)") }
                 self.agentHookSummary = summary
                 self.agentHooks = states
+                if self.hermesApproval != hermes { self.hermesApproval = hermes }
             }
         }
     }
@@ -1505,9 +1545,38 @@ final class ClaudeSessionService: ObservableObject {
         var before: [String: ClaudeSessionPhase?] = [:]
         for event in decoded.events where before[event.id] == nil { before[event.id] = .some(phase(of: event.id)) }
         for event in decoded.events {
-            let agent = pid > 0 ? pid : event.pid
-            // Devin CLI names no folder: the agent's own is the session's.
+            var agent = pid > 0 ? pid : event.pid
             var cwd = event.cwd
+            // Hermes's gateway runs its hooks: the session's client and folder
+            // come from Hermes's own notes, and a chat it answers isn't listed.
+            if event.provider == .hermes {
+                let hermes = AgentHermes.home(home: home)
+                var fresh = false
+                switch event.kind {
+                case .prompt, .stopped, .started: fresh = true
+                default: break
+                }
+                if case .ended = event.kind { hermesPlaces.forget(event.sessionID) }
+                guard let place = hermesPlaces.place(
+                    event.sessionID, hermes: hermes, now: now, fresh: fresh,
+                    record: { AgentHermesStore.record($0, hermes: hermes) },
+                    notes: { AgentHermesClients.notes(hermes: hermes) }, running: { AgentHermesClients.running() },
+                    app: { AgentHermesClients.app() }) else { continue }
+                agent = place.pid
+                cwd = place.record?.cwd
+                // Where the session is shown, as Hermes recorded it when it was made.
+                if let client = place.record?.client, AgentHookMessage.hermesClients.contains(client),
+                   hookAgents.entry(event.id)?.client != client {
+                    hookAgents.ingest(AgentHookEvent(provider: .hermes, sessionID: event.sessionID, pid: agent, cwd: cwd,
+                                                     date: event.date, kind: .client(client)), now: now)
+                }
+                // A title is made from the prompt: only read with previews on.
+                if engine.policy.previews, let title = place.record?.title, hookAgents.entry(event.id)?.title != title {
+                    hookAgents.ingest(AgentHookEvent(provider: .hermes, sessionID: event.sessionID, pid: agent, cwd: cwd,
+                                                     date: event.date, kind: .title(title)), now: now)
+                }
+            }
+            // Devin CLI names no folder: the agent's own is the session's.
             if cwd == nil, agent > 0, (hookAgents.entry(event.id)?.cwd ?? "").isEmpty {
                 cwd = ClaudeSessionHosts.cwd(of: agent)
             }
@@ -1529,6 +1598,11 @@ final class ClaudeSessionService: ObservableObject {
             if event.provider == .vibe, engine.policy.previews, case .stopped(nil, let failed) = kind,
                let folder = decoded.transcript {
                 kind = .stopped(lastText: AgentVibeLog.lastReply(in: folder), failed: failed)
+            }
+            // Hermes's hooks carry no reply: with previews on, its state.db tells the last one.
+            if event.provider == .hermes, engine.policy.previews, case .stopped(nil, let failed) = kind {
+                kind = .stopped(lastText: AgentHermesStore.lastReply(event.sessionID, hermes: AgentHermes.home(home: home)),
+                                failed: failed)
             }
             // Antigravity's hooks carry no reply: with previews on, its transcript tells the last one.
             if event.provider == .antigravity, engine.policy.previews, case .stopped(nil, let failed) = kind,
@@ -1586,6 +1660,7 @@ final class ClaudeSessionService: ObservableObject {
     /// too long, and of listeners whose OpenCode quit.
     private func releaseAgents(now: Date) {
         hookAgents.prune(now: now)
+        hermesPlaces.keep(Set(hookAgents.entries.values.filter { $0.provider == .hermes }.map(\.sessionID)))
         for (request, waiting) in agentPending {
             let current = hookAgents.entry(waiting.session)?.permission?.requestID == request
             guard !current || waiting.connection.isClosed || waiting.connection.peerIsGone

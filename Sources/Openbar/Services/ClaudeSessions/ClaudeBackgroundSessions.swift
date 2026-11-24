@@ -845,6 +845,7 @@ enum AgentCLI {
         case .antigravity: return "agy"
         case .grok: return "grok"
         case .zcode: return "zcode"
+        case .hermes: return "hermes"
         case .claude, .codex, .custom: return nil
         }
     }
@@ -875,6 +876,8 @@ enum AgentCLI {
         case .opencode: return ["--prompt", prompt]
         case .cursor, .pi, .vibe: return [prompt]
         case .devin, .grok: return ["--", prompt]
+        // On a terminal, `hermes chat -q` opens the session with it as the first turn.
+        case .hermes: return ["chat", "-q", prompt]
         case .zcode, .claude, .codex, .custom: return []
         }
     }

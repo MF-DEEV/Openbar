@@ -141,6 +141,7 @@ pub fn agent_label(kind: &Kind) -> (&'static str, Option<String>) {
         Kind::MayAsk(_) => ("mayAsk", None),
         Kind::Title(_) => ("title", None),
         Kind::Usage { .. } => ("usage", None),
+        Kind::Client(_) => ("client", None),
     }
 }
 

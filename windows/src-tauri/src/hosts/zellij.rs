@@ -140,6 +140,13 @@ pub fn send(target: &Target, pane: u32, text: &str, images: &[String]) -> Result
     Ok(())
 }
 
+/// Presses a key in the pane by its name (`Down`, `2`), for Hermes's menu (#244).
+pub fn keys(target: &Target, pane: u32, name: &str) -> Result<(), ()> {
+    act(target, &["send-keys", "--pane-id", &pane_id(pane), name])
+        .map(|_| ())
+        .ok_or(())
+}
+
 /// Presses Ctrl-C in the pane (#243).
 pub fn interrupt(target: &Target, pane: u32) -> Result<(), ()> {
     act(

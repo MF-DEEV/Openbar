@@ -40,7 +40,7 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 10] = [
+    pub const HOOK_AGENTS: [Provider; 11] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -51,6 +51,7 @@ impl Provider {
         Provider::Antigravity,
         Provider::Grok,
         Provider::Zcode,
+        Provider::Hermes,
     ];
 
     pub fn reports_through_hooks(self) -> bool {
@@ -64,7 +65,9 @@ impl Provider {
     /// either, but its prompt takes Return for yes and Ctrl-C for no, which
     /// the island presses in its terminal where it can (#243). ZCode's
     /// permission hook answers like Claude Code's, racing its own prompt:
-    /// whichever answers first wins (#245).
+    /// whichever answers first wins (#245). Hermes's hooks only hear of a
+    /// dangerous command; its classic prompt takes Return for the Allow once
+    /// it has picked and arrows down to Deny (#244).
     pub fn answers_permissions(self) -> bool {
         matches!(
             self,
@@ -73,6 +76,7 @@ impl Provider {
                 | Provider::Opencode
                 | Provider::Grok
                 | Provider::Zcode
+                | Provider::Hermes
         )
     }
 
@@ -90,6 +94,7 @@ impl Provider {
             Provider::Antigravity => "antigravity",
             Provider::Grok => "grok",
             Provider::Zcode => "zcode",
+            Provider::Hermes => "hermes",
             Provider::Custom => "custom",
         }
     }
@@ -114,6 +119,7 @@ impl Provider {
             Provider::Antigravity,
             Provider::Grok,
             Provider::Zcode,
+            Provider::Hermes,
             Provider::Custom,
         ]
         .into_iter()
@@ -161,6 +167,9 @@ pub enum Kind {
         tokens: Tokens,
         cost: f64,
     },
+    /// Where the person sees the session: Hermes's classic terminal UI
+    /// (`cli`), its Ink UI (`tui`) or its app (`desktop`).
+    Client(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -312,6 +321,7 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
             decoded.transcript = text(event, "transcriptPath");
         }
         Provider::Zcode => zcode(&hook, event, pid, now, policy, &mut decoded),
+        Provider::Hermes => decoded.events = hermes(&hook, event, pid, now, policy),
         Provider::Grok => {
             decoded.events = grok(&hook, event, pid, now, policy);
             decoded.transcript = text(event, "transcriptPath");
@@ -1017,6 +1027,214 @@ pub fn is_devin_process(name: &str) -> bool {
     let name = name.to_lowercase();
     let name = name.strip_suffix(".exe").unwrap_or(&name);
     name == "devin" || name.starts_with("devin-") || name.starts_with("devin.")
+}
+
+// MARK: Hermes
+
+/// Hermes Agent's shell hooks (AgentHookMessage.hermes): snake_case events,
+/// each event's own fields under `extra`. Its gateway runs them for every
+/// session, so their `cwd` is the gateway's and is left out: the service
+/// reads the session's folder from Hermes's state.db. A dangerous command
+/// and a question are told by `on_human_input_request`, a turn's end by
+/// `on_session_end` and the client closing by `on_session_finalize`.
+fn hermes(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+) -> Vec<AgentEvent> {
+    let Some(session) = text(json, "session_id") else {
+        return vec![];
+    };
+    let empty = Map::new();
+    let extra = json
+        .get("extra")
+        .and_then(Value::as_object)
+        .unwrap_or(&empty);
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Hermes,
+            session_id: session.clone(),
+            pid,
+            cwd: None,
+            date: now,
+            kind,
+        })
+    };
+    // A session the island joins to answer through the gateway opens again
+    // (`reason: resume`) under no client of its own.
+    if let Some(platform) =
+        text(extra, "platform").filter(|p| super::hermes::CLIENTS.contains(&p.as_str()))
+        && text(extra, "reason").as_deref() != Some("resume")
+    {
+        add(Kind::Client(platform));
+    }
+    let raw = str_of(json.get("tool_name")).unwrap_or("");
+    let tool = name(Provider::Hermes, raw);
+    let input = hermes_input(raw, arguments(json.get("tool_input")));
+    let call = text(extra, "tool_call_id");
+    let event = text(json, "hook_event_name").unwrap_or_else(|| hook.to_owned());
+    match event.as_str() {
+        "on_session_open" => add(Kind::Started),
+        "pre_llm_call" => {
+            add(Kind::Prompt(if policy.previews {
+                reply_preview(extra.get("user_message"))
+            } else {
+                None
+            }));
+            if let Some(model) = text(extra, "model") {
+                add(Kind::Model(model));
+            }
+        }
+        "pre_tool_call" => {
+            // A question waits once Hermes asks; its choices are kept till then.
+            if raw == "clarify" {
+                if let Some(ask) = hermes_question(&input, now) {
+                    add(Kind::MayAsk(ask));
+                }
+            } else {
+                let mut tool = tool_use(&tool, &input, now, policy);
+                if let Some(call) = &call {
+                    tool.id = call.clone();
+                }
+                add(Kind::ToolStarted(tool));
+            }
+        }
+        "post_tool_call" => {
+            if raw == "clarify" {
+                add(Kind::PermissionSettled(None));
+            } else {
+                let status = text(extra, "status");
+                add(Kind::ToolFinished {
+                    id: call,
+                    input_key: Some(tool_summary::input_key(&tool, &input)),
+                    name: tool,
+                    failed: status.is_some_and(|s| s != "ok"),
+                    started: None,
+                });
+            }
+        }
+        "on_human_input_request" => {
+            let request = text(extra, "request_id").unwrap_or_else(|| format!("{:x}", rand_id()));
+            match text(extra, "kind").as_deref() {
+                Some("approval") => add(Kind::Permission(hermes_approval(
+                    &text(extra, "prompt").unwrap_or_default(),
+                    &request,
+                    now,
+                ))),
+                // Filled in from the questions its clarify tool named.
+                Some("clarify") => add(Kind::Permission(Permission::new(
+                    &request, "", None, false, now,
+                ))),
+                // A sudo or vault password is only ever typed in Hermes.
+                _ => add(Kind::Question),
+            }
+        }
+        // Hermes asks one thing at a time in a session.
+        "on_human_input_resolved" => add(Kind::PermissionSettled(None)),
+        "on_session_end" => {
+            // Each turn's end: done only when it completed.
+            let done = flag(extra.get("completed"))
+                && !flag(extra.get("failed"))
+                && !flag(extra.get("interrupted"));
+            add(Kind::Stopped {
+                last_text: None,
+                failed: !done,
+            });
+            if let Some(model) = text(extra, "model") {
+                add(Kind::Model(model));
+            }
+        }
+        "on_session_finalize" => add(Kind::Ended),
+        _ => {}
+    }
+    events
+}
+
+/// A flag Hermes sends as a boolean, or as text where it was stringified.
+fn flag(value: Option<&Value>) -> bool {
+    match value {
+        Some(Value::Bool(b)) => *b,
+        Some(Value::Number(n)) => n.as_i64().is_some_and(|n| n != 0),
+        Some(Value::String(s)) => matches!(s.to_ascii_lowercase().as_str(), "true" | "1" | "yes"),
+        _ => false,
+    }
+}
+
+/// Hermes's tool arguments under the names Claude Code gives them: its file
+/// tools name the file `path`.
+pub fn hermes_input(tool: &str, mut input: Map<String, Value>) -> Map<String, Value> {
+    if matches!(tool, "read_file" | "write_file" | "patch")
+        && !input.contains_key("file_path")
+        && let Some(path) = input.get("path").cloned()
+    {
+        input.insert("file_path".into(), path);
+    }
+    input
+}
+
+/// The card for a dangerous command Hermes asks about: the command as its
+/// prompt shows it, secrets masked.
+pub fn hermes_approval(command: &str, request: &str, at: Time) -> Permission {
+    let mut input = Map::new();
+    input.insert("command".into(), Value::String(command.to_owned()));
+    let full = tool_summary::permission_detail("Bash", &input);
+    let mut permission = Permission::new(
+        request,
+        "Bash",
+        Some(first_line(command))
+            .filter(|l| !l.is_empty())
+            .as_deref(),
+        false,
+        at,
+    );
+    permission.set_content(&full, !command.is_empty(), Some(full.chars().count()));
+    permission.input_key = Some(tool_summary::input_key("Bash", &input));
+    permission
+}
+
+/// The questions a clarify call asks (one to five, each with up to four
+/// choices, one pick or several, or none for a free answer), answered
+/// through Hermes's gateway.
+pub fn hermes_question(input: &Map<String, Value>, at: Time) -> Option<Permission> {
+    let list = input.get("questions")?.as_array()?;
+    let mut questions = Vec::new();
+    for item in list {
+        let item = item.as_object()?;
+        let question = str_of(item.get("question"))?.trim();
+        if question.is_empty() {
+            return None;
+        }
+        let choices: Vec<&str> = item
+            .get("choices")
+            .and_then(Value::as_array)
+            .map(|c| {
+                c.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::trim)
+                    .filter(|c| !c.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        questions.push(Question {
+            question: question.to_owned(),
+            header: None,
+            options: choices.iter().map(|c| QuestionOption::new(c)).collect(),
+            multi_select: flag(item.get("multi_select")) && !choices.is_empty(),
+        });
+    }
+    let first = questions.first()?.question.clone();
+    let mut permission = Permission::new(
+        &format!("{:x}", rand_id()),
+        "AskUserQuestion",
+        Some(&first),
+        false,
+        at,
+    );
+    permission.questions = questions;
+    Some(permission)
 }
 
 // MARK: ZCode
@@ -1945,6 +2163,19 @@ pub fn name(provider: Provider, tool: &str) -> String {
         ],
         // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.
         Provider::Zcode => &[("ApplyPatch", "Edit"), ("Agent", "Task")],
+        Provider::Hermes => &[
+            ("terminal", "Bash"),
+            ("read_file", "Read"),
+            ("write_file", "Write"),
+            ("patch", "Edit"),
+            ("search_files", "Grep"),
+            ("web_search", "WebSearch"),
+            ("web_extract", "WebFetch"),
+            ("todo", "TodoWrite"),
+            ("delegate_task", "Task"),
+            ("clarify", "AskUserQuestion"),
+            ("process", "BashOutput"),
+        ],
         Provider::Grok => &[
             ("run_terminal_command", "Bash"),
             ("read_file", "Read"),
@@ -2072,6 +2303,8 @@ pub struct Entry {
     last_text: Option<String>,
     chat: Vec<ChatMessage>,
     usage: BTreeMap<String, (Tokens, f64)>,
+    /// Where the person sees a Hermes session: `cli`, `tui` or `desktop`.
+    pub client: Option<String>,
 }
 
 impl Entry {
@@ -2097,6 +2330,7 @@ impl Entry {
             last_text: None,
             chat: Vec::new(),
             usage: BTreeMap::new(),
+            client: None,
         }
     }
 
@@ -2179,6 +2413,10 @@ impl Tracker {
 
     pub fn entry(&self, id: &str) -> Option<&Entry> {
         self.entries.get(id)
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = &Entry> {
+        self.entries.values()
     }
 
     pub fn pids(&self) -> Vec<i32> {
@@ -2286,6 +2524,15 @@ impl Tracker {
                     }
                 }
             }
+            Kind::Permission(_)
+                if entry.provider == Provider::Hermes
+                    && entry.next_ask.is_none()
+                    && matches!(&event.kind, Kind::Permission(p) if p.tool.is_empty()) =>
+            {
+                // Hermes asks a question the island can't answer with a key: in Hermes.
+                entry.open_turn(date);
+                entry.asking = true;
+            }
             Kind::Permission(mut permission) => {
                 entry.open_turn(date);
                 // Grok's prompt names no tool: the one its last PreToolUse named waits.
@@ -2367,6 +2614,7 @@ impl Tracker {
             Kind::Usage { key, tokens, cost } => {
                 entry.usage.insert(key, (tokens, cost));
             }
+            Kind::Client(name) => entry.client = Some(name),
         }
         self.message_id = message_id;
     }
@@ -2408,7 +2656,10 @@ impl Tracker {
             .iter()
             .filter(|(_, e)| {
                 (e.pid > 0 && !alive(e.pid))
-                    || (matches!(e.provider, Provider::Cursor | Provider::Antigravity)
+                    // A Hermes session whose client wasn't found lives in its
+                    // gateway: it goes when its client closes, or once long quiet.
+                    || ((matches!(e.provider, Provider::Cursor | Provider::Antigravity)
+                        || (e.provider == Provider::Hermes && e.pid <= 0))
                         && !e.turn_open
                         && e.permission.is_none()
                         && now - e.heard > QUIET_FOR)
@@ -2540,7 +2791,8 @@ fn session(
         cost += part_cost;
     }
     // A request only the agent can answer is shown as waiting there.
-    // Grok's is answered with keys, where its terminal takes them.
+    // Grok's is answered with keys, where its terminal takes them. Hermes's
+    // with keys in its classic terminal UI, through its gateway anywhere else.
     let in_agent = entry.permission.is_some()
         && (!entry.answerable || (entry.provider == Provider::Grok && !place.takes_keys));
     Session {
@@ -2618,6 +2870,12 @@ fn session(
     }
 }
 
+/// Whether a Hermes session's approvals take the island's keys: its classic
+/// terminal UI's do; its Ink UI's and its app's go through its gateway.
+pub fn hermes_takes_keys(client: Option<&str>) -> bool {
+    client.is_none_or(|c| c == "cli")
+}
+
 /// The agent process a hook came from: above the hook's own process (this
 /// app run with `--hook`) and the shells the agent started it in, the first
 /// process that is none of these.
@@ -2662,6 +2920,7 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Antigravity => Some("agy"),
         Provider::Grok => Some("grok"),
         Provider::Zcode => Some("zcode"),
+        Provider::Hermes => Some("hermes"),
         Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
 }
@@ -2670,9 +2929,10 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
 /// The others get a second one a moment later, for the agents whose prompt
 /// takes a quick Return as part of the paste (Gemini CLI). ZCode's sends
 /// on the first, and a second would land on the permission prompt the
-/// reply may open at once, where Return picks Deny (#245).
+/// reply may open at once, where Return picks Deny (#245). Hermes's sends on
+/// the first too, and there a second would pick Allow once (#244).
 pub fn takes_one_return(provider: Provider) -> bool {
-    provider == Provider::Zcode
+    matches!(provider, Provider::Zcode | Provider::Hermes)
 }
 
 /// Whether New session can start the agent with its first prompt. ZCode's
@@ -2698,6 +2958,8 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         Provider::Opencode => vec!["--prompt".into(), prompt.into()],
         Provider::Cursor | Provider::Pi | Provider::Vibe => vec![prompt.into()],
         Provider::Devin | Provider::Grok => vec!["--".into(), prompt.into()],
+        // On a terminal, `hermes chat -q` opens the session with it as the first turn.
+        Provider::Hermes => vec!["chat".into(), "-q".into(), prompt.into()],
         Provider::Zcode | Provider::Claude | Provider::Codex | Provider::Custom => Vec::new(),
     }
 }
@@ -3079,6 +3341,7 @@ pub mod installer {
             Provider::Antigravity => antigravity_hooks(home).parent()?.to_path_buf(),
             Provider::Grok => grok_folder(home),
             Provider::Zcode => zcode_config(home).parent()?.to_path_buf(),
+            Provider::Hermes => super::super::hermes::home(home),
             Provider::Claude | Provider::Custom => return None,
         })
     }
@@ -3170,7 +3433,30 @@ pub mod installer {
         if provider == Provider::Zcode {
             return zcode_apps(home).iter().any(|p| p.is_file());
         }
+        if provider == Provider::Hermes {
+            return hermes_apps(home).iter().any(|p| p.is_file());
+        }
         provider == Provider::Cursor && cursor_apps(home).iter().any(|p| p.is_file())
+    }
+
+    /// Where Hermes's app is put: its per-user install on Windows, the
+    /// packages' folders on Linux. Its Windows Store package has no path to
+    /// look at; `hermes` itself is found as a command.
+    fn hermes_apps(home: &Path) -> Vec<PathBuf> {
+        if cfg!(windows) {
+            let local = std::env::var_os("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join("AppData").join("Local"));
+            vec![
+                local.join("Programs").join("Hermes").join("Hermes.exe"),
+                local.join("Programs").join("hermes").join("Hermes.exe"),
+            ]
+        } else {
+            vec![
+                PathBuf::from("/opt/Hermes/hermes-desktop"),
+                PathBuf::from("/usr/lib/hermes-desktop/hermes-desktop"),
+            ]
+        }
     }
 
     /// Where Cursor's app is put: the per-user install on Windows, the
@@ -3768,6 +4054,11 @@ pub mod installer {
                 Ok(s) => zcode_state(&s, exe, app),
                 Err(_) => State::Unreadable,
             },
+            Provider::Hermes => match vibe_text(&path) {
+                Ok(None) => State::Missing,
+                Ok(Some(text)) => super::super::hermes::state(&text, exe, app),
+                Err(_) => State::Unreadable,
+            },
             Provider::Antigravity => match read(&path) {
                 Ok(s) if s.get(own_name(app)) == Some(&antigravity_entry(exe, app)) => {
                     State::Installed
@@ -3984,6 +4275,22 @@ pub mod installer {
             Provider::Zcode => {
                 claude::update(&path, |s| zcode_installing(s, exe, app)).map_err(failure)
             }
+            Provider::Hermes => {
+                use super::super::hermes;
+                let entries = hermes::entries(exe, app);
+                let marker = claude::marker(app);
+                // Hooks written in a form the island can't add to are left to the person.
+                if let Ok(Some(text)) = vibe_text(&path)
+                    && hermes::yaml::installing(Some(&text), &entries, hermes::TIMEOUT, &marker)
+                        .is_err()
+                {
+                    return Err(format!("{} keeps its hooks inline", path.display()));
+                }
+                claude::update_text(&path, |text| {
+                    hermes::yaml::installing(text, &entries, hermes::TIMEOUT, &marker).ok()
+                })
+                .map_err(failure)
+            }
             Provider::Codex => match folder {
                 Some(folder) => claude::update(&path, |s| codex_installing(s, exe, app, folder))
                     .map_err(failure),
@@ -4026,6 +4333,13 @@ pub mod installer {
             Provider::Zcode => {
                 let before = zcode_enabled_before(&path);
                 claude::update(&path, |s| zcode_removing(s, app, before.clone())).map_err(failure)
+            }
+            Provider::Hermes => {
+                let marker = claude::marker(app);
+                claude::update_text(&path, |text| {
+                    text.and_then(|t| super::super::hermes::yaml::removing(t, &marker))
+                })
+                .map_err(failure)
             }
             Provider::Claude | Provider::Custom => Ok(()),
         }
@@ -6182,7 +6496,7 @@ mod tests {
         assert_eq!(name(Provider::Zcode, "ApplyPatch"), "Edit");
         assert_eq!(name(Provider::Zcode, "Bash"), "Bash");
         assert!(Provider::Zcode.answers_permissions());
-        assert_eq!(Provider::HOOK_AGENTS.last(), Some(&Provider::Zcode));
+        assert!(Provider::HOOK_AGENTS.ends_with(&[Provider::Zcode, Provider::Hermes]));
         assert_eq!(Provider::from_key("zcode"), Some(Provider::Zcode));
     }
 
@@ -6276,5 +6590,511 @@ mod tests {
         );
         assert!(installer::zcode_config(Path::new("/h")).ends_with(".zcode/cli/config.json"));
         assert!(!installer::FOLDERS_BY_HAND.contains(&Provider::Zcode));
+    }
+
+    // MARK: Hermes (#244)
+
+    fn hermes(event: &str, tool: Option<&str>, input: Value, extra: Value) -> Vec<u8> {
+        envelope(
+            "hermes",
+            event,
+            json!({
+                "hook_event_name": event, "session_id": "local-5bae", "cwd": "/home/me/.hermes/hermes-agent",
+                "profile": "default", "tool_name": tool, "tool_input": if tool.is_some() { input } else { Value::Null },
+                "extra": extra,
+            }),
+        )
+    }
+
+    #[test]
+    fn a_hermes_session_is_told_by_its_hooks() {
+        let opened = decode(
+            &hermes(
+                "on_session_open",
+                None,
+                Value::Null,
+                json!({ "platform": "cli", "reason": "create" }),
+            ),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert_eq!(
+            opened
+                .events
+                .iter()
+                .map(|e| e.kind.clone())
+                .collect::<Vec<_>>(),
+            vec![Kind::Client("cli".into()), Kind::Started]
+        );
+        // The gateway's folder is never taken for the session's.
+        assert!(opened.events.iter().all(|e| e.cwd.is_none()));
+        let mut t = Tracker::default();
+        feed(
+            &mut t,
+            &hermes(
+                "on_session_open",
+                None,
+                Value::Null,
+                json!({ "platform": "cli" }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].id, "hermes:local-5bae");
+        assert_eq!(listed[0].provider, Provider::Hermes);
+        assert_eq!(listed[0].phase, SessionPhase::Idle);
+        feed(
+            &mut t,
+            &hermes(
+                "pre_llm_call",
+                None,
+                Value::Null,
+                json!({ "user_message": "tidy", "model": "anthropic/claude-sonnet-4.6", "platform": "cli" }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].phase, SessionPhase::Generating);
+        assert_eq!(
+            listed[0].model.as_deref(),
+            Some("anthropic/claude-sonnet-4.6")
+        );
+        feed(
+            &mut t,
+            &hermes(
+                "pre_tool_call",
+                Some("terminal"),
+                json!({ "command": "git status" }),
+                json!({ "tool_call_id": "call_1" }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].phase, SessionPhase::RunningTool);
+        assert_eq!(
+            listed[0].current_tool.as_ref().map(|t| t.name.as_str()),
+            Some("Bash")
+        );
+        feed(
+            &mut t,
+            &hermes(
+                "post_tool_call",
+                Some("terminal"),
+                json!({ "command": "git status" }),
+                json!({ "tool_call_id": "call_1", "status": "ok" }),
+            ),
+            ON,
+        );
+        let patch = json!({ "path": "/w/a.py", "old_string": "a", "new_string": "b" });
+        feed(
+            &mut t,
+            &hermes(
+                "pre_tool_call",
+                Some("patch"),
+                patch.clone(),
+                json!({ "tool_call_id": "call_2" }),
+            ),
+            ON,
+        );
+        feed(
+            &mut t,
+            &hermes(
+                "post_tool_call",
+                Some("patch"),
+                patch,
+                json!({ "tool_call_id": "call_2", "status": "error" }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].timeline.len(), 2);
+        assert!(!listed[0].timeline[0].failed);
+        assert_eq!(listed[0].timeline[1].name, "Edit");
+        assert!(listed[0].timeline[1].failed);
+        feed(
+            &mut t,
+            &hermes(
+                "on_session_end",
+                None,
+                Value::Null,
+                json!({ "completed": true, "failed": false, "interrupted": false }),
+            ),
+            ON,
+        );
+        assert_eq!(
+            snap(&mut t, NOW + 1.0, true).0[0].phase,
+            SessionPhase::Finished
+        );
+        // An interrupted turn is no notice of work done; flags may come as text.
+        feed(
+            &mut t,
+            &hermes(
+                "pre_llm_call",
+                None,
+                Value::Null,
+                json!({ "user_message": "again" }),
+            ),
+            ON,
+        );
+        feed(
+            &mut t,
+            &hermes(
+                "on_session_end",
+                None,
+                Value::Null,
+                json!({ "completed": "False", "interrupted": "True" }),
+            ),
+            ON,
+        );
+        assert_eq!(snap(&mut t, NOW + 1.0, true).0[0].phase, SessionPhase::Idle);
+        feed(
+            &mut t,
+            &hermes(
+                "on_session_finalize",
+                None,
+                Value::Null,
+                json!({ "reason": "cli_close" }),
+            ),
+            ON,
+        );
+        assert!(snap(&mut t, NOW, true).0.is_empty());
+        // A session whose client wasn't found lives in the gateway: it goes once long quiet.
+        let mut lost = Tracker::default();
+        lost.ingest(
+            AgentEvent {
+                provider: Provider::Hermes,
+                session_id: "s2".into(),
+                pid: 0,
+                cwd: Some("/w".into()),
+                date: NOW,
+                kind: Kind::Started,
+            },
+            NOW,
+        );
+        lost.prune(NOW + 60.0, |_| false);
+        assert_eq!(snap(&mut lost, NOW, true).0.len(), 1);
+        lost.prune(NOW + QUIET_FOR + 1.0, |_| false);
+        assert!(snap(&mut lost, NOW, true).0.is_empty());
+    }
+
+    #[test]
+    fn hermes_asks_on_the_islands_card_or_in_hermes() {
+        let mut t = Tracker::default();
+        feed(
+            &mut t,
+            &hermes(
+                "on_session_open",
+                None,
+                Value::Null,
+                json!({ "platform": "cli" }),
+            ),
+            ON,
+        );
+        feed(
+            &mut t,
+            &hermes(
+                "on_human_input_request",
+                None,
+                Value::Null,
+                json!({ "kind": "approval", "request_id": "r1", "prompt": "rm -rf build" }),
+            ),
+            OFF,
+        );
+        let listed = snap(&mut t, NOW, false).0;
+        assert_eq!(listed[0].phase, SessionPhase::WaitingPermission);
+        let asked = listed[0]
+            .permission
+            .as_ref()
+            .expect("a card the island answers");
+        assert_eq!(
+            (
+                asked.request_id.as_str(),
+                asked.tool.as_str(),
+                asked.detail.as_str()
+            ),
+            ("r1", "Bash", "rm -rf build")
+        );
+        assert!(asked.content.as_ref().is_some_and(|c| c.complete));
+        assert_eq!(
+            crate::sessions::service::hermes_keys(
+                &crate::sessions::hook_message::Decision::Deny,
+                asked
+            ),
+            Some(vec![
+                crate::hosts::Key::Down,
+                crate::hosts::Key::Down,
+                crate::hosts::Key::Down,
+                crate::hosts::Key::Enter
+            ])
+        );
+        assert_eq!(
+            crate::sessions::service::hermes_keys(
+                &crate::sessions::hook_message::Decision::Allow,
+                asked
+            ),
+            Some(vec![crate::hosts::Key::Enter])
+        );
+        feed(
+            &mut t,
+            &hermes(
+                "on_human_input_resolved",
+                None,
+                Value::Null,
+                json!({ "kind": "approval", "request_id": "r1" }),
+            ),
+            ON,
+        );
+        assert!(snap(&mut t, NOW, true).0[0].permission.is_none());
+        // A one-choice question is answered with its number.
+        let question =
+            json!({ "questions": [{ "question": "Which color?", "choices": ["Red", "Blue"] }] });
+        feed(
+            &mut t,
+            &hermes(
+                "pre_tool_call",
+                Some("clarify"),
+                question.clone(),
+                json!({ "tool_call_id": "q" }),
+            ),
+            ON,
+        );
+        feed(
+            &mut t,
+            &hermes(
+                "on_human_input_request",
+                None,
+                Value::Null,
+                json!({ "kind": "clarify", "request_id": "q1" }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        let asked = listed[0].permission.clone().expect("the question's card");
+        assert_eq!(asked.request_id, "q1");
+        assert_eq!(
+            asked.questions[0]
+                .options
+                .iter()
+                .map(|o| o.label.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Red", "Blue"]
+        );
+        assert!(
+            listed[0]
+                .timeline
+                .iter()
+                .all(|t| t.name != "AskUserQuestion")
+        );
+        let picked: BTreeMap<String, Vec<String>> =
+            [("Which color?".to_owned(), vec!["Blue".to_owned()])].into();
+        assert_eq!(
+            crate::sessions::service::hermes_keys(
+                &crate::sessions::hook_message::Decision::Answer(picked.clone()),
+                &asked
+            ),
+            None,
+            "a question is never answered with keys: it goes through the gateway"
+        );
+        assert_eq!(
+            crate::sessions::hermes::gateway::answer(
+                &crate::sessions::hook_message::Decision::Answer(picked),
+                &asked
+            ),
+            Some(crate::sessions::hermes::gateway::Answer::Clarify(vec![
+                Some(vec!["Blue".to_owned()])
+            ]))
+        );
+        assert_eq!(
+            crate::sessions::service::hermes_keys(
+                &crate::sessions::hook_message::Decision::Allow,
+                &asked
+            ),
+            None
+        );
+        feed(
+            &mut t,
+            &hermes(
+                "post_tool_call",
+                Some("clarify"),
+                question,
+                json!({ "tool_call_id": "q", "status": "ok" }),
+            ),
+            ON,
+        );
+        assert!(snap(&mut t, NOW, true).0[0].permission.is_none());
+        // Several questions, a free answer and many picks are on the card too.
+        let mut several = Tracker::default();
+        feed(
+            &mut several,
+            &hermes(
+                "pre_tool_call",
+                Some("clarify"),
+                json!({ "questions": [
+                    { "question": "A?", "choices": ["x", " "] },
+                    { "question": "Why?" },
+                    { "question": "Which?", "choices": ["a", "b"], "multi_select": true }
+                ] }),
+                json!({}),
+            ),
+            ON,
+        );
+        feed(
+            &mut several,
+            &hermes(
+                "on_human_input_request",
+                None,
+                Value::Null,
+                json!({ "kind": "clarify", "request_id": "q2" }),
+            ),
+            ON,
+        );
+        let row = &snap(&mut several, NOW, true).0[0];
+        assert_eq!(row.phase, SessionPhase::WaitingPermission);
+        let card = row
+            .permission
+            .as_ref()
+            .expect("the questions are on the card");
+        assert_eq!(
+            card.questions
+                .iter()
+                .map(|q| (q.question.as_str(), q.options.len(), q.multi_select))
+                .collect::<Vec<_>>(),
+            vec![("A?", 1, false), ("Why?", 0, false), ("Which?", 2, true)]
+        );
+        let picks: BTreeMap<String, Vec<String>> =
+            [("Which?".to_owned(), vec!["a".to_owned(), "b".to_owned()])].into();
+        assert_eq!(
+            crate::sessions::hermes::gateway::answer(
+                &crate::sessions::hook_message::Decision::Answer(picks),
+                card
+            ),
+            Some(crate::sessions::hermes::gateway::Answer::Clarify(vec![
+                None,
+                None,
+                Some(vec!["a".to_owned(), "b".to_owned()])
+            ])),
+            "each question gets its own answer, one left out skipped"
+        );
+        assert_eq!(
+            crate::sessions::hermes::gateway::answer(
+                &crate::sessions::hook_message::Decision::Deny,
+                card
+            ),
+            Some(crate::sessions::hermes::gateway::Answer::Clarify(vec![
+                None, None, None
+            ])),
+            "Skip leaves every question unanswered"
+        );
+        assert!(
+            hermes_question(
+                json!({ "questions": [{ "question": " " }] })
+                    .as_object()
+                    .unwrap(),
+                NOW
+            )
+            .is_none()
+        );
+        // Its Ink UI's prompt is on the card too, answered through the gateway.
+        let mut tui = Tracker::default();
+        feed(
+            &mut tui,
+            &hermes(
+                "on_session_open",
+                None,
+                Value::Null,
+                json!({ "platform": "tui" }),
+            ),
+            ON,
+        );
+        feed(
+            &mut tui,
+            &hermes(
+                "on_human_input_request",
+                None,
+                Value::Null,
+                json!({ "kind": "approval", "request_id": "r", "prompt": "x" }),
+            ),
+            ON,
+        );
+        let row = &snap(&mut tui, NOW, true).0[0];
+        assert!(
+            row.permission.as_ref().map(|p| p.request_id.as_str()) == Some("r")
+                && row.waiting_for.is_none()
+        );
+        // The island joining the session to answer doesn't change where it is shown.
+        feed(
+            &mut tui,
+            &hermes(
+                "on_session_open",
+                None,
+                Value::Null,
+                json!({ "platform": "cli", "reason": "resume" }),
+            ),
+            ON,
+        );
+        assert_eq!(
+            tui.entry("hermes:local-5bae")
+                .and_then(|e| e.client.as_deref()),
+            Some("tui")
+        );
+    }
+
+    #[test]
+    fn hermes_is_named_found_and_started_with_its_first_prompt() {
+        assert!(
+            Provider::HOOK_AGENTS.contains(&Provider::Hermes)
+                && Provider::Hermes.answers_permissions()
+        );
+        assert_eq!(Provider::from_key("hermes"), Some(Provider::Hermes));
+        assert_eq!(command_name(Provider::Hermes), Some("hermes"));
+        assert_eq!(
+            start_arguments(Provider::Hermes, "go"),
+            vec!["chat", "-q", "go"]
+        );
+        assert!(starts_with_prompt(Provider::Hermes));
+        // A second Return would pick Allow once on a prompt the reply opens.
+        assert!(takes_one_return(Provider::Hermes));
+        assert_eq!(name(Provider::Hermes, "search_files"), "Grep");
+        assert!(
+            installer::file(Provider::Hermes, Path::new("/h"), "a", None)
+                .is_some_and(|p| p.ends_with(".hermes/config.yaml"))
+        );
+    }
+
+    #[test]
+    fn the_islands_hermes_hooks_sit_beside_the_persons_in_config_yaml() {
+        let home = std::env::temp_dir().join(format!("openbar-hermes-{:x}", rand_id()));
+        let path = home.join(".hermes").join("config.yaml");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mine = "model:\n  default: x\nhooks:\n  on_session_end:\n    - command: ~/mine.sh\n";
+        std::fs::write(&path, mine).unwrap();
+        let exe = Path::new("/opt/openbar/openbar");
+        let app = "com.openbar.test";
+        installer::install(Provider::Hermes, &home, exe, "", app).unwrap();
+        assert_eq!(
+            installer::state(Provider::Hermes, &home, exe, "", app),
+            installer::State::Installed
+        );
+        let text = std::fs::read_to_string(&path).unwrap();
+        let read = crate::sessions::hermes::yaml::commands(&text).unwrap();
+        assert_eq!(
+            read["on_session_end"].first().map(String::as_str),
+            Some("~/mine.sh")
+        );
+        assert_eq!(read["on_session_end"].len(), 2);
+        assert_eq!(
+            installer::state(Provider::Hermes, &home, Path::new("/other"), "", app),
+            installer::State::Outdated
+        );
+        installer::remove(Provider::Hermes, &home, app).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), mine);
+        std::fs::write(&path, "hooks: {on_session_open: [{command: x}]}\n").unwrap();
+        assert_eq!(
+            installer::state(Provider::Hermes, &home, exe, "", app),
+            installer::State::Unreadable
+        );
+        assert!(installer::install(Provider::Hermes, &home, exe, "", app).is_err());
+        let _ = std::fs::remove_dir_all(&home);
     }
 }

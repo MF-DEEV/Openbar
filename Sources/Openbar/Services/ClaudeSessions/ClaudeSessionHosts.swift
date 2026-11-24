@@ -280,16 +280,24 @@ extension ClaudeTerminalScripts {
 
     /// Presses keys in the session's tab. Terminal adds a return after each
     /// `do script`, so a return is an empty one and Ctrl-C comes with a
-    /// return after it, which an empty prompt ignores.
+    /// return after it, which an empty prompt ignores. Keys go out with the
+    /// return that follows them, as one `do script`: on their own they would
+    /// each bring a return of their own.
     static func press(_ steps: [ClaudeTypingStep], tty: String) -> String {
-        let lines = steps.compactMap { step -> String? in
+        var lines: [String] = []
+        var held: [ClaudeKey] = []
+        for step in steps {
             switch step {
-            case .enter: "do script \"\" in theTab"
-            case .interrupt: "do script (ASCII character 3) in theTab"
-            case .wait(let seconds): "delay \(seconds)"
-            case .paste: nil
+            case .keys(let keys): held += keys
+            case .enter:
+                lines.append(held.isEmpty ? "do script \"\" in theTab" : "do script (\(ClaudeKey.appleScript(held))) in theTab")
+                held = []
+            case .interrupt: lines.append("do script (ASCII character 3) in theTab")
+            case .wait(let seconds): lines.append("delay \(seconds)")
+            case .paste: break
             }
         }
+        if !held.isEmpty { lines.append("do script (\(ClaudeKey.appleScript(held))) in theTab") }
         return """
         tell application "Terminal"
             repeat with theWindow in windows

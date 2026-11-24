@@ -19,6 +19,7 @@ pub mod claude_desktop;
 pub mod codex;
 pub mod engine;
 pub mod file_diff;
+pub mod hermes;
 pub mod hook_agents;
 pub mod hook_message;
 pub mod inspection;

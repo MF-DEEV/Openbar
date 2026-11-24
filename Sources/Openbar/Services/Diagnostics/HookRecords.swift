@@ -168,6 +168,7 @@ extension AgentHookInstaller {
         case .antigravity: return (antigravityHooks(home: home), false)
         case .grok: return (grokHooks(home: home, bundle: bundle), true)
         case .zcode: return (zcodeConfig(home: home), false)
+        case .hermes: return (AgentHermes.config(home: home), false)
         case .claude, .codex, .custom: return nil
         }
     }

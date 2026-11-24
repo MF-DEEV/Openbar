@@ -90,6 +90,23 @@ fn is_focused(json: &str, window: u32) -> Option<bool> {
 
 /// Types the reply into the window. Err when kitty or the window is gone, or the window does not list `pid`.
 /// Presses Ctrl-C in the window, as a key (Grok CLI's no, #243).
+/// Presses a key in the window by kitty's name for it (`down`, `2`), for
+/// Hermes's menu (#244).
+pub fn keys(listen: &str, window: u32, pid: u32, name: &str) -> Result<(), ()> {
+    if !holds_with("kitten", listen, window, pid) {
+        return Err(());
+    }
+    let target = format!("id:{window}");
+    kitten(
+        "kitten",
+        listen,
+        &["send-key", "--match", &target, name],
+        None,
+    )
+    .map(|_| ())
+    .ok_or(())
+}
+
 pub fn interrupt(listen: &str, window: u32, pid: u32) -> Result<(), ()> {
     if !holds_with("kitten", listen, window, pid) {
         return Err(());

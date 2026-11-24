@@ -389,6 +389,7 @@ struct NotchClaudeSessionStrings {
         case .antigravity: return agentHintAntigravity
         case .grok: return agentHintGrok
         case .zcode: return agentHintZCode
+        case .hermes: return agentHintHermes
         case .claude, .codex, .custom: return ""
         }
     }
@@ -732,6 +733,19 @@ extension NotchClaudeSessionStrings {
     }
     var agentHintZCode: String {
         "Hooks in ~/.zcode/cli/config.json, next to your own, for zcode and the ZCode app. Sessions show what runs and when ZCode waits on you. Allow, Deny and its questions are answered here or in ZCode, whichever comes first; replies are typed into the terminal of a zcode session."
+    }
+    var agentHintHermes: String {
+        "Hooks in ~/.hermes/config.yaml, next to your own, for hermes, its terminal UI and its app. Hermes asks you once to allow each new hook: answer y in its terminal, or run hermes --accept-hooks once. Until then its app and gateway skip them. Allow, Deny and its questions are answered on the island, in its terminal UI, its Ink UI and its app. A sudo password is still typed in Hermes. Chats it answers on Telegram, Discord and the like aren’t listed."
+    }
+    /// Under Hermes's switch (#244): Hermes asks once for each new hook.
+    var hermesOff: String {
+        "Turning this on adds the island’s hooks to ~/.hermes/config.yaml, next to yours. Hermes then asks once, in its terminal, before it runs each of them."
+    }
+    var hermesWaitingFormat: String {
+        "Hermes hasn’t allowed %d of the island’s hooks yet, so it skips them. Answer y when hermes asks in a terminal, or run hermes --accept-hooks once."
+    }
+    var hermesApproved: String {
+        "Hermes runs the island’s hooks. You can answer its permission prompts and questions on the island."
     }
     var agentHintAntigravity: String {
         "Hooks in ~/.gemini/config/hooks.json, next to your own, for Antigravity’s app, its IDE and agy. Sessions show what its agent runs; approvals stay in Antigravity, and Open takes you there."

@@ -461,7 +461,7 @@ function QuestionForm({ session }: { session: Session }) {
           {S.sendAnswer}
         </button>
       </div>
-      <div className="s-hint">{session.provider === "codex" ? S.codexQuestionHint : S.questionHint}</div>
+      <div className="s-hint">{S.questionHintFor(session.provider)}</div>
     </div>
   );
 }

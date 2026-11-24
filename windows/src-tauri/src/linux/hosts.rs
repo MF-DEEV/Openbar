@@ -234,6 +234,23 @@ pub fn interrupt(pid: u32, located: &Located) -> Result<(), DeliveryError> {
     }
 }
 
+/// Presses an arrow or a character in the tmux pane or kitty window, for
+/// Hermes's menu (#244).
+pub fn keys(pid: u32, located: &Located, key: crate::hosts::Key) -> Result<(), DeliveryError> {
+    match &located.host {
+        Host::Tmux { socket, pane } => tmux::keys(
+            socket,
+            pane,
+            process::terminal_of(pid).as_deref(),
+            &key.multiplexer_name(),
+        )
+        .map_err(|_| DeliveryError::Unreachable),
+        Host::Kitty { window, listen } => kitty::keys(listen, *window, pid, &key.kitty_name())
+            .map_err(|_| DeliveryError::Unreachable),
+        _ => Err(DeliveryError::Unreachable),
+    }
+}
+
 /// Brings the window of the tmux pane or kitty window `located` names forward.
 pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
     match &located.host {

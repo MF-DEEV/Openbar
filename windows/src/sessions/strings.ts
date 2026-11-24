@@ -261,6 +261,11 @@ export const S = {
   get codexQuestionHint() {
     return t("windows.sessions.codexQuestionHint");
   },
+  /** Under a question's card: the agent it goes to, as on the Mac (questionHint(for:)). */
+  questionHintFor(provider: Provider) {
+    if (provider === "claude") return this.questionHint;
+    return this.codexQuestionHint.split("Codex").join(PROVIDER_NAMES[provider]);
+  },
   get open() {
     return t("appUpdates.openApp");
   },

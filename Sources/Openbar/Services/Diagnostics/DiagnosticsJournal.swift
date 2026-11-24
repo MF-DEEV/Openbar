@@ -94,6 +94,7 @@ final class DiagnosticsJournal {
         case .mayAsk: return ("mayAsk", nil)
         case .title: return ("title", nil)
         case .usage: return ("usage", nil)
+        case .client: return ("client", nil)
         }
     }
 

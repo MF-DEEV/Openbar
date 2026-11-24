@@ -58,6 +58,8 @@ export interface SessionPrefs extends SessionSoundPrefs {
   agentAntigravity: boolean;
   agentGrok: boolean;
   agentZcode: boolean;
+  /** Off until turned on: Hermes asks the person to allow each new hook (#244). */
+  agentHermes: boolean;
   /** The Claude app's Code tab sessions in the list (#246). */
   claudeDesktop: boolean;
   /** Cowork's sessions, read from the Claude app's files; off until turned on (#246). */
@@ -141,6 +143,7 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   agentAntigravity: true,
   agentGrok: true,
   agentZcode: true,
+  agentHermes: false,
   claudeDesktop: true,
   claudeCowork: false,
   voiceReplies: true,

@@ -273,6 +273,7 @@ pub fn hook_file(provider: Provider, home: &Path, app: &str) -> Option<(PathBuf,
         Provider::Antigravity => (agents::antigravity_hooks(home), false),
         Provider::Grok => (agents::grok_hooks(home, app), true),
         Provider::Zcode => (agents::zcode_config(home), false),
+        Provider::Hermes => (crate::sessions::hermes::config(home), false),
         Provider::Claude | Provider::Codex | Provider::Custom => return None,
     })
 }

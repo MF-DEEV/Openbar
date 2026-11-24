@@ -913,6 +913,12 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [8, false],
     [9, false],
   ],
+  hermes: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -1041,6 +1047,20 @@ export const ZCODE_BODY = [
   ".ccaaaaaaacc.",
 ];
 
+/** Hermes's figure: a round head under the winged helmet of the god it is
+ * named after (W, white whatever the costume), with a gold band (A)
+ * (NotchClawdSprite.swift). */
+export const HERMES_BODY = [
+  "...AAAAAAA...",
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  ".cCCCCCCCCCc.",
+  "...ccccccc...",
+];
+
 function compose(
   costume: ClawdCostume,
   p: ClawdPose,
@@ -1117,6 +1137,12 @@ function compose(
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else if (character === "zcode") {
     put(s(0, 0, ZCODE_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "hermes") {
+    // The wings go first, so a hat sits over their roots.
+    put(s(-2, -2, ["W...", "WW..", ".WWW"]));
+    put(s(11, -2, ["...W", "..WW", "WWW."]));
+    put(s(0, 0, HERMES_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));
@@ -1202,6 +1228,8 @@ const COPILOT_GLOW: Rgb = [160, 232, 255];
 const CURSOR_EYES: Rgb = [236, 238, 246];
 /** The yellow of the i in Pi's mark. */
 const PI_YELLOW: Rgb = [241, 190, 88];
+/** The white of Hermes's helmet's wings. */
+const HERMES_WING: Rgb = [240, 240, 246];
 
 /** sRGB out of 255 for a letter on this costume, or null for one with no color. */
 export function color(letter: string, costume: ClawdCostume, character: Character = "clawd"): Rgb | null {
@@ -1219,6 +1247,7 @@ export function color(letter: string, costume: ClawdCostume, character: Characte
   // Dark eyes would sink into the dark cube.
   if (character === "cursor" && letter === "E") return CURSOR_EYES;
   // The i keeps Pi's yellow whatever the costume.
+  if (character === "hermes" && letter === "W") return HERMES_WING;
   if (character === "pi" && letter === "Y") return PI_YELLOW;
   if (character === "pi" && letter === "y") return shaded(PI_YELLOW);
   const shell = SHELL_RGB[costume.shell];

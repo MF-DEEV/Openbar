@@ -308,6 +308,11 @@ enum NotchClawdSprite {
         case .zcode:
             put(Stamp(x: 0, y: 0, rows: zcodeBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .hermes:
+            // The wings go first, so a hat sits over their roots.
+            hermesWings.forEach { put($0) }
+            put(Stamp(x: 0, y: 0, rows: hermesBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -349,6 +354,7 @@ enum NotchClawdSprite {
         case .antigravity: return [(0, true), (2, true), (10, false), (12, false)]
         case .grok: return [(3, true), (4, true), (8, false), (9, false)]
         case .zcode: return [(3, true), (4, true), (8, false), (9, false)]
+        case .hermes: return [(3, true), (4, true), (8, false), (9, false)]
         }
     }
 
@@ -478,6 +484,22 @@ enum NotchClawdSprite {
         "CCCCCAACCCCCC",
         ".ccaaaaaaacc.",
     ]
+    /// Hermes's figure: a round head under the winged helmet of the god it
+    /// is named after (W, white whatever the costume), with a gold band (A).
+    static let hermesBody = [
+        "...AAAAAAA...",
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        ".cCCCCCCCCCc.",
+        "...ccccccc...",
+    ]
+    private static let hermesWings = [Stamp(x: -2, y: -2, rows: ["W...", "WW..", ".WWW"]),
+                                      Stamp(x: 11, y: -2, rows: ["...W", "..WW", "WWW."])]
+    /// The white of the helmet's wings.
+    static let hermesWing = (red: 240, green: 240, blue: 246)
     private static let grokSlash = [Stamp(x: 10, y: -2, rows: ["..A", ".A.", "A.."]), Stamp(x: 1, y: 7, rows: [".A", "A."])]
     private static let devinAntennae = [Stamp(x: 3, y: -2, rows: ["A", "c"]), Stamp(x: 9, y: -2, rows: ["A", "c"])]
 
@@ -1060,6 +1082,8 @@ enum NotchClawdSprite {
             case "y": return shaded(piYellow)
             default: break
             }
+        case .hermes:
+            if letter == "W" { return hermesWing }
         case .vibe, .devin, .antigravity, .grok, .zcode:
             break
         case .clawd:

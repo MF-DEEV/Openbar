@@ -377,19 +377,41 @@ struct NotchSessionsAgentSettingsRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            NotchHookAgentMark(provider: provider, size: 14, working: false)
-                .frame(width: 18, height: 18)
-            Text(provider.displayName)
-                .font(.callout)
-                .fixedSize()
-            Spacer(minLength: 8)
-            Toggle(provider.displayName, isOn: $shown)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .onChange(of: shown) { _, _ in service.syncWithPreferences() }
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                NotchHookAgentMark(provider: provider, size: 14, working: false)
+                    .frame(width: 18, height: 18)
+                Text(provider.displayName)
+                    .font(.callout)
+                    .fixedSize()
+                Spacer(minLength: 8)
+                Toggle(provider.displayName, isOn: $shown)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .onChange(of: shown) { _, _ in service.syncWithPreferences() }
+            }
+            .opacity(shown ? 1 : 0.6)
+            // Hermes runs a new hook only once the person allowed it in its
+            // terminal: what to do, until it has (#244).
+            if provider == .hermes {
+                Text(hermesCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 26)
+                    .textSelection(.enabled)
+            }
         }
-        .opacity(shown ? 1 : 0.6)
+        .onAppear { if provider == .hermes { service.checkAgentHooks() } }
+    }
+
+    private var hermesCaption: String {
+        guard shown else { return text.hermesOff }
+        switch service.hermesApproval {
+        case .waiting(let count)?: return String(format: text.hermesWaitingFormat, count)
+        case .approved?: return text.hermesApproved
+        case nil: return text.hermesOff
+        }
     }
 }
