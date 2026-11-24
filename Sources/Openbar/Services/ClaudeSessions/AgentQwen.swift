@@ -69,6 +69,13 @@ enum AgentQwen {
 
     // MARK: Keys
 
+    /// Whether the terminal sends keys in one burst with a return after
+    /// them (Terminal's `do script`), rather than one by one.
+    static func oneBurst(_ host: ClaudeSessionHost) -> Bool {
+        if case .terminal = host { return true }
+        return false
+    }
+
     /// Whether the request is answered in Qwen Code's own dialog, by keys.
     static func answeredByKeys(_ asked: ClaudePermission) -> Bool {
         asked.asksQuestions || asked.tool == ClaudeToolSummary.planTool
@@ -76,40 +83,71 @@ enum AgentQwen {
 
     /// The keys that answer Qwen Code's own dialog for a question or a plan.
     ///
-    /// Arrows and Return only, never a choice's number: Terminal sends a
-    /// return after every key it types, and a number already picks, so that
-    /// return would answer the next question too. Each question opens on its
-    /// first choice: arrows down to the one picked and Return takes it; a
-    /// multiple choice is ticked with Space on each, then Return. "Type
-    /// something…" comes after the choices and takes the text typed on it.
-    /// With more than one question, a last tab asks to submit, its Submit
-    /// already picked. A plan's dialog offers to restore the mode before,
-    /// to auto-accept edits, to approve each and to keep planning, always
-    /// those four, and arrows wrap around them. Escape skips a question.
-    /// Two returns at Qwen Code's empty prompt would send the reply it
-    /// suggests, so no answer ever ends on a spare one. Nil for an answer
-    /// the dialog can't be given by keys.
-    static func keys(_ decision: ClaudeHookMessage.Decision, _ asked: ClaudePermission) -> [ClaudeTypingStep]? {
+    /// Qwen Code reads one key from each burst a terminal sends: arrows,
+    /// Space or Escape sent together with anything else are lost. So each
+    /// key goes out on its own, a moment apart. Terminal can't do that: it
+    /// types whatever it sends in one go and adds a return. There a
+    /// choice's number, which picks it at once, answers a single question
+    /// with one choice, and a plan's number approves it or keeps planning;
+    /// anything else is answered in Qwen Code (`keyable`).
+    ///
+    /// Elsewhere, each question opens on its first choice: arrows down to
+    /// the one picked and Return takes it; a multiple choice is ticked with
+    /// Space on each, then Return. "Type something…" comes after the
+    /// choices and takes the text typed on it. With more than one question,
+    /// a last tab asks to submit, its Submit already picked. A plan's dialog
+    /// offers to restore the mode before, to auto-accept edits, to approve
+    /// each and to keep planning, always those four. Escape skips a
+    /// question. Two returns at Qwen Code's empty prompt would send the
+    /// reply it suggests, so no answer ends on a spare one. Nil for an
+    /// answer the dialog can't be given by keys.
+    static func keys(_ decision: ClaudeHookMessage.Decision, _ asked: ClaudePermission,
+                     oneBurst: Bool = false) -> [ClaudeTypingStep]? {
         if asked.tool == ClaudeToolSummary.planTool {
+            let choice: Int
             switch decision {
-            case .allow, .allowAlways: return planKeys(planModes[0])
-            case .approvePlan(let mode): return planModes.contains(mode) ? planKeys(mode) : nil
-            // "No, keep planning", the last of four: Escape would bring
-            // Terminal's own return to the prompt behind.
-            case .deny: return [.keys([.down, .down, .down]), .enter]
+            case .allow, .allowAlways: choice = 2
+            case .approvePlan(let mode):
+                guard let index = planModes.firstIndex(of: mode) else { return nil }
+                choice = index + 2
+            // "No, keep planning", the last of four.
+            case .deny: choice = 4
             case .answer: return nil
             }
+            return oneBurst ? [.keys([.digit(choice)])] : apart(Array(repeating: .down, count: choice - 1) + [nil])
         }
         guard asked.asksQuestions else { return nil }
         switch decision {
-        case .deny: return [.keys([.escape])]
-        case .answer(let answers): return questionKeys(answers, asked.questions)
+        case .deny: return oneBurst ? nil : apart([.escape])
+        case .answer(let answers):
+            return oneBurst ? questionDigit(answers, asked.questions) : questionKeys(answers, asked.questions)
         default: return nil
         }
     }
 
-    private static func planKeys(_ mode: ClaudePlanMode) -> [ClaudeTypingStep] {
-        [.keys(Array(repeating: .down, count: mode == .acceptEdits ? 1 : 2)), .enter]
+    /// Whether the island can answer the request with keys at all in a
+    /// terminal that sends them in one burst (Terminal): a plan, or a single
+    /// question with one choice to pick.
+    static func keyable(_ asked: ClaudePermission, oneBurst: Bool) -> Bool {
+        guard answeredByKeys(asked) else { return false }
+        guard oneBurst else { return true }
+        if asked.tool == ClaudeToolSummary.planTool { return true }
+        return asked.questions.count == 1 && !asked.questions[0].multiSelect && asked.questions[0].options.count <= 9
+    }
+
+    /// Keys pressed one by one, a moment apart; nil stands for Return.
+    private static func apart(_ keys: [ClaudeKey?]) -> [ClaudeTypingStep] {
+        keys.flatMap { key -> [ClaudeTypingStep] in [key.map { .keys([$0]) } ?? .enter, .wait(keyGap)] }
+    }
+
+    static let keyGap = 0.06
+
+    /// A single question's choice, as its number.
+    private static func questionDigit(_ answers: [String: [String]], _ questions: [ClaudeQuestion]) -> [ClaudeTypingStep]? {
+        guard questions.count == 1, !questions[0].multiSelect, answers.count == 1,
+              let picked = answers.values.first, picked.count == 1,
+              let index = questions[0].options.firstIndex(where: { $0.label == picked[0] }), index < 9 else { return nil }
+        return [.keys([.digit(index + 1)])]
     }
 
     /// Each question's answer as keys, in the dialog's order.
@@ -128,18 +166,19 @@ enum AgentQwen {
                     guard let index = labels.firstIndex(of: label) else { return nil }
                     indices.append(index)
                 }
-                var keys: [ClaudeKey] = []
+                var keys: [ClaudeKey?] = []
                 var at = 0
                 for index in Set(indices).sorted() {
                     keys += Array(repeating: .down, count: index - at) + [.space]
                     at = index
                 }
-                steps += [.keys(keys), .enter]
+                steps += apart(keys + [nil])
             } else if let index = labels.firstIndex(of: picked[0]) {
-                steps += [.keys(Array(repeating: .down, count: index)), .enter]
+                steps += apart(Array(repeating: .down, count: index) + [nil])
             } else {
                 // Typed on "Type something…", which follows the choices.
-                steps += [.keys(Array(repeating: .down, count: labels.count)), .paste(picked[0]), .enter]
+                steps += apart(Array(repeating: .down, count: labels.count))
+                steps += [.paste(picked[0]), .wait(0.1), .enter]
             }
             steps.append(.wait(0.3))
         }

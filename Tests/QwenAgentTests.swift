@@ -213,19 +213,24 @@ enum QwenAgentTests {
 
     // MARK: Keys
 
+    /// Keys one by one, a moment apart, as the island sends them; nil is Return.
+    static func apart(_ keys: [ClaudeKey?]) -> [ClaudeTypingStep] {
+        keys.flatMap { [$0.map { ClaudeTypingStep.keys([$0]) } ?? .enter, .wait(AgentQwen.keyGap)] }
+    }
+
     static func keys(_ suite: TestSuite) {
         guard case .permission(let asked)? = AgentHookMessage.decode(envelope("PermissionRequest", asking), now: now,
                                                                       policy: T.on)?.events.first?.kind else {
             return suite.expect(false, "a question")
         }
         let question = "Which color should the button be?"
-        suite.expect(AgentQwen.keys(.answer([question: ["Red"]]), asked) == [.keys([]), .enter, .wait(0.3)]
-                     && AgentQwen.keys(.answer([question: ["Green"]]), asked) == [.keys([.down, .down]), .enter, .wait(0.3)],
-                     "a choice is reached with arrows and taken with Return")
+        suite.expect(AgentQwen.keys(.answer([question: ["Red"]]), asked) == apart([nil]) + [.wait(0.3)]
+                     && AgentQwen.keys(.answer([question: ["Green"]]), asked) == apart([.down, .down, nil]) + [.wait(0.3)],
+                     "a choice is reached with arrows and taken with Return, each key on its own")
         suite.expect(AgentQwen.keys(.answer([question: ["Purple please"]]), asked)
-                     == [.keys([.down, .down, .down]), .paste("Purple please"), .enter, .wait(0.3)],
+                     == apart([.down, .down, .down]) + [.paste("Purple please"), .wait(0.1), .enter, .wait(0.3)],
                      "a typed answer goes on Type something, after the choices")
-        suite.expect(AgentQwen.keys(.deny, asked) == [.keys([.escape])], "Skip is Escape")
+        suite.expect(AgentQwen.keys(.deny, asked) == apart([.escape]), "Skip is Escape")
         suite.expect(AgentQwen.keys(.allow, asked) == nil && AgentQwen.keys(.answer([:]), asked) == nil,
                      "a question is answered, never allowed or left empty")
         let two = [
@@ -235,7 +240,7 @@ enum QwenAgentTests {
                            options: [.init(label: "Tests"), .init(label: "Docs"), .init(label: "CI")], multiSelect: true),
         ]
         suite.expect(AgentQwen.questionKeys(["Which database?": ["SQLite"], "Which extras do you want?": ["CI", "Tests"]], two)
-                     == [.keys([.down]), .enter, .wait(0.3), .keys([.space, .down, .down, .space]), .enter, .wait(0.3), .enter],
+                     == apart([.down, nil]) + [.wait(0.3)] + apart([.space, .down, .down, .space, nil]) + [.wait(0.3), .enter],
                      "several questions: each answered in turn, ticks with Space, then Submit")
         suite.expect(AgentQwen.questionKeys(["Which database?": ["SQLite"], "Which extras do you want?": ["Mine"]], two) == nil
                      && AgentQwen.questionKeys(["Which database?": ["SQLite"]], two) == nil,
@@ -244,24 +249,37 @@ enum QwenAgentTests {
                                                                      policy: T.on)?.events.first?.kind else {
             return suite.expect(false, "a plan")
         }
-        suite.expect(AgentQwen.keys(.approvePlan(.acceptEdits), plan) == [.keys([.down]), .enter]
-                     && AgentQwen.keys(.approvePlan(.manual), plan) == [.keys([.down, .down]), .enter]
-                     && AgentQwen.keys(.allow, plan) == [.keys([.down]), .enter]
+        suite.expect(AgentQwen.keys(.approvePlan(.acceptEdits), plan) == apart([.down, nil])
+                     && AgentQwen.keys(.approvePlan(.manual), plan) == apart([.down, .down, nil])
+                     && AgentQwen.keys(.allow, plan) == apart([.down, nil])
                      && AgentQwen.keys(.approvePlan(.auto), plan) == nil
-                     && AgentQwen.keys(.deny, plan) == [.keys([.down, .down, .down]), .enter],
+                     && AgentQwen.keys(.deny, plan) == apart([.down, .down, .down, nil]),
                      "a plan is approved into auto-accept edits or each edit, or kept planning")
+        // Terminal types its keys in one burst, of which Qwen Code reads one: a number.
+        suite.expect(AgentQwen.keys(.approvePlan(.manual), plan, oneBurst: true) == [.keys([.digit(3)])]
+                     && AgentQwen.keys(.deny, plan, oneBurst: true) == [.keys([.digit(4)])]
+                     && AgentQwen.keys(.answer([question: ["Blue"]]), asked, oneBurst: true) == [.keys([.digit(2)])]
+                     && AgentQwen.keys(.answer([question: ["Purple"]]), asked, oneBurst: true) == nil
+                     && AgentQwen.keys(.deny, asked, oneBurst: true) == nil,
+                     "in Terminal a number picks a plan's mode or a question's one choice")
+        let several = ClaudePermission(requestID: "r", tool: "AskUserQuestion", summary: nil, offersAlways: false, since: now,
+                                       questions: two)
+        suite.expect(AgentQwen.keyable(asked, oneBurst: true) && AgentQwen.keyable(plan, oneBurst: true)
+                     && !AgentQwen.keyable(several, oneBurst: true) && AgentQwen.keyable(several, oneBurst: false)
+                     && AgentQwen.oneBurst(.terminal(tty: "/dev/ttys001")) && !AgentQwen.oneBurst(.iterm(tty: "/dev/ttys001")),
+                     "several questions are answered in Qwen Code when its terminal is Terminal")
         guard case .heldPermission(let held)? = AgentHookMessage.decode(envelope("PermissionRequest", shell), now: now,
                                                                          policy: T.on)?.events.first?.kind else {
             return suite.expect(false, "a tool's request")
         }
-        suite.expect(AgentQwen.keys(.allow, held) == nil && !AgentQwen.answeredByKeys(held),
+        suite.expect(AgentQwen.keys(.allow, held) == nil && !AgentQwen.answeredByKeys(held) && !AgentQwen.keyable(held, oneBurst: false),
                      "a tool's request is answered through the hook, never by keys")
         // The keys reach a terminal as each of them names them.
         suite.expect(ClaudeKey.escape.multiplexerName == "Escape" && ClaudeKey.escape.zellijName == "Esc"
                      && ClaudeKey.space.multiplexerName == "Space" && ClaudeKey.space.kittyName == "space"
-                     && ClaudeKey.escape.bytes == "\u{1B}" && ClaudeKey.space.bytes == " "
-                     && ClaudeKey.appleScript([.space, .escape]) == "\" \" & (character id 27)",
-                     "Escape and Space as tmux, zellij, kitty, WezTerm and Terminal take them")
+                     && ClaudeKey.escape.bytes == "\u{1B}" && ClaudeKey.space.bytes == " " && ClaudeKey.digit(3).bytes == "3"
+                     && ClaudeKey.appleScript([.space, .escape, .digit(2)]) == "\" \" & (character id 27) & \"2\"",
+                     "Escape, Space and numbers as tmux, zellij, kitty, WezTerm and Terminal take them")
     }
 
     // MARK: Turns

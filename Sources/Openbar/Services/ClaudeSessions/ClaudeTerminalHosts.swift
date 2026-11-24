@@ -127,6 +127,8 @@ enum ClaudeTypingStep: Equatable {
 /// A key the island presses at an agent's menu.
 enum ClaudeKey: Equatable {
     case down
+    /// A choice's number: Qwen Code's dialogs pick it at once (#239).
+    case digit(Int)
     /// Ticks a choice of a multiple choice (Qwen Code, #239).
     case space
     /// Closes a dialog unanswered (Qwen Code, #239).
@@ -136,6 +138,7 @@ enum ClaudeKey: Equatable {
     var bytes: String {
         switch self {
         case .down: return "\u{1B}[B"
+        case .digit(let number): return String(number)
         case .space: return " "
         case .escape: return "\u{1B}"
         }
@@ -145,6 +148,7 @@ enum ClaudeKey: Equatable {
     var multiplexerName: String {
         switch self {
         case .down: return "Down"
+        case .digit(let number): return String(number)
         case .space: return "Space"
         case .escape: return "Escape"
         }
@@ -157,6 +161,7 @@ enum ClaudeKey: Equatable {
     var kittyName: String {
         switch self {
         case .down: return "down"
+        case .digit(let number): return String(number)
         case .space: return "space"
         case .escape: return "escape"
         }
@@ -167,6 +172,7 @@ enum ClaudeKey: Equatable {
     var appleScript: String {
         switch self {
         case .down: return "(character id 27) & \"[B\""
+        case .digit(let number): return "\"\(number)\""
         case .space: return "\" \""
         case .escape: return "(character id 27)"
         }

@@ -527,8 +527,8 @@ final class ClaudeSessionService: ObservableObject {
             if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .qwen, AgentQwen.answeredByKeys(current) {
                 // Qwen Code's own dialog takes a question's or a plan's answer,
                 // as keys where its terminal takes them (#239).
-                guard let keys = AgentQwen.keys(decision, current) else { return }
-                guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host) else { return }
+                guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host),
+                      let keys = AgentQwen.keys(decision, current, oneBurst: AgentQwen.oneBurst(session.host)) else { return }
                 actions.async { [self] in
                     guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
                     queue.async { [self] in
