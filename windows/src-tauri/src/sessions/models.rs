@@ -791,7 +791,7 @@ pub struct SessionCounts {
     pub working_codex: i64,
     /// Of `working`, the ones of Gemini CLI, Copilot CLI, OpenCode, Cursor,
     /// Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode, Hermes
-    /// and Qwen Code.
+    /// Qwen Code and Factory Droid.
     pub working_gemini: i64,
     pub working_copilot: i64,
     pub working_opencode: i64,
@@ -804,6 +804,7 @@ pub struct SessionCounts {
     pub working_zcode: i64,
     pub working_hermes: i64,
     pub working_qwen: i64,
+    pub working_droid: i64,
     /// Of `working`, the ones of tools added on the Hooks page (#236).
     pub working_custom: i64,
     pub waiting: i64,
@@ -832,6 +833,7 @@ impl SessionCounts {
                     Provider::Zcode => counts.working_zcode += 1,
                     Provider::Hermes => counts.working_hermes += 1,
                     Provider::Qwen => counts.working_qwen += 1,
+                    Provider::Droid => counts.working_droid += 1,
                     Provider::Custom => counts.working_custom += 1,
                     Provider::Claude => {}
                 }
@@ -881,6 +883,9 @@ pub enum Provider {
     /// Alibaba's Qwen Code (`qwen`), heard through hooks in its settings,
     /// whose permission hook the island holds and answers (#239).
     Qwen,
+    /// Factory's Droid (`droid`), heard through hooks in `~/.factory`; its
+    /// prompts are answered with keys in its terminal (#242).
+    Droid,
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     Custom,

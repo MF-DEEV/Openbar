@@ -332,7 +332,8 @@ pub fn deliver(
 
 /// A key the island presses in a session's terminal (#243): Return and
 /// Ctrl-C for Grok's prompt, the down arrow for Hermes's menu (#244),
-/// Space and Escape for Qwen Code's dialogs (#239).
+/// Space and Escape for Qwen Code's dialogs (#239), Tab and a choice's
+/// number for Factory Droid's (#242).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Key {
     Enter,
@@ -340,6 +341,9 @@ pub enum Key {
     Down,
     Space,
     Escape,
+    Tab,
+    /// A choice's number, 1 to 9.
+    Digit(u8),
 }
 
 impl Key {
@@ -351,6 +355,8 @@ impl Key {
             Key::Down => "\u{1b}[B".into(),
             Key::Space => " ".into(),
             Key::Escape => "\u{1b}".into(),
+            Key::Tab => "\t".into(),
+            Key::Digit(n) => n.to_string(),
         }
     }
 
@@ -362,6 +368,8 @@ impl Key {
             Key::Down => "Down".into(),
             Key::Space => "Space".into(),
             Key::Escape => "Escape".into(),
+            Key::Tab => "Tab".into(),
+            Key::Digit(n) => n.to_string(),
         }
     }
 
@@ -382,6 +390,8 @@ impl Key {
             Key::Down => "down".into(),
             Key::Space => "space".into(),
             Key::Escape => "escape".into(),
+            Key::Tab => "tab".into(),
+            Key::Digit(n) => n.to_string(),
         }
     }
 }
@@ -430,6 +440,8 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
                     Key::Down => "down".into(),
                     Key::Space => "space".into(),
                     Key::Escape => "escape".into(),
+                    Key::Tab => "tab".into(),
+                    Key::Digit(n) => n.to_string(),
                     Key::Enter | Key::Interrupt => unreachable!(),
                 },
             },
@@ -438,7 +450,7 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
         .map_err(|_| DeliveryError::Unreachable),
         (Key::Enter, _) => deliver(pid, located, "", &[]),
         (
-            Key::Down | Key::Space | Key::Escape,
+            Key::Down | Key::Space | Key::Escape | Key::Tab | Key::Digit(_),
             Host::Wezterm {
                 gui_pid,
                 pane,
@@ -447,7 +459,7 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
         ) => wezterm::keys(*gui_pid, *pane, socket, &key.bytes())
             .map_err(|_| DeliveryError::Unreachable),
         (
-            Key::Down | Key::Space | Key::Escape,
+            Key::Down | Key::Space | Key::Escape | Key::Tab | Key::Digit(_),
             Host::Zellij {
                 session,
                 pane,
@@ -466,9 +478,10 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
             zellij::keys(&target, *pane, &key.zellij_name()).map_err(|_| DeliveryError::Unreachable)
         }
         #[cfg(target_os = "linux")]
-        (Key::Down | Key::Space | Key::Escape, Host::Tmux { .. } | Host::Kitty { .. }) => {
-            crate::linux::hosts::keys(pid, located, key)
-        }
+        (
+            Key::Down | Key::Space | Key::Escape | Key::Tab | Key::Digit(_),
+            Host::Tmux { .. } | Host::Kitty { .. },
+        ) => crate::linux::hosts::keys(pid, located, key),
         (
             Key::Interrupt,
             Host::Wezterm {

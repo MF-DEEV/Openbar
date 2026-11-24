@@ -938,6 +938,40 @@ impl Service {
                 named.kind = hook_agents::Kind::Model(model);
                 inner.hook_agents.ingest(named, t);
             }
+            if provider == models::Provider::Droid
+                && let Some(path) = decoded.transcript.as_deref()
+            {
+                // The model can change at any prompt: the session's own settings name it (#242).
+                if matches!(
+                    event.kind,
+                    hook_agents::Kind::Prompt(_)
+                        | hook_agents::Kind::Stopped { .. }
+                        | hook_agents::Kind::Started
+                ) && let Some(home) = hooks::installer::home_dir()
+                    && let Some(model) = super::droid::model(Path::new(path), &home)
+                    && inner
+                        .hook_agents
+                        .entry(&event.id())
+                        .is_none_or(|e| e.model() != Some(model.as_str()))
+                {
+                    let mut named = event.clone();
+                    named.kind = hook_agents::Kind::Model(model);
+                    inner.hook_agents.ingest(named, t);
+                }
+                // Droid's Stop names its reply: with previews on, its transcript holds the text.
+                if previews
+                    && let hook_agents::Kind::Stopped {
+                        last_text: None,
+                        failed,
+                    } = event.kind
+                    && let Some(message) = decoded.reply_id.as_deref()
+                {
+                    event.kind = hook_agents::Kind::Stopped {
+                        last_text: super::droid::reply(Path::new(path), message),
+                        failed,
+                    };
+                }
+            }
             // Grok's hooks name the model only for xAI's own: its session's summary names any.
             if provider == models::Provider::Grok
                 && matches!(
@@ -1708,6 +1742,37 @@ impl Service {
                     };
                     drop(inner);
                     if press_qwen(entry.pid as u32, &located, &steps).is_err() {
+                        return false;
+                    }
+                    let mut inner = self.inner.lock().unwrap();
+                    let t = now();
+                    inner.hook_agents.resolve(session, request);
+                    inner.hook_agents.acknowledge(session, t);
+                    self.publish(&mut inner, t);
+                    return true;
+                }
+                // Droid's prompts take keys: Return for its yes, arrows to its
+                // no, numbers for questions and specs; its hooks tell when it
+                // moves on (#242).
+                if let Some(entry) = inner
+                    .hook_agents
+                    .entry(session)
+                    .filter(|e| e.provider == models::Provider::Droid)
+                    .cloned()
+                {
+                    let Some(keys) = super::droid::keys(&decision, p) else {
+                        return false;
+                    };
+                    let Some(located) = inner
+                        .hosts
+                        .get(&entry.pid)
+                        .cloned()
+                        .filter(|l| hosts::takes_keys(&l.host))
+                    else {
+                        return false;
+                    };
+                    drop(inner);
+                    if press_droid(entry.pid as u32, &located, &keys).is_err() {
                         return false;
                     }
                     let mut inner = self.inner.lock().unwrap();
@@ -3170,6 +3235,32 @@ fn press_qwen(
         }
         // Each key in turn, as a person presses them.
         std::thread::sleep(std::time::Duration::from_millis(40));
+    }
+    Ok(())
+}
+
+/// Presses Droid's keys in turn: a dialog a number or Tab moves on from
+/// gets a moment to open the next step before the key after it.
+fn press_droid(
+    pid: u32,
+    located: &hosts::Located,
+    keys: &[hosts::Key],
+) -> Result<(), hosts::DeliveryError> {
+    let mut previous: Option<hosts::Key> = None;
+    for key in keys {
+        let pause = match previous {
+            Some(hosts::Key::Digit(_) | hosts::Key::Tab)
+                if !matches!(key, hosts::Key::Digit(_) | hosts::Key::Tab) =>
+            {
+                400
+            }
+            Some(hosts::Key::Digit(_)) if keys.len() == 2 => 400,
+            Some(_) => 60,
+            None => 0,
+        };
+        std::thread::sleep(std::time::Duration::from_millis(pause));
+        hosts::press(pid, located, *key)?;
+        previous = Some(*key);
     }
     Ok(())
 }
