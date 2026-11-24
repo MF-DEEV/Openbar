@@ -391,6 +391,7 @@ struct NotchClaudeSessionStrings {
         case .zcode: return agentHintZCode
         case .hermes: return agentHintHermes
         case .qwen: return agentHintQwen
+        case .droid: return agentHintDroid
         case .claude, .codex, .custom: return ""
         }
     }
@@ -738,6 +739,11 @@ extension NotchClaudeSessionStrings {
     var agentHintQwen: String {
         "Hooks in ~/.qwen/settings.json, next to your own, for qwen. Sessions show what runs and when Qwen Code waits on you. Allow and Deny are answered on the island, which holds Qwen Code’s request until you answer: press Open to answer in Qwen Code instead. Its questions and plans are answered on the island too, by keys typed into its terminal; replies are typed there as well."
     }
+
+    var agentHintDroid: String {
+        "Hooks in ~/.factory, next to your own, for droid. Sessions show what runs and when Factory Droid waits on you. Allow and Deny, its questions and its specs are answered on the island by keys typed into its terminal in Terminal, iTerm2, tmux, zellij, WezTerm or kitty; elsewhere you answer in Factory Droid. Replies are typed there too."
+    }
+
     var agentHintHermes: String {
         "Hooks in ~/.hermes/config.yaml, next to your own, for hermes, its terminal UI and its app. Hermes asks you once to allow each new hook: answer y in its terminal, or run hermes --accept-hooks once. Until then its app and gateway skip them. Allow, Deny and its questions are answered on the island, in its terminal UI, its Ink UI and its app. A sudo password is still typed in Hermes. Chats it answers on Telegram, Discord and the like aren’t listed."
     }

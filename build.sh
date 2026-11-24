@@ -343,6 +343,7 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/AgentHookInstaller.swift
         Sources/Openbar/Services/ClaudeSessions/AgentHermes.swift
         Sources/Openbar/Services/ClaudeSessions/AgentQwen.swift
+        Sources/Openbar/Services/ClaudeSessions/AgentDroid.swift
         Sources/Openbar/Services/ClaudeSessions/HookTargets.swift
         Sources/Openbar/Services/ClaudeSessions/HookMaintenance.swift
         Sources/Openbar/Core/HooksPageStrings.swift

@@ -128,6 +128,9 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     /// Alibaba's Qwen Code (`qwen`), heard through hooks in its settings,
     /// whose permission hook the island holds and answers (#239).
     case qwen
+    /// Factory's Droid (`droid`), heard through hooks in `~/.factory`; its
+    /// prompts are answered with keys in its terminal (#242).
+    case droid
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     case custom
@@ -142,7 +145,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .custom: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .droid, .custom: return nil
         }
     }
 
@@ -163,6 +166,7 @@ extension ClaudeSessionProvider {
         case .zcode: return "ZCode"
         case .hermes: return "Hermes"
         case .qwen: return "Qwen Code"
+        case .droid: return "Factory Droid"
         case .custom: return "Other tool"
         }
     }
@@ -178,6 +182,7 @@ extension ClaudeSessionProvider {
         case .antigravity: return "Antigravity"
         case .grok: return "Grok"
         case .qwen: return "Qwen"
+        case .droid: return "Droid"
         default: return displayName
         }
     }
@@ -187,7 +192,7 @@ extension ClaudeSessionProvider {
 
     /// The agents that report through the island's hooks or plugin.
     static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok,
-                                                      .zcode, .hermes, .qwen]
+                                                      .zcode, .hermes, .qwen, .droid]
 
     var reportsThroughHooks: Bool { Self.hookAgents.contains(self) }
 
@@ -205,10 +210,12 @@ extension ClaudeSessionProvider {
     /// dangerous command; its classic terminal UI takes Return for the
     /// Allow once it has picked and arrow keys down to Deny. Qwen Code's
     /// permission hook holds its request until the island answers; its
-    /// questions and plans take keys in its terminal.
+    /// questions and plans take keys in its terminal. Factory Droid's hooks
+    /// can't approve a call it asks about either, but its prompt takes Return
+    /// for yes and Escape for no, and digits for its questions and specs.
     var answersPermissions: Bool {
         switch self {
-        case .claude, .codex, .opencode, .grok, .zcode, .hermes, .qwen: return true
+        case .claude, .codex, .opencode, .grok, .zcode, .hermes, .qwen, .droid: return true
         case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return false
         }
     }
