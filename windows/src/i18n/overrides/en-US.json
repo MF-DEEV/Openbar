@@ -653,7 +653,7 @@
   "windows.settings.sessions.showAgent": "Show %@ in Sessions",
   "windows.settings.sessions.hermesOff": "Turning this on adds the island's hooks to ~/.hermes/config.yaml, next to yours. Hermes then asks once, in its terminal, before it runs each of them.",
   "windows.settings.sessions.hermesWaiting": "Hermes hasn't allowed %@ of the island's hooks yet, so it skips them. Answer y when hermes asks in a terminal, or run hermes --accept-hooks once.",
-  "windows.settings.sessions.hermesApproved": "Hermes runs the island's hooks. Allow, Deny and one-choice questions work with keys at its classic prompt; in its Ink UI and its app you answer in Hermes.",
+  "windows.settings.sessions.hermesApproved": "Hermes runs the island's hooks. You can answer its permission prompts and questions on the island.",
   "windows.settings.sessions.agentHintGemini": "Hooks in .gemini\\settings.json, next to your own. You answer Gemini CLI’s permission prompts in its terminal; replies are typed there.",
   "windows.settings.sessions.agentHintAntigravity": "Hooks in .gemini\\config\\hooks.json, next to your own, for Antigravity’s app, its IDE and agy. Approvals stay in Antigravity; Open takes you there.",
   "windows.settings.sessions.agentHintGrok": "Hooks in a file of the island’s own in .grok\\hooks. Allow and Deny press Return or Ctrl+C at Grok CLI’s prompt in its console, WezTerm or zellij; elsewhere you answer in Grok CLI. Its questions are answered there, and replies are typed into its terminal.",
