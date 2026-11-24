@@ -21,7 +21,7 @@ use windows::Win32::System::Console::{
     AttachConsole, FreeConsole, GetConsoleTitleW, GetConsoleWindow, INPUT_RECORD, INPUT_RECORD_0,
     KEY_EVENT, KEY_EVENT_RECORD, KEY_EVENT_RECORD_0, WriteConsoleInputW,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::{VK_DOWN, VK_RETURN};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VK_DOWN, VK_ESCAPE, VK_RETURN, VK_SPACE};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GA_ROOTOWNER, GW_OWNER, GetAncestor, GetWindow, GetWindowThreadProcessId,
     IsIconic, IsWindowVisible, SW_RESTORE, SetForegroundWindow, ShowWindow,
@@ -47,8 +47,8 @@ pub enum Action {
     /// Presses Return or Ctrl-C as keys, nothing pasted: Grok CLI's
     /// prompt takes them for yes and no (#243).
     Key { interrupt: bool },
-    /// Presses the down arrow (`down`) as a key, for
-    /// Hermes's menu (#244).
+    /// Presses the down arrow (`down`) as a key, for Hermes's menu (#244),
+    /// or Space (`space`) or Escape (`escape`) for Qwen Code's (#239).
     Press { key: String },
     /// Prints the window that shows the console.
     Window,
@@ -441,6 +441,9 @@ unsafe fn press(interrupt: bool) -> windows::core::Result<()> {
 unsafe fn press_key(name: &str) -> windows::core::Result<()> {
     let records = match name {
         "down" => key(VK_DOWN.0, '\0'),
+        // Qwen Code's dialogs (#239).
+        "space" => key(VK_SPACE.0, ' '),
+        "escape" => key(VK_ESCAPE.0, '\u{1b}'),
         _ => return Ok(()),
     };
     let input = unsafe { console_input()? };

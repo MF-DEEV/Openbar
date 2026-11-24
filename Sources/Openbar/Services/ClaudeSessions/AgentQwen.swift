@@ -85,14 +85,18 @@ enum AgentQwen {
     /// With more than one question, a last tab asks to submit, its Submit
     /// already picked. A plan's dialog offers to restore the mode before,
     /// to auto-accept edits, to approve each and to keep planning, always
-    /// those four. Escape skips the question or keeps planning. Nil for an
-    /// answer the dialog can't be given by keys.
+    /// those four, and arrows wrap around them. Escape skips a question.
+    /// Two returns at Qwen Code's empty prompt would send the reply it
+    /// suggests, so no answer ever ends on a spare one. Nil for an answer
+    /// the dialog can't be given by keys.
     static func keys(_ decision: ClaudeHookMessage.Decision, _ asked: ClaudePermission) -> [ClaudeTypingStep]? {
         if asked.tool == ClaudeToolSummary.planTool {
             switch decision {
             case .allow, .allowAlways: return planKeys(planModes[0])
             case .approvePlan(let mode): return planModes.contains(mode) ? planKeys(mode) : nil
-            case .deny: return [.keys([.escape])]
+            // "No, keep planning", the last of four: Escape would bring
+            // Terminal's own return to the prompt behind.
+            case .deny: return [.keys([.down, .down, .down]), .enter]
             case .answer: return nil
             }
         }

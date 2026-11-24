@@ -189,6 +189,8 @@ export type Provider =
   | "zcode"
   /** Nous Research's Hermes Agent, heard through shell hooks its gateway runs (#244). */
   | "hermes"
+  /** Alibaba's Qwen Code, heard through hooks in its settings, whose permission hook the island holds (#239). */
+  | "qwen"
   /** A tool with Claude Code style hooks added on the Hooks page (#236): never one of the named agents. */
   | "custom";
 
@@ -207,6 +209,7 @@ export const PROVIDERS: readonly Provider[] = [
   "grok",
   "zcode",
   "hermes",
+  "qwen",
 ];
 
 /** The agents that report through the island's hooks or plugin
@@ -223,6 +226,7 @@ export const HOOK_AGENTS = [
   "grok",
   "zcode",
   "hermes",
+  "qwen",
 ] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
@@ -241,6 +245,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   grok: "Grok",
   zcode: "ZCode",
   hermes: "Hermes",
+  qwen: "Qwen",
   custom: "Other tool",
 };
 
@@ -262,6 +267,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   grok: "Grok CLI",
   zcode: "ZCode",
   hermes: "Hermes",
+  qwen: "Qwen Code",
   custom: "Other tool",
 };
 
@@ -393,6 +399,7 @@ export interface Counts {
   workingGrok?: number;
   workingZcode?: number;
   workingHermes?: number;
+  workingQwen?: number;
   /** Of `working`, the tools added on the Hooks page (#236). */
   workingCustom?: number;
   waiting: number;
@@ -463,6 +470,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     grok: counts.workingGrok ?? 0,
     zcode: counts.workingZcode ?? 0,
     hermes: counts.workingHermes ?? 0,
+    qwen: counts.workingQwen ?? 0,
     custom: counts.workingCustom ?? 0,
   };
   if (provider === "claude") {

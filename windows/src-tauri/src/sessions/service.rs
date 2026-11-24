@@ -210,6 +210,8 @@ struct Inner {
     hook_agents: HookAgents,
     /// Where each Hermes session runs: its hooks name only its gateway (#244).
     hermes_places: super::hermes::Places,
+    /// Which of Qwen Code's events end or carry on its turns (#239).
+    qwen_turns: super::qwen::Turns,
     agent_pending: HashMap<String, AgentPending>,
     inspection: super::inspection::Gate,
     /// What each ask looks like it does, for the queue's Allow all (#269).
@@ -305,6 +307,7 @@ impl Service {
                 local_codex: Vec::new(),
                 hook_agents: HookAgents::default(),
                 hermes_places: Default::default(),
+                qwen_turns: Default::default(),
                 agent_pending: HashMap::new(),
                 inspection: Default::default(),
                 risks: {
@@ -684,6 +687,25 @@ impl Service {
         if inner.hidden_agents.contains(&provider) {
             return;
         }
+        // Qwen Code's helpers after a turn, and its idle notes inside one,
+        // aren't the session's (#239).
+        if provider == models::Provider::Qwen
+            && let Some(session) = decoded.events.first().map(|e| e.session_id.clone())
+        {
+            if decoded
+                .events
+                .iter()
+                .any(|e| matches!(e.kind, hook_agents::Kind::Ended))
+            {
+                inner.qwen_turns.forget(&session);
+            } else if let Some(fact) = decoded.qwen
+                && !inner
+                    .qwen_turns
+                    .keep(&session, decoded.turn.as_deref(), fact, t)
+            {
+                return;
+            }
+        }
         // The agent is the process above the hook and its shells; OpenCode's
         // plugin writes from inside it.
         let chain: Vec<(u32, String)> = connection
@@ -729,6 +751,7 @@ impl Service {
             && let Some(body) = match provider {
                 models::Provider::Vibe => hook_agents::vibe_reply(&Decision::Allow, &[]),
                 models::Provider::Zcode => hook_agents::zcode_reply(&Decision::Allow, None),
+                models::Provider::Qwen => super::qwen::reply(&Decision::Allow),
                 _ => hook_agents::opencode_reply(&Decision::Allow),
             }
             && let Some(connection) = connection.take()
@@ -774,6 +797,16 @@ impl Service {
             if let hook_agents::Kind::Permission(p) | hook_agents::Kind::HeldPermission(p) =
                 &event.kind
                 && proceeded.as_deref() == Some(p.request_id.as_str())
+            {
+                continue;
+            }
+            // Qwen Code's dialog for a question or plan the island shows a card for (#239).
+            if provider == models::Provider::Qwen
+                && matches!(event.kind, hook_agents::Kind::Question)
+                && inner
+                    .hook_agents
+                    .entry(&event.id())
+                    .is_some_and(|e| e.permission.is_some())
             {
                 continue;
             }
@@ -1614,6 +1647,37 @@ impl Service {
                     self.publish(&mut inner, t);
                     return true;
                 }
+                // Qwen Code's own dialog takes a question's or a plan's
+                // answer, as keys where its terminal takes them (#239).
+                if let Some(entry) = inner
+                    .hook_agents
+                    .entry(session)
+                    .filter(|e| e.provider == models::Provider::Qwen)
+                    .cloned()
+                    && super::qwen::answered_by_keys(p)
+                {
+                    let Some(steps) = super::qwen::keys(&decision, p) else {
+                        return false;
+                    };
+                    let Some(located) = inner
+                        .hosts
+                        .get(&entry.pid)
+                        .cloned()
+                        .filter(|l| hosts::takes_keys(&l.host))
+                    else {
+                        return false;
+                    };
+                    drop(inner);
+                    if press_qwen(entry.pid as u32, &located, &steps).is_err() {
+                        return false;
+                    }
+                    let mut inner = self.inner.lock().unwrap();
+                    let t = now();
+                    inner.hook_agents.resolve(session, request);
+                    inner.hook_agents.acknowledge(session, t);
+                    self.publish(&mut inner, t);
+                    return true;
+                }
                 // Grok's prompt takes Return for the yes it has picked and
                 // Ctrl-C for no; its hooks tell when it moves on (#243).
                 if let Some(entry) = inner
@@ -1651,6 +1715,7 @@ impl Service {
                 let provider = inner.hook_agents.entry(session).map(|e| e.provider);
                 let vibe = provider == Some(models::Provider::Vibe);
                 let zcode = provider == Some(models::Provider::Zcode);
+                let qwen = provider == Some(models::Provider::Qwen);
                 if vibe || zcode {
                     // A question is answered or skipped, never allowed; answers go only to a question.
                     let asks = p.asks_questions();
@@ -1678,6 +1743,8 @@ impl Service {
                         .get(request)
                         .and_then(|p| p.input.clone());
                     hook_agents::zcode_reply(&decision, input.as_ref())
+                } else if qwen {
+                    super::qwen::reply(&decision)
                 } else {
                     hook_agents::opencode_reply(&decision)
                 };
@@ -2099,7 +2166,34 @@ impl Service {
         ok
     }
 
+    /// Lets Qwen Code's held requests go unanswered, so it asks in its own
+    /// dialog: the person went to answer there (#239).
+    fn release_held(&self, session: &str) {
+        let mut inner = self.inner.lock().unwrap();
+        if inner
+            .hook_agents
+            .entry(session)
+            .is_none_or(|e| e.provider != models::Provider::Qwen)
+        {
+            return;
+        }
+        let held: Vec<String> = inner
+            .agent_pending
+            .iter()
+            .filter(|(_, p)| p.session == session)
+            .map(|(r, _)| r.clone())
+            .collect();
+        for request in held {
+            // Dropped unanswered: the hook prints nothing.
+            inner.agent_pending.remove(&request);
+            inner.hook_agents.resolve(session, &request);
+        }
+        let t = now();
+        self.publish(&mut inner, t);
+    }
+
     fn open_found(&self, session: &str) -> bool {
+        self.release_held(session);
         let desktop = {
             let inner = self.inner.lock().unwrap();
             inner
@@ -3018,6 +3112,26 @@ fn allowable(events: &[hook_agents::AgentEvent], request: &str) -> Option<models
         }
         _ => None,
     })
+}
+
+/// Types Qwen Code's answer into its dialog: keys one by one, a typed
+/// answer pasted and sent with one Return, pauses between questions.
+fn press_qwen(
+    pid: u32,
+    located: &hosts::Located,
+    steps: &[super::qwen::Step],
+) -> Result<(), hosts::DeliveryError> {
+    use super::qwen::Step;
+    for step in steps {
+        match step {
+            Step::Key(key) => hosts::press(pid, located, *key)?,
+            Step::Text(text) => hosts::deliver(pid, located, text, &[])?,
+            Step::Wait(ms) => std::thread::sleep(std::time::Duration::from_millis(*ms)),
+        }
+        // Each key in turn, as a person presses them.
+        std::thread::sleep(std::time::Duration::from_millis(40));
+    }
+    Ok(())
 }
 
 /// Grok's prompt: Return for the yes it has picked, Ctrl-C for no.

@@ -327,6 +327,12 @@ export const VibeMark = layeredMark(MISTRAL_LAYERS);
 /** Devin's hexagons. */
 export const DevinMark = layeredMark(DEVIN_LAYERS);
 
+/** Qwen Code's mark (@lobehub/icons-static-svg 1.106.0, `qwen`): three
+ * bars round a hexagon, in its blue lifted for the dark island. */
+export const QWEN_PATH =
+  "M19.713 2.825h-5.907c0-.251-.066-.503-.196-.728L12.819.728A1.46 1.46 0 0 0 11.559 0h-1.58c-.52 0-1 .275-1.26.728l-2.42 4.19a1.45 1.45 0 0 0 0 1.453l.791 1.37c.26.448.74.727 1.26.727h11.36c.52 0 1-.275 1.26-.728l.79-1.37a1.45 1.45 0 0 0 0-1.451l-.79-1.37a1.46 1.46 0 0 0-1.26-.728zM.195 9.905l2.951 5.115a1.46 1.46 0 0 0-.531.531l-.791 1.37a1.45 1.45 0 0 0 0 1.452l.79 1.37c.26.448.74.727 1.26.727h4.84c.52 0 1-.275 1.26-.728l.79-1.37a1.45 1.45 0 0 0 0-1.451L5.086 7.083a1.46 1.46 0 0 0-1.26-.728h-1.58c-.52 0-1 .276-1.26.728l-.79 1.37a1.45 1.45 0 0 0 0 1.452m15.888 13.367 2.951-5.115c.217.125.469.196.728.196h1.582c.52 0 1-.275 1.26-.728l.79-1.37a1.45 1.45 0 0 0 0-1.451l-2.42-4.191a1.46 1.46 0 0 0-1.259-.728h-1.582c-.52 0-1 .276-1.259.728l-5.678 9.838a1.45 1.45 0 0 0 0 1.452l.79 1.37c.26.448.74.727 1.26.727h1.582c.52 0 1-.275 1.26-.728z";
+export const QwenMark = layeredMark([[QWEN_PATH, "#6F69F7"]]);
+
 /** How much larger than a symbol each mark draws to look the same size: the
  * spark's thin rays need more of the box than the cloud (AgentProvider.markScale). */
 export const MARK_SCALE: Readonly<Record<Provider, number>> = {
@@ -343,6 +349,7 @@ export const MARK_SCALE: Readonly<Record<Provider, number>> = {
   grok: 1.15,
   zcode: 1.1,
   hermes: 1.15,
+  qwen: 1.1,
   custom: 1.15,
 };
 
@@ -360,6 +367,7 @@ const MARKS: Readonly<Record<Provider, (props: MarkProps) => ReturnType<typeof C
   grok: GrokMark,
   zcode: ZcodeMark,
   hermes: HermesMark,
+  qwen: QwenMark,
   custom: CustomMark,
 };
 

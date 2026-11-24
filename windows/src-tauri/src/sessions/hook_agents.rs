@@ -40,7 +40,7 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 11] = [
+    pub const HOOK_AGENTS: [Provider; 12] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -52,6 +52,7 @@ impl Provider {
         Provider::Grok,
         Provider::Zcode,
         Provider::Hermes,
+        Provider::Qwen,
     ];
 
     pub fn reports_through_hooks(self) -> bool {
@@ -67,7 +68,9 @@ impl Provider {
     /// permission hook answers like Claude Code's, racing its own prompt:
     /// whichever answers first wins (#245). Hermes's hooks only hear of a
     /// dangerous command; its classic prompt takes Return for the Allow once
-    /// it has picked and arrows down to Deny (#244).
+    /// it has picked and arrows down to Deny (#244). Qwen Code's permission
+    /// hook holds its request until the island answers; its questions and
+    /// plans take keys in its terminal (#239).
     pub fn answers_permissions(self) -> bool {
         matches!(
             self,
@@ -77,6 +80,7 @@ impl Provider {
                 | Provider::Grok
                 | Provider::Zcode
                 | Provider::Hermes
+                | Provider::Qwen
         )
     }
 
@@ -95,6 +99,7 @@ impl Provider {
             Provider::Grok => "grok",
             Provider::Zcode => "zcode",
             Provider::Hermes => "hermes",
+            Provider::Qwen => "qwen",
             Provider::Custom => "custom",
         }
     }
@@ -120,6 +125,7 @@ impl Provider {
             Provider::Grok,
             Provider::Zcode,
             Provider::Hermes,
+            Provider::Qwen,
             Provider::Custom,
         ]
         .into_iter()
@@ -210,6 +216,10 @@ pub struct Decoded {
     /// The input of a question the hook holds, handed back whole with the
     /// answers (ZCode).
     pub input: Option<Map<String, Value>>,
+    /// Qwen Code's prompt id, which its tools and its stop carry, and what
+    /// the event says of the turn (#239).
+    pub turn: Option<String>,
+    pub qwen: Option<super::qwen::Fact>,
     pub provider: Option<Provider>,
     pub pid: i32,
 }
@@ -219,14 +229,15 @@ pub fn is_envelope(data: &[u8]) -> bool {
     contains(data, b"\"openbar\":")
 }
 
-/// Whether the hook waits for the island's answer: an OpenCode or ZCode
-/// permission, or OpenCode's plugin or Pi's extension listening.
+/// Whether the hook waits for the island's answer: an OpenCode, ZCode or
+/// Qwen Code permission, or OpenCode's plugin or Pi's extension listening.
 pub fn waits(data: &[u8]) -> bool {
     if !is_envelope(data)
         || !(contains(data, b"\"opencode\"")
             || contains(data, b"\"pi\"")
             || contains(data, b"\"proxy\"")
-            || contains(data, b"\"zcode\""))
+            || contains(data, b"\"zcode\"")
+            || contains(data, b"\"qwen\""))
     {
         return false;
     }
@@ -244,6 +255,15 @@ pub fn waits(data: &[u8]) -> bool {
         }
         // ZCode's permission hook prints the island's answer.
         Some("zcode") => json.get("hook").and_then(Value::as_str) == Some("PermissionRequest"),
+        // So does Qwen Code's, but for a question or a plan, which only its own dialog takes.
+        Some("qwen") => {
+            json.get("hook").and_then(Value::as_str) == Some("PermissionRequest")
+                && !super::qwen::asked_in_qwen(
+                    json.pointer("/event/tool_name")
+                        .and_then(Value::as_str)
+                        .unwrap_or(""),
+                )
+        }
         _ => false,
     }
 }
@@ -321,6 +341,7 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
             decoded.transcript = text(event, "transcriptPath");
         }
         Provider::Zcode => zcode(&hook, event, pid, now, policy, &mut decoded),
+        Provider::Qwen => qwen(&hook, event, pid, now, policy, &mut decoded),
         Provider::Hermes => decoded.events = hermes(&hook, event, pid, now, policy),
         Provider::Grok => {
             decoded.events = grok(&hook, event, pid, now, policy);
@@ -1438,6 +1459,176 @@ pub fn zcode_reply(
     .ok()
 }
 
+// MARK: Qwen Code
+
+/// Qwen Code's hooks (docs/users/features/hooks.md in its repository), in
+/// Claude Code's format (AgentHookMessage.qwen). Its permission hook runs
+/// before its dialog shows: a tool's request is held for the island, a
+/// question's or a plan's is let go and answered in its dialog, by keys. A
+/// turn cancelled with Escape ends with `idle_prompt` and no `Stop`;
+/// `qwen::Turns` tells which `idle_prompt` ends one.
+fn qwen(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+    decoded: &mut Decoded,
+) {
+    use super::qwen::{Fact, PLAN_MODES, PLAN_TOOL, QUESTION_TOOL, asked_in_qwen};
+    let Some(session) = text(json, "session_id") else {
+        return;
+    };
+    let cwd = text(json, "cwd");
+    decoded.turn = text(json, "prompt_id");
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Qwen,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    let raw = str_of(json.get("tool_name")).unwrap_or("");
+    let tool = name(Provider::Qwen, raw);
+    let input = arguments(json.get("tool_input"));
+    let call = text(json, "tool_use_id").or_else(|| text(json, "tool_call_id"));
+    let in_qwen = asked_in_qwen(raw);
+    let event = text(json, "hook_event_name").unwrap_or_else(|| hook.to_owned());
+    match event.as_str() {
+        "SessionStart" => {
+            add(Kind::Started);
+            if let Some(model) = text(json, "model") {
+                add(Kind::Model(model));
+            }
+        }
+        "SessionEnd" => add(Kind::Ended),
+        "UserPromptSubmit" => {
+            // The same prompt goes on after each tool, with no text of its own.
+            let prompt = str_of(json.get("prompt")).unwrap_or("");
+            if !prompt.is_empty() {
+                decoded.qwen = Some(Fact::Prompt);
+                add(Kind::Prompt(
+                    policy
+                        .previews
+                        .then(|| reply_preview(json.get("prompt")))
+                        .flatten(),
+                ));
+            }
+        }
+        "PreToolUse" => {
+            decoded.qwen = Some(Fact::Tool);
+            // A question or a plan is told by its permission request.
+            if !in_qwen {
+                let mut use_ = tool_use(&tool, &input, now, policy);
+                if let Some(call) = &call {
+                    use_.id = call.clone();
+                }
+                add(Kind::ToolStarted(use_));
+            }
+        }
+        "PermissionRequest" => {
+            decoded.qwen = Some(Fact::Asked);
+            let questions = if raw == QUESTION_TOOL {
+                Question::questions_in(&input).unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            // A question the island can't show is answered in Qwen Code.
+            if raw == QUESTION_TOOL && questions.is_empty() {
+                add(Kind::Question);
+            } else {
+                let request = format!("{:x}", rand_id());
+                // Qwen Code's tools take Claude Code's arguments, so the
+                // request reads as Claude Code's, whatever the previews.
+                let full = tool_summary::permission_detail(&tool, &input);
+                let complete = tool != "Bash"
+                    || input
+                        .get("command")
+                        .and_then(Value::as_str)
+                        .is_some_and(|s| !s.is_empty());
+                let mut permission = Permission {
+                    request_id: request.clone(),
+                    tool: if tool.is_empty() {
+                        "Tool".to_owned()
+                    } else {
+                        tool.clone()
+                    },
+                    summary: questions
+                        .first()
+                        .map(|q| tool_summary::clip(&q.question))
+                        .or_else(|| tool_summary::summary(&tool, &input)),
+                    detail: String::new(),
+                    content: None,
+                    offers_always: false,
+                    since: now,
+                    tool_id: None,
+                    input_key: Some(tool_summary::input_key(&tool, &input)),
+                    questions,
+                    diffs: file_diff::diffs(&tool, &input, cwd.as_deref()),
+                    plan_modes: if raw == PLAN_TOOL {
+                        PLAN_MODES.to_vec()
+                    } else {
+                        Vec::new()
+                    },
+                    risk: super::risk::Risk::Unassessed,
+                };
+                permission.set_content(&full, complete, Some(full.chars().count()));
+                if in_qwen {
+                    add(Kind::Permission(permission));
+                } else {
+                    decoded.permission = Some((session.clone(), request));
+                    add(Kind::HeldPermission(permission));
+                }
+            }
+        }
+        "PostToolUse" | "PostToolUseFailure" => {
+            decoded.qwen = Some(Fact::Tool);
+            // The tool ran or failed: its request, if any, was answered, here or in Qwen Code.
+            add(Kind::PermissionSettled(None));
+            if !in_qwen {
+                add(Kind::ToolFinished {
+                    id: call,
+                    input_key: Some(tool_summary::input_key(&tool, &input)),
+                    name: tool,
+                    failed: event == "PostToolUseFailure",
+                    started: None,
+                });
+            }
+        }
+        "Notification" => match str_of(json.get("notification_type")) {
+            Some("idle_prompt") => {
+                decoded.qwen = Some(Fact::Idle);
+                add(Kind::Stopped {
+                    last_text: None,
+                    failed: false,
+                });
+            }
+            Some("permission_prompt") => {
+                // Qwen Code's own dialog is up: one the island let go, or one it shows a card for.
+                decoded.qwen = Some(Fact::Asked);
+                add(Kind::Question);
+            }
+            _ => {}
+        },
+        "Stop" | "StopFailure" => {
+            decoded.qwen = Some(Fact::Stopped);
+            add(Kind::Stopped {
+                last_text: policy
+                    .previews
+                    .then(|| reply_preview(json.get("last_assistant_message")))
+                    .flatten(),
+                failed: event == "StopFailure",
+            });
+        }
+        _ => {}
+    }
+    decoded.events = events;
+}
+
 // MARK: Grok CLI
 
 /// Grok CLI's hooks (xAI's Grok Build, user guide "Hooks"): camelCase input
@@ -2163,6 +2354,24 @@ pub fn name(provider: Provider, tool: &str) -> String {
         ],
         // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.
         Provider::Zcode => &[("ApplyPatch", "Edit"), ("Agent", "Task")],
+        Provider::Qwen => &[
+            ("run_shell_command", "Bash"),
+            ("read_file", "Read"),
+            ("write_file", "Write"),
+            ("edit", "Edit"),
+            ("grep_search", "Grep"),
+            ("glob", "Glob"),
+            ("list_directory", "LS"),
+            ("web_fetch", "WebFetch"),
+            ("web_search", "WebSearch"),
+            ("todo_write", "TodoWrite"),
+            ("agent", "Task"),
+            ("monitor", "BashOutput"),
+            ("notebook_edit", "NotebookEdit"),
+            ("ask_user_question", "AskUserQuestion"),
+            ("enter_plan_mode", "EnterPlanMode"),
+            ("exit_plan_mode", "ExitPlanMode"),
+        ],
         Provider::Hermes => &[
             ("terminal", "Bash"),
             ("read_file", "Read"),
@@ -2793,8 +3002,16 @@ fn session(
     // A request only the agent can answer is shown as waiting there.
     // Grok's is answered with keys, where its terminal takes them. Hermes's
     // with keys in its classic terminal UI, through its gateway anywhere else.
-    let in_agent = entry.permission.is_some()
-        && (!entry.answerable || (entry.provider == Provider::Grok && !place.takes_keys));
+    // Qwen Code's question or plan with keys, in its own dialog; its tools'
+    // through the hook the island holds (#239).
+    let keyed = entry.provider == Provider::Grok
+        || (entry.provider == Provider::Qwen
+            && entry
+                .permission
+                .as_ref()
+                .is_some_and(super::qwen::answered_by_keys));
+    let in_agent =
+        entry.permission.is_some() && (!entry.answerable || (keyed && !place.takes_keys));
     Session {
         id: id.to_owned(),
         provider: entry.provider,
@@ -2921,6 +3138,7 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Grok => Some("grok"),
         Provider::Zcode => Some("zcode"),
         Provider::Hermes => Some("hermes"),
+        Provider::Qwen => Some("qwen"),
         Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
 }
@@ -2930,9 +3148,14 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
 /// takes a quick Return as part of the paste (Gemini CLI). ZCode's sends
 /// on the first, and a second would land on the permission prompt the
 /// reply may open at once, where Return picks Deny (#245). Hermes's sends on
-/// the first too, and there a second would pick Allow once (#244).
+/// the first too, and there a second would pick Allow once (#244). Qwen
+/// Code's sends on the first, and two at its empty prompt would send the
+/// reply it suggests (#239).
 pub fn takes_one_return(provider: Provider) -> bool {
-    matches!(provider, Provider::Zcode | Provider::Hermes)
+    matches!(
+        provider,
+        Provider::Zcode | Provider::Hermes | Provider::Qwen
+    )
 }
 
 /// Whether New session can start the agent with its first prompt. ZCode's
@@ -2943,7 +3166,7 @@ pub fn starts_with_prompt(provider: Provider) -> bool {
 }
 
 /// The arguments that open the agent's terminal UI with a first prompt
-/// already sent: `gemini -i`, `copilot -i`, `agy -i`, `opencode --prompt`, `devin --`, `grok --`,
+/// already sent: `gemini -i`, `copilot -i`, `agy -i`, `qwen -i`, `opencode --prompt`, `devin --`, `grok --`,
 /// and `cursor-agent`, `pi` and `vibe` take it as it is (AgentCLI in
 /// ClaudeBackgroundSessions.swift).
 pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
@@ -2952,7 +3175,7 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         return Vec::new();
     }
     match provider {
-        Provider::Gemini | Provider::Copilot | Provider::Antigravity => {
+        Provider::Gemini | Provider::Copilot | Provider::Antigravity | Provider::Qwen => {
             vec!["-i".into(), prompt.into()]
         }
         Provider::Opencode => vec!["--prompt".into(), prompt.into()],
@@ -3189,13 +3412,14 @@ pub mod installer {
     ];
     /// The agents whose config folder can be named by hand, beside the one
     /// their home variable or default names (#236).
-    pub const FOLDERS_BY_HAND: [Provider; 6] = [
+    pub const FOLDERS_BY_HAND: [Provider; 7] = [
         Provider::Codex,
         Provider::Gemini,
         Provider::Copilot,
         Provider::Pi,
         Provider::Vibe,
         Provider::Grok,
+        Provider::Qwen,
     ];
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
@@ -3282,6 +3506,15 @@ pub mod installer {
             .join(format!("{}.json", own_name(app)))
     }
 
+    /// Qwen Code's folder: `QWEN_HOME`, or `~/.qwen` (`%USERPROFILE%\.qwen`).
+    pub fn qwen_folder(home: &Path) -> PathBuf {
+        env_dir("QWEN_HOME").unwrap_or_else(|| home.join(".qwen"))
+    }
+
+    pub fn qwen_settings(home: &Path) -> PathBuf {
+        qwen_folder(home).join("settings.json")
+    }
+
     /// Devin CLI keeps its user config in `%APPDATA%\devin` on Windows, and
     /// in `$XDG_CONFIG_HOME/devin` (`~/.config/devin`) elsewhere.
     pub fn devin_config(home: &Path) -> PathBuf {
@@ -3342,13 +3575,15 @@ pub mod installer {
             Provider::Grok => grok_folder(home),
             Provider::Zcode => zcode_config(home).parent()?.to_path_buf(),
             Provider::Hermes => super::super::hermes::home(home),
+            Provider::Qwen => qwen_folder(home),
             Provider::Claude | Provider::Custom => return None,
         })
     }
 
     /// The agent's hook file in a config folder the person added (#236): the
     /// folder Gemini keeps as `.gemini`, Copilot's `COPILOT_HOME`, Pi's
-    /// `PI_CODING_AGENT_DIR`, Vibe's `VIBE_HOME`, a `CODEX_HOME`, a `GROK_HOME`.
+    /// `PI_CODING_AGENT_DIR`, Vibe's `VIBE_HOME`, a `CODEX_HOME`, a `GROK_HOME`,
+    /// a `QWEN_HOME`.
     pub fn file_in(provider: Provider, folder: &Path, app: &str) -> Option<PathBuf> {
         Some(match provider {
             Provider::Gemini => folder.join("settings.json"),
@@ -3359,6 +3594,7 @@ pub mod installer {
             Provider::Vibe => folder.join("hooks.toml"),
             Provider::Codex => folder.join("hooks.json"),
             Provider::Grok => folder.join("hooks").join(format!("{}.json", own_name(app))),
+            Provider::Qwen => folder.join("settings.json"),
             _ => return None,
         })
     }
@@ -4054,6 +4290,10 @@ pub mod installer {
                 Ok(s) => zcode_state(&s, exe, app),
                 Err(_) => State::Unreadable,
             },
+            Provider::Qwen => match read(&path) {
+                Ok(s) => qwen_state(&s, exe, app),
+                Err(_) => State::Unreadable,
+            },
             Provider::Hermes => match vibe_text(&path) {
                 Ok(None) => State::Missing,
                 Ok(Some(text)) => super::super::hermes::state(&text, exe, app),
@@ -4275,6 +4515,9 @@ pub mod installer {
             Provider::Zcode => {
                 claude::update(&path, |s| zcode_installing(s, exe, app)).map_err(failure)
             }
+            Provider::Qwen => {
+                claude::update(&path, |s| qwen_installing(s, exe, app)).map_err(failure)
+            }
             Provider::Hermes => {
                 use super::super::hermes;
                 let entries = hermes::entries(exe, app);
@@ -4319,7 +4562,7 @@ pub mod installer {
                 remove_own(&path, app)
             }
             _ if !path.exists() => Ok(()),
-            Provider::Gemini | Provider::Devin | Provider::Codex => {
+            Provider::Gemini | Provider::Devin | Provider::Codex | Provider::Qwen => {
                 claude::update(&path, |s| claude::removing(s, app)).map_err(failure)
             }
             Provider::Cursor => claude::update(&path, |s| flat_removing(s, app)).map_err(failure),
@@ -4343,6 +4586,63 @@ pub mod installer {
             }
             Provider::Claude | Provider::Custom => Ok(()),
         }
+    }
+
+    // MARK: Qwen Code's settings
+
+    /// One of Qwen Code's hooks (AgentQwen.entry). Qwen Code runs a command
+    /// hook with cmd on Windows and sh elsewhere: the portable form goes in
+    /// both. Its timeout is in seconds, but any value of 1000 or more in
+    /// milliseconds, so the permission hook's long wait is in milliseconds.
+    pub fn qwen_entry(event: &str, exe: &Path, app: &str) -> Value {
+        let timeout = if event == "PermissionRequest" {
+            claude::PERMISSION_TIMEOUT * 1000
+        } else {
+            EVENT_TIMEOUT
+        };
+        json!({
+            "type": "command",
+            "name": own_name(app),
+            "timeout": timeout,
+            "command": portable_command(Provider::Qwen, event, exe, app),
+        })
+    }
+
+    /// Installed when every event holds the current hook; outdated when some
+    /// other hook of the island's is there.
+    pub fn qwen_state(settings: &Value, exe: &Path, app: &str) -> State {
+        let holds = super::super::qwen::EVENTS.iter().all(|event| {
+            let wanted = qwen_entry(event, exe, app);
+            settings
+                .pointer(&format!("/hooks/{event}"))
+                .and_then(Value::as_array)
+                .is_some_and(|groups| {
+                    groups.iter().any(|g| {
+                        g.get("hooks")
+                            .and_then(Value::as_array)
+                            .is_some_and(|hooks| hooks.contains(&wanted))
+                    })
+                })
+        });
+        if holds {
+            State::Installed
+        } else if claude::has_any(settings, app) {
+            State::Outdated
+        } else {
+            State::Missing
+        }
+    }
+
+    /// The island's groups after the person's own, tool events matching
+    /// every tool. Every other key is left as it was.
+    pub fn qwen_installing(settings: &Value, exe: &Path, app: &str) -> Value {
+        groups_installing(
+            settings,
+            &super::super::qwen::EVENTS,
+            app,
+            &CLAUDE_TOOL_EVENTS,
+            |event| qwen_entry(event, exe, app),
+        )
     }
 
     // MARK: ZCode's config
@@ -4613,6 +4913,169 @@ mod tests {
             },
             |_| Some("main".into()),
         )
+    }
+
+    fn qwen_event(hook: &str, extra: Value) -> Vec<u8> {
+        let mut event = json!({
+            "session_id": "605a7d68", "cwd": "/w/rocket", "hook_event_name": hook,
+            "transcript_path": "/h/.qwen/projects/-w-rocket/chats/605a7d68.jsonl",
+            "permission_mode": "default", "prompt_id": "605a7d68########1",
+        });
+        for (k, v) in extra.as_object().unwrap() {
+            event[k] = v.clone();
+        }
+        envelope("qwen", hook, event)
+    }
+
+    #[test]
+    fn qwen_sessions_and_held_requests() {
+        use super::super::qwen::Fact;
+        let mut tracker = Tracker::default();
+        feed(
+            &mut tracker,
+            &qwen_event(
+                "SessionStart",
+                json!({"source": "startup", "model": "qwen3-coder"}),
+            ),
+            ON,
+        );
+        feed(
+            &mut tracker,
+            &qwen_event("UserPromptSubmit", json!({"prompt": "go"})),
+            ON,
+        );
+        let shell = json!({"tool_name": "run_shell_command", "tool_input": {"command": "touch a.txt"},
+                           "tool_use_id": "toolu_1", "tool_call_id": "call_1"});
+        feed(&mut tracker, &qwen_event("PreToolUse", shell.clone()), ON);
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, "qwen:605a7d68");
+        assert_eq!(sessions[0].model.as_deref(), Some("qwen3-coder"));
+        assert_eq!(
+            sessions[0].current_tool.as_ref().map(|t| t.name.as_str()),
+            Some("Bash")
+        );
+        // A tool's request is held; a question's and a plan's are let go.
+        let request = qwen_event("PermissionRequest", shell.clone());
+        assert!(waits(&request));
+        let question = json!({"tool_name": "ask_user_question", "tool_input": {"questions": [
+            {"question": "Which?", "header": "H", "multiSelect": false,
+             "options": [{"label": "A"}, {"label": "B"}]}]}});
+        assert!(!waits(&qwen_event("PermissionRequest", question.clone())));
+        assert!(!waits(&qwen_event(
+            "PermissionRequest",
+            json!({"tool_name": "exit_plan_mode", "tool_input": {"plan": "p"}})
+        )));
+        assert!(!waits(&qwen_event("PreToolUse", shell.clone())));
+        let decoded = decode(&request, NOW, OFF).unwrap();
+        assert_eq!(decoded.qwen, Some(Fact::Asked));
+        assert!(decoded.permission.is_some());
+        match &decoded.events[0].kind {
+            Kind::HeldPermission(p) => {
+                assert_eq!(p.tool, "Bash");
+                assert_eq!(p.detail, "touch a.txt");
+            }
+            other => panic!("held: {other:?}"),
+        }
+        let asked = decode(&qwen_event("PermissionRequest", question), NOW, ON).unwrap();
+        assert!(asked.permission.is_none());
+        assert!(matches!(&asked.events[0].kind, Kind::Permission(p) if p.questions.len() == 1));
+        let plan = decode(
+            &qwen_event(
+                "PermissionRequest",
+                json!({"tool_name": "exit_plan_mode", "tool_input": {"plan": "p"}}),
+            ),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert!(matches!(&plan.events[0].kind, Kind::Permission(p)
+            if p.tool == "ExitPlanMode" && p.plan_modes == vec![super::super::plan_modes::PlanMode::AcceptEdits, super::super::plan_modes::PlanMode::Manual]));
+        feed(&mut tracker, &request, ON);
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].phase, SessionPhase::WaitingPermission);
+        feed(&mut tracker, &qwen_event("PostToolUse", shell), ON);
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert!(sessions[0].permission.is_none());
+        // The prompt going on after a tool isn't a new one.
+        let going = decode(
+            &qwen_event("UserPromptSubmit", json!({"prompt": ""})),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert!(going.events.is_empty() && going.qwen.is_none());
+        let idle = decode(
+            &qwen_event("Notification", json!({"notification_type": "idle_prompt"})),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert_eq!(idle.qwen, Some(Fact::Idle));
+        let prompt = decode(
+            &qwen_event(
+                "Notification",
+                json!({"notification_type": "permission_prompt"}),
+            ),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert!(matches!(prompt.events[0].kind, Kind::Question));
+        feed(
+            &mut tracker,
+            &qwen_event("Stop", json!({"last_assistant_message": "Done."})),
+            ON,
+        );
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].phase, SessionPhase::Finished);
+        assert_eq!(sessions[0].last_text.as_deref(), Some("Done."));
+        feed(
+            &mut tracker,
+            &qwen_event("SessionEnd", json!({"reason": "prompt_input_exit"})),
+            ON,
+        );
+        assert!(snap(&mut tracker, NOW, true).0.is_empty());
+        assert_eq!(command_name(Provider::Qwen), Some("qwen"));
+        assert_eq!(start_arguments(Provider::Qwen, "go"), vec!["-i", "go"]);
+        assert!(takes_one_return(Provider::Qwen) && starts_with_prompt(Provider::Qwen));
+        assert_eq!(name(Provider::Qwen, "write_file"), "Write");
+        assert!(Provider::Qwen.answers_permissions() && Provider::Qwen.reports_through_hooks());
+        assert_eq!(Provider::from_key("qwen"), Some(Provider::Qwen));
+    }
+
+    #[test]
+    fn qwen_settings_keep_the_persons_own() {
+        let exe = Path::new("/opt/openbar/openbar");
+        let mine = json!({"model": {"name": "qwen3"}, "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "say done"}]}]}});
+        let installed = installer::qwen_installing(&mine, exe, "app");
+        assert_eq!(
+            installer::qwen_state(&installed, exe, "app"),
+            installer::State::Installed
+        );
+        assert_eq!(
+            installer::qwen_state(&installed, Path::new("/other"), "app"),
+            installer::State::Outdated
+        );
+        assert_eq!(
+            installer::qwen_state(&mine, exe, "app"),
+            installer::State::Missing
+        );
+        assert_eq!(installed["hooks"]["Stop"].as_array().unwrap().len(), 2);
+        assert_eq!(installed["hooks"]["PreToolUse"][0]["matcher"], "*");
+        assert_eq!(
+            installed["hooks"]["PermissionRequest"][0]["hooks"][0]["timeout"],
+            600_000
+        );
+        assert_eq!(installed["hooks"]["Stop"][1]["hooks"][0]["timeout"], 5);
+        let removed = crate::hooks::installer::removing(&installed, "app");
+        assert_eq!(removed["model"], mine["model"]);
+        assert_eq!(removed["hooks"]["Stop"].as_array().unwrap().len(), 1);
+        assert!(removed["hooks"].get("PreToolUse").is_none());
+        assert_eq!(
+            installer::file_in(Provider::Qwen, Path::new("/q"), "app"),
+            Some(PathBuf::from("/q/settings.json"))
+        );
     }
 
     #[test]

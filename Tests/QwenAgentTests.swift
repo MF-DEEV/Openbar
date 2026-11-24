@@ -248,8 +248,8 @@ enum QwenAgentTests {
                      && AgentQwen.keys(.approvePlan(.manual), plan) == [.keys([.down, .down]), .enter]
                      && AgentQwen.keys(.allow, plan) == [.keys([.down]), .enter]
                      && AgentQwen.keys(.approvePlan(.auto), plan) == nil
-                     && AgentQwen.keys(.deny, plan) == [.keys([.escape])],
-                     "a plan is approved into auto-accept edits or each edit, Escape keeps planning")
+                     && AgentQwen.keys(.deny, plan) == [.keys([.down, .down, .down]), .enter],
+                     "a plan is approved into auto-accept edits or each edit, or kept planning")
         guard case .heldPermission(let held)? = AgentHookMessage.decode(envelope("PermissionRequest", shell), now: now,
                                                                          policy: T.on)?.events.first?.kind else {
             return suite.expect(false, "a tool's request")
