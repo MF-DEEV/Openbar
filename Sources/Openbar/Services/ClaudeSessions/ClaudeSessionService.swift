@@ -1230,7 +1230,13 @@ final class ClaudeSessionService: ObservableObject {
     /// files reads the rows again, and puts lost hooks back.
     private func watchHookFiles(_ targets: [HookTarget]) {
         guard running else { return }
-        let files = Set(targets.compactMap { $0.file?.resolvingSymlinksInPath().path })
+        let files = Set(targets.flatMap { target -> [String] in
+            guard let file = target.file?.resolvingSymlinksInPath() else { return [] }
+            // Factory Droid's hooks.json beside its settings decides where its entries go (#242).
+            guard target.provider == .droid else { return [file.path] }
+            let folder = file.deletingLastPathComponent()
+            return [file.path, folder.appending(path: "hooks.json").path, folder.appending(path: "hooks/hooks.json").path]
+        })
         guard files != watchedHookFiles else { return }
         watchedHookFiles = files
         let folders = Set(files.map { URL(fileURLWithPath: $0).deletingLastPathComponent().path }
