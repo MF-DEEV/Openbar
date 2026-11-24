@@ -139,9 +139,11 @@ final class UpdateService: ObservableObject {
 
         let override = UserDefaults.standard.string(forKey: DefaultsKey.updateFeedURL)
             .flatMap(URL.init(string:))
-        let endpoint = override?.absoluteString ?? (includeBetaUpdates
-            ? "https://api.github.com/repos/\(repository)/releases?per_page=10"
-            : "https://api.github.com/repos/\(repository)/releases/latest")
+        // The list, not /releases/latest: that is whichever platform was
+        // released last, and a Windows or Linux release carries no DMG.
+        // selectUpdate leaves out betas unless they're turned on.
+        let endpoint = override?.absoluteString
+            ?? "https://api.github.com/repos/\(repository)/releases?per_page=30"
 
         var request = URLRequest(url: URL(string: endpoint)!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")

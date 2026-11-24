@@ -79,7 +79,7 @@ Or run the installer from the [latest Windows release](https://github.com/MF-DEE
 
 On the Mac and on Windows, Openbar then updates itself: it checks once a day and asks before installing. `brew upgrade` and `winget upgrade` work too.
 
-**Linux** (X11, beta): get the `.deb`, `.rpm` or AppImage from the [latest Linux release](https://github.com/MF-DEEV/Openbar/releases?q=%22for+Linux%22&expanded=true), for x86_64 or Arm64. On Wayland the island works on compositors with layer-shell and on GNOME through XWayland, with some features still X11 only; see the [Linux notes](windows/docs/linux.md).
+**Linux** (X11): get the `.deb`, `.rpm` or AppImage from the [latest Linux release](https://github.com/MF-DEEV/Openbar/releases?q=%22for+Linux%22&expanded=true), for x86_64 or Arm64. On Wayland the island works on compositors with layer-shell and on GNOME through XWayland, with some features still X11 only; see the [Linux notes](windows/docs/linux.md).
 
 On the Mac, turn sessions on in Openbar's Settings: install **AI Agents** in the Features hub, turn on **Sessions** under Dynamic Island and press **Install Hooks** for Claude Code. Then start `claude` or `codex`.
 

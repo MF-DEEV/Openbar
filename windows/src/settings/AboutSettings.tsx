@@ -28,7 +28,6 @@ function open(url: string) {
 
 export function AboutSettings() {
   useLocale();
-  const betas = useSettings((s) => s.prefs.island.betaUpdates);
   const attach = useSettings((s) => s.prefs.island.feedbackAttachDiagnostics);
   const set = useSettings((s) => s.island);
   const [version, setVersion] = useState("0.4.0");
@@ -63,7 +62,7 @@ export function AboutSettings() {
             <span>
               {t("s.versionPrefix")} {version}
             </span>
-            {betas ? <span className="st-about-badge">{t("s.betaBadgeLabel")}</span> : null}
+            {version.includes("-") ? <span className="st-about-badge">{t("s.betaBadgeLabel")}</span> : null}
           </div>
         </div>
       </div>
