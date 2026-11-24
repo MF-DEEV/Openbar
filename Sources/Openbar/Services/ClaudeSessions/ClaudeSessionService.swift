@@ -1651,6 +1651,17 @@ final class ClaudeSessionService: ObservableObject {
                 default: break
                 }
             }
+            // A Qwen Code session heard first after its start: its log names the model.
+            if event.provider == .qwen, hookAgents.entry(event.id)?.model == nil, let path = decoded.transcript {
+                switch kind {
+                case .prompt, .stopped:
+                    if let model = AgentQwen.model(transcript: path) {
+                        hookAgents.ingest(AgentHookEvent(provider: .qwen, sessionID: event.sessionID, pid: agent, cwd: cwd,
+                                                         date: event.date, kind: .model(model)), now: now)
+                    }
+                default: break
+                }
+            }
             let placed = AgentHookEvent(provider: event.provider, sessionID: event.sessionID, pid: agent,
                                         cwd: cwd, date: event.date, kind: kind)
             if case .permissionSettled(let request) = event.kind {

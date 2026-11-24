@@ -580,6 +580,7 @@ enum AgentHookMessage {
             decoded.events.append(AgentHookEvent(provider: .qwen, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
         }
         decoded.turn = text(json, "prompt_id")
+        decoded.transcript = text(json, "transcript_path")
         let raw = json["tool_name"] as? String ?? ""
         let tool = AgentHookTools.name(.qwen, raw)
         let input = arguments(json["tool_input"])

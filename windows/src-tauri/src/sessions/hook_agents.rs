@@ -1481,6 +1481,7 @@ fn qwen(
     };
     let cwd = text(json, "cwd");
     decoded.turn = text(json, "prompt_id");
+    decoded.transcript = text(json, "transcript_path");
     let mut events = Vec::new();
     let mut add = |kind| {
         events.push(AgentEvent {

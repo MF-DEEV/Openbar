@@ -187,6 +187,27 @@ enum AgentQwen {
         return steps
     }
 
+    // MARK: Log
+
+    /// The model of the session's last reply, from its chat log
+    /// (`projects/<project>/chats/<session>.jsonl`): for a session the
+    /// island first hears after its start, which named the model. Only the
+    /// log's end is read, and only the model's name is kept.
+    static func model(transcript path: String) -> String? {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        let start = size > 262_144 ? size - 262_144 : 0
+        try? handle.seek(toOffset: start)
+        guard let data = try? handle.readToEnd(), let text = String(data: data, encoding: .utf8) else { return nil }
+        for line in text.split(separator: "\n").reversed() where line.contains(#""type":"assistant""#) {
+            guard let json = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
+                  let model = json["model"] as? String, !model.isEmpty else { continue }
+            return model
+        }
+        return nil
+    }
+
     // MARK: Turns
 
     /// What tells Qwen Code's turns apart from what it does after them.

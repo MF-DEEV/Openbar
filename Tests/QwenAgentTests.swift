@@ -395,7 +395,8 @@ enum QwenAgentTests {
                      && ClaudeSessionProvider.hookAgents.last == .qwen && ClaudeSessionProvider.qwen.answersPermissions
                      && ClaudeSessionProvider.qwen.reportsThroughHooks && !ClaudeSessionProvider.qwen.takesRepliesDirectly
                      && AgentCLI.command(.qwen) == "qwen" && AgentCLI.startArguments(.qwen, prompt: "go") == ["-i", "go"]
-                     && AgentCLI.startsWithPrompt(.qwen) && AgentHookInstaller.foldersByHand.contains(.qwen),
+                     && AgentCLI.startsWithPrompt(.qwen) && AgentHookInstaller.foldersByHand.contains(.qwen)
+                     && ClaudeTyping.enterDelay(.qwen) == nil && ClaudeTyping.enterDelay(.gemini) == 0.5,
                      "named, listed last, answered here, started with its first prompt")
         let text = FeatureStrings.notchClaudeSessions(.enUS)
         suite.expect(text.agentHint(.qwen).contains("~/.qwen/settings.json")
@@ -407,6 +408,13 @@ enum QwenAgentTests {
                      && AgentHookInstaller.hookFile(.qwen, home: home, bundle: "b")?.wholeFile == false
                      && AgentHookInstaller.agentFolder(.qwen, home: home, environment: [:])?.path == "/Users/someone/.qwen",
                      "its own figure, shell, mark and shared settings file")
+        let log = FileManager.default.temporaryDirectory.appending(path: "qwen-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: log) }
+        try? Data((#"{"type":"user","message":{"role":"user","parts":[{"text":"hi"}]}}"# + "\n"
+                   + #"{"type":"assistant","model":"qwen3-coder-plus","message":{"role":"model","parts":[{"text":"x"}]}}"# + "\n"
+                   + #"{"type":"system","subtype":"ui_telemetry"}"# + "\n").utf8).write(to: log)
+        suite.expect(AgentQwen.model(transcript: log.path) == "qwen3-coder-plus" && AgentQwen.model(transcript: "/nope") == nil,
+                     "a session heard late takes its model from its log")
         suite.expect(["run_shell_command": "Bash", "read_file": "Read", "write_file": "Write", "edit": "Edit",
                       "grep_search": "Grep", "glob": "Glob", "list_directory": "LS", "ask_user_question": "AskUserQuestion",
                       "exit_plan_mode": "ExitPlanMode", "mcp__github__search": "github__search"]

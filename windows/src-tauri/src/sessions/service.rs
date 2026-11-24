@@ -899,6 +899,25 @@ impl Service {
                     .map(|m| m.cwd)
                     .filter(|c| !c.is_empty());
             }
+            // A Qwen Code session heard first after its start: its log names the model (#239).
+            if provider == models::Provider::Qwen
+                && matches!(
+                    event.kind,
+                    hook_agents::Kind::Prompt(_) | hook_agents::Kind::Stopped { .. }
+                )
+                && inner
+                    .hook_agents
+                    .entry(&event.id())
+                    .is_none_or(|e| e.model().is_none())
+                && let Some(model) = decoded
+                    .transcript
+                    .as_deref()
+                    .and_then(|path| super::qwen::model(Path::new(path)))
+            {
+                let mut named = event.clone();
+                named.kind = hook_agents::Kind::Model(model);
+                inner.hook_agents.ingest(named, t);
+            }
             // Grok's hooks name the model only for xAI's own: its session's summary names any.
             if provider == models::Provider::Grok
                 && matches!(

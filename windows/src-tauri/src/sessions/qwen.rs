@@ -159,6 +159,35 @@ pub fn question_keys(
     Some(steps)
 }
 
+// MARK: Log
+
+/// The model of the session's last reply, from its chat log
+/// (`projects/<project>/chats/<session>.jsonl`), for a session first heard
+/// after its start (AgentQwen.model). Only the log's end is read.
+pub fn model(path: &std::path::Path) -> Option<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = std::fs::File::open(path).ok()?;
+    let size = file.metadata().ok()?.len();
+    file.seek(SeekFrom::Start(size.saturating_sub(262_144)))
+        .ok()?;
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).ok()?;
+    model_in(&String::from_utf8_lossy(&data))
+}
+
+pub fn model_in(text: &str) -> Option<String> {
+    text.lines()
+        .rev()
+        .filter(|line| line.contains(r#""type":"assistant""#))
+        .find_map(|line| {
+            let json: serde_json::Value = serde_json::from_str(line).ok()?;
+            json.get("model")
+                .and_then(serde_json::Value::as_str)
+                .filter(|m| !m.is_empty())
+                .map(str::to_owned)
+        })
+}
+
 // MARK: Turns
 
 /// What an event says of Qwen Code's turn.
@@ -293,6 +322,14 @@ mod tests {
                 .map(|(q, a)| ((*q).to_owned(), a.iter().map(|s| (*s).to_owned()).collect()))
                 .collect::<BTreeMap<_, _>>(),
         )
+    }
+
+    #[test]
+    fn reads_the_model_from_the_log() {
+        let log = "{\"type\":\"user\"}\n{\"type\":\"assistant\",\"model\":\"qwen3-coder-plus\"}\n{\"type\":\"system\"}\n";
+        assert_eq!(model_in(log).as_deref(), Some("qwen3-coder-plus"));
+        assert_eq!(model_in("{\"type\":\"user\"}"), None);
+        assert_eq!(model(std::path::Path::new("/nope")), None);
     }
 
     #[test]

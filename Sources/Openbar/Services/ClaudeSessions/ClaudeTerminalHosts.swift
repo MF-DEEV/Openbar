@@ -197,9 +197,11 @@ enum ClaudeTyping {
 
     /// How long an agent's prompt needs after a paste before a return sends
     /// it rather than breaking the line: Gemini CLI's and the other hook
-    /// agents' take a quick one as part of the paste.
+    /// agents' take a quick one as part of the paste. Qwen Code's sends on
+    /// the return that comes with the paste, and in Terminal a second one
+    /// would take the reply it suggests next into its prompt (#239).
     static func enterDelay(_ provider: ClaudeSessionProvider) -> Double? {
-        provider.reportsThroughHooks ? 0.5 : nil
+        provider.reportsThroughHooks && provider != .qwen ? 0.5 : nil
     }
 
     /// Whether the session's terminal takes keys from the island as keys,
