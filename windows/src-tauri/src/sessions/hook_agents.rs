@@ -3171,13 +3171,14 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
 /// on the first, and a second would land on the permission prompt the
 /// reply may open at once, where Return picks Deny (#245). Hermes's sends on
 /// the first too, and there a second would pick Allow once (#244). Qwen
-/// Code's sends on the first, and two at its empty prompt would send the
-/// reply it suggests (#239).
+/// Code's sends on the first in a Unix terminal, where two at its empty
+/// prompt would send the reply it suggests; in a Windows console it takes
+/// a quick one as part of the paste, like Gemini CLI (#239).
 pub fn takes_one_return(provider: Provider) -> bool {
-    matches!(
-        provider,
-        Provider::Zcode | Provider::Hermes | Provider::Qwen
-    )
+    if provider == Provider::Qwen {
+        return !cfg!(windows);
+    }
+    matches!(provider, Provider::Zcode | Provider::Hermes)
 }
 
 /// Whether New session can start the agent with its first prompt. ZCode's
@@ -5060,7 +5061,8 @@ mod tests {
         assert!(snap(&mut tracker, NOW, true).0.is_empty());
         assert_eq!(command_name(Provider::Qwen), Some("qwen"));
         assert_eq!(start_arguments(Provider::Qwen, "go"), vec!["-i", "go"]);
-        assert!(takes_one_return(Provider::Qwen) && starts_with_prompt(Provider::Qwen));
+        assert_eq!(takes_one_return(Provider::Qwen), !cfg!(windows));
+        assert!(starts_with_prompt(Provider::Qwen));
         assert_eq!(name(Provider::Qwen, "write_file"), "Write");
         assert!(Provider::Qwen.answers_permissions() && Provider::Qwen.reports_through_hooks());
         assert_eq!(Provider::from_key("qwen"), Some(Provider::Qwen));
