@@ -191,6 +191,8 @@ export type Provider =
   | "hermes"
   /** Alibaba's Qwen Code, heard through hooks in its settings, whose permission hook the island holds (#239). */
   | "qwen"
+  /** Factory's Droid, heard through hooks in ~/.factory; its prompts take the island's keys (#242). */
+  | "droid"
   /** A tool with Claude Code style hooks added on the Hooks page (#236): never one of the named agents. */
   | "custom";
 
@@ -210,6 +212,7 @@ export const PROVIDERS: readonly Provider[] = [
   "zcode",
   "hermes",
   "qwen",
+  "droid",
 ];
 
 /** The agents that report through the island's hooks or plugin
@@ -227,6 +230,7 @@ export const HOOK_AGENTS = [
   "zcode",
   "hermes",
   "qwen",
+  "droid",
 ] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
@@ -246,6 +250,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   zcode: "ZCode",
   hermes: "Hermes",
   qwen: "Qwen",
+  droid: "Droid",
   custom: "Other tool",
 };
 
@@ -268,6 +273,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   zcode: "ZCode",
   hermes: "Hermes",
   qwen: "Qwen Code",
+  droid: "Factory Droid",
   custom: "Other tool",
 };
 
@@ -400,6 +406,7 @@ export interface Counts {
   workingZcode?: number;
   workingHermes?: number;
   workingQwen?: number;
+  workingDroid?: number;
   /** Of `working`, the tools added on the Hooks page (#236). */
   workingCustom?: number;
   waiting: number;
@@ -471,6 +478,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     zcode: counts.workingZcode ?? 0,
     hermes: counts.workingHermes ?? 0,
     qwen: counts.workingQwen ?? 0,
+    droid: counts.workingDroid ?? 0,
     custom: counts.workingCustom ?? 0,
   };
   if (provider === "claude") {

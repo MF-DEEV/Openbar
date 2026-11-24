@@ -533,6 +533,7 @@ export const AGENT_PREF = {
   zcode: "agentZcode",
   hermes: "agentHermes",
   qwen: "agentQwen",
+  droid: "agentDroid",
 } as const;
 
 /** The model, picked from a menu that opens upward: Codex lists more than fit as chips. */

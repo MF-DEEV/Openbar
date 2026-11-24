@@ -12,6 +12,7 @@ import {
   OPENCODE_TINT,
   providerTint,
   QWEN_TINT,
+  DROID_TINT,
   ZCODE_TINT,
 } from "./format";
 import { MARK_SCALE, markOf } from "./glyphs";
@@ -30,7 +31,7 @@ const counts = (working: number, others: Partial<Counts> = {}): Counts => ({
 describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
   it("counts each agent's work apart, Claude's being what no other claims", () => {
     const c = counts(4, { workingGemini: 1, workingOpencode: 2 });
-    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(workingOf(counts(1, { workingCursor: 5 }), "cursor")).toBe(1);
     expect(workingOf(counts(-1, { workingGemini: -3 }), "gemini")).toBe(0);
   });
@@ -98,7 +99,7 @@ describe("Google Antigravity in Sessions (#247)", () => {
     const c = counts(3, { workingAntigravity: 2 });
     expect(workingOf(c, "antigravity")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-5)).toBe("antigravity");
+    expect(HOOK_AGENTS.at(-6)).toBe("antigravity");
     expect(PROVIDER_NAMES.antigravity).toBe("Google Antigravity");
     expect(SHORT_NAMES.antigravity).toBe("Antigravity");
     expect(stripAgents(counts(2, { workingAntigravity: 1, workingDevin: 1 }))).toEqual(["devin", "antigravity"]);
@@ -140,8 +141,8 @@ describe("ZCode in Sessions (#245)", () => {
     const c = counts(3, { workingZcode: 2 });
     expect(workingOf(c, "zcode")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-3)).toBe("zcode");
-    expect(PROVIDERS.at(-3)).toBe("zcode");
+    expect(HOOK_AGENTS.at(-4)).toBe("zcode");
+    expect(PROVIDERS.at(-4)).toBe("zcode");
     expect(isHookAgent("zcode")).toBe(true);
     expect(PROVIDER_NAMES.zcode).toBe("ZCode");
     expect(SHORT_NAMES.zcode).toBe("ZCode");
@@ -164,8 +165,8 @@ describe("Hermes in Sessions (#244)", () => {
     const c = counts(3, { workingHermes: 2 });
     expect(workingOf(c, "hermes")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-2)).toBe("hermes");
-    expect(PROVIDERS.at(-2)).toBe("hermes");
+    expect(HOOK_AGENTS.at(-3)).toBe("hermes");
+    expect(PROVIDERS.at(-3)).toBe("hermes");
     expect(isHookAgent("hermes")).toBe(true);
     expect(PROVIDER_NAMES.hermes).toBe("Hermes");
     expect(SHORT_NAMES.hermes).toBe("Hermes");
@@ -187,8 +188,8 @@ describe("Qwen Code in Sessions (#239)", () => {
     const c = counts(3, { workingQwen: 2 });
     expect(workingOf(c, "qwen")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-1)).toBe("qwen");
-    expect(PROVIDERS.at(-1)).toBe("qwen");
+    expect(HOOK_AGENTS.at(-2)).toBe("qwen");
+    expect(PROVIDERS.at(-2)).toBe("qwen");
     expect(isHookAgent("qwen")).toBe(true);
     expect(PROVIDER_NAMES.qwen).toBe("Qwen Code");
     expect(SHORT_NAMES.qwen).toBe("Qwen");
@@ -203,5 +204,29 @@ describe("Qwen Code in Sessions (#239)", () => {
   it("sends what the island can't answer to Qwen Code", () => {
     expect(S.answerIn("qwen")).toBe("Answer this one in Qwen Code.");
     expect(S.replyPlaceholderFor("qwen")).toBe("Reply to Qwen Code…");
+  });
+});
+
+describe("Factory Droid in Sessions (#242)", () => {
+  it("counts, names and draws it as itself", () => {
+    const c = counts(3, { workingDroid: 2 });
+    expect(workingOf(c, "droid")).toBe(2);
+    expect(workingOf(c, "claude")).toBe(1);
+    expect(HOOK_AGENTS.at(-1)).toBe("droid");
+    expect(PROVIDERS.at(-1)).toBe("droid");
+    expect(isHookAgent("droid")).toBe(true);
+    expect(PROVIDER_NAMES.droid).toBe("Factory Droid");
+    expect(SHORT_NAMES.droid).toBe("Droid");
+    expect(stripAgents(counts(2, { workingQwen: 1, workingDroid: 1 }))).toEqual(["qwen", "droid"]);
+    expect(characterOf("droid")).toBe("droid");
+    expect(FAVOURED_SHELL.droid).toBe("coral");
+    expect(providerTint("droid")).toBe(DROID_TINT);
+    expect(markOf("droid")).not.toBe(markOf("qwen"));
+    expect(MARK_SCALE.droid).toBe(1.05);
+  });
+
+  it("sends what the island can't answer to Factory Droid", () => {
+    expect(S.answerIn("droid")).toBe("Answer this one in Factory Droid.");
+    expect(S.replyPlaceholderFor("droid")).toBe("Reply to Factory Droid…");
   });
 });
