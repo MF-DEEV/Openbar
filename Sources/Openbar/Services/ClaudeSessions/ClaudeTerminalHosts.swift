@@ -127,11 +127,17 @@ enum ClaudeTypingStep: Equatable {
 /// A key the island presses at an agent's menu.
 enum ClaudeKey: Equatable {
     case down
+    /// Ticks a choice of a multiple choice (Qwen Code, #239).
+    case space
+    /// Closes a dialog unanswered (Qwen Code, #239).
+    case escape
 
     /// What a terminal sends the program for it.
     var bytes: String {
         switch self {
         case .down: return "\u{1B}[B"
+        case .space: return " "
+        case .escape: return "\u{1B}"
         }
     }
 
@@ -139,25 +145,35 @@ enum ClaudeKey: Equatable {
     var multiplexerName: String {
         switch self {
         case .down: return "Down"
+        case .space: return "Space"
+        case .escape: return "Escape"
         }
     }
+
+    /// The key's name for zellij's `send-keys`, which calls Escape `Esc`.
+    var zellijName: String { self == .escape ? "Esc" : multiplexerName }
 
     /// The key's name for kitty's `send-key`.
     var kittyName: String {
         switch self {
         case .down: return "down"
+        case .space: return "space"
+        case .escape: return "escape"
         }
     }
 
-    /// The keys as an AppleScript expression: the escape character can't
+    /// The key as an AppleScript expression: the escape character can't
     /// sit in a string literal, so it is joined in.
-    static func appleScript(_ keys: [ClaudeKey]) -> String {
-        let parts = keys.map { key -> String in
-            switch key {
-            case .down: return "(character id 27) & \"[B\""
-            }
+    var appleScript: String {
+        switch self {
+        case .down: return "(character id 27) & \"[B\""
+        case .space: return "\" \""
+        case .escape: return "(character id 27)"
         }
-        return parts.isEmpty ? "\"\"" : parts.joined(separator: " & ")
+    }
+
+    static func appleScript(_ keys: [ClaudeKey]) -> String {
+        keys.isEmpty ? "\"\"" : keys.map(\.appleScript).joined(separator: " & ")
     }
 }
 

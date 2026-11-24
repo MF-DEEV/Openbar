@@ -419,7 +419,8 @@ extension ClaudeSessionProvider {
     /// deep blue of its arch's foot. Grok CLI, whose mark has no color,
     /// gets the moss green no other agent wears, and ZCode, black and white
     /// too, a magenta no other agent wears. Hermes takes the pale gold of
-    /// its terminal's own colors, apart from Vibe's amber.
+    /// its terminal's own colors, apart from Vibe's amber, and Qwen Code the
+    /// indigo of its mark, between Antigravity's blue and Devin's violet.
     var tint: Color {
         if let agent { return agent.tint }
         switch self {
@@ -431,6 +432,7 @@ extension ClaudeSessionProvider {
         case .grok: return Color(red: 0.55, green: 0.80, blue: 0.40)
         case .zcode: return Color(red: 0.88, green: 0.44, blue: 0.78)
         case .hermes: return Color(red: 0.96, green: 0.84, blue: 0.40)
+        case .qwen: return Color(red: 0.47, green: 0.45, blue: 1.0)
         default: return Color(red: 0.80, green: 0.82, blue: 0.90)
         }
     }

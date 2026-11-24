@@ -194,6 +194,8 @@ final class ClaudeSessionService: ObservableObject {
     private var agentInputs: [String: [String: Any]] = [:]
     /// Where each Hermes session runs: its hooks name only its gateway (#244).
     private let hermesPlaces = AgentHermesPlaces()
+    /// Which of Qwen Code's events end or carry on its turns (#239). Queue.
+    private var qwenTurns = AgentQwen.Turns()
     /// Each OpenCode's plugin listening for replies, by its process.
     private var listeners: [Int32: ClaudeHookServer.Connection] = [:]
     /// The Mistral Vibe sessions a New session runs through the island's
@@ -522,6 +524,21 @@ final class ClaudeSessionService: ObservableObject {
                 }
                 return
             }
+            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .qwen, AgentQwen.answeredByKeys(current) {
+                // Qwen Code's own dialog takes a question's or a plan's answer,
+                // as keys where its terminal takes them (#239).
+                guard let keys = AgentQwen.keys(decision, current) else { return }
+                guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host) else { return }
+                actions.async { [self] in
+                    guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
+                    queue.async { [self] in
+                        hookAgents.resolve(id, request: request)
+                        hookAgents.acknowledge(id, now: Date())
+                        publish(now: Date())
+                    }
+                }
+                return
+            }
             if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .grok {
                 // Grok's prompt takes Return for the yes it has picked and
                 // Ctrl-C for no; its hooks tell when it moves on (#243).
@@ -538,10 +555,11 @@ final class ClaudeSessionService: ObservableObject {
                 return
             }
             if hookAgents.owns(id) {
-                // OpenCode's plugin and ZCode's hook wait for the answer; the other agents ask in their own terminal.
+                // OpenCode's plugin and ZCode's and Qwen Code's hooks wait for the
+                // answer; the other agents ask in their own terminal.
                 let provider = hookAgents.entry(id)?.provider
-                let vibe = provider == .vibe, zcode = provider == .zcode
-                if vibe || zcode {
+                let vibe = provider == .vibe, zcode = provider == .zcode, qwen = provider == .qwen
+                if vibe || zcode || qwen {
                     // A question is answered or skipped, never allowed; answers go only to a question.
                     switch decision {
                     case .allow, .allowAlways, .approvePlan: if current.asksQuestions { return }
@@ -552,10 +570,11 @@ final class ClaudeSessionService: ObservableObject {
                 guard let asked = agentPending[request], asked.session == id,
                       let reply = vibe ? AgentHookMessage.vibeReply(decision, questions: current.questions)
                         : zcode ? AgentHookMessage.zcodeReply(decision, input: agentInputs[request])
+                        : qwen ? AgentQwen.reply(decision)
                         : AgentHookMessage.opencodeReply(decision) else { return }
                 if case .deny = decision {} else {
-                    // ZCode stops the hook once the person answered in it.
-                    guard !asked.connection.isClosed, !(zcode && asked.connection.peerIsGone),
+                    // ZCode stops the hook once the person answered in it, Qwen Code once it was cancelled.
+                    guard !asked.connection.isClosed, !((zcode || qwen) && asked.connection.peerIsGone),
                           Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return }
                 }
                 agentPending[request] = nil
@@ -1508,6 +1527,14 @@ final class ClaudeSessionService: ObservableObject {
     private func receiveAgent(_ payload: Data, from connection: ClaudeHookServer.Connection, at now: Date) {
         guard let decoded = AgentHookMessage.decode(payload, now: now, policy: engine.policy),
               shownAgents.contains(decoded.provider) else { return connection.finish() }
+        // Qwen Code's helpers after a turn, and its idle notes inside one, aren't the session's (#239).
+        if decoded.provider == .qwen, let session = decoded.events.first?.sessionID {
+            if decoded.events.contains(where: { if case .ended = $0.kind { true } else { false } }) {
+                qwenTurns.forget(session)
+            } else if let fact = decoded.qwen, !qwenTurns.keep(session, turn: decoded.turn, fact: fact, at: now) {
+                return connection.finish()
+            }
+        }
         // The agent is the process above the hook's shells; OpenCode's plugin
         // writes from inside it.
         let pid = decoded.fromProxy ? 0 : AgentHookProcess.agent(fromHook: connection.peer, hint: decoded.pid)
@@ -1525,7 +1552,8 @@ final class ClaudeSessionService: ObservableObject {
         if let asked = decoded.permission, let reason = SessionAutoMode.shared.settings.passes(decoded.provider, autoMode: false),
            let permission = Self.allowable(decoded.events, request: asked.request),
            let reply = decoded.provider == .vibe ? AgentHookMessage.vibeReply(.allow)
-            : decoded.provider == .zcode ? AgentHookMessage.zcodeReply(.allow) : AgentHookMessage.opencodeReply(.allow) {
+            : decoded.provider == .zcode ? AgentHookMessage.zcodeReply(.allow)
+            : decoded.provider == .qwen ? AgentQwen.reply(.allow) : AgentHookMessage.opencodeReply(.allow) {
             let id = AgentHookEvent.id(decoded.provider, asked.session)
             agentPending.removeValue(forKey: asked.request)?.connection.finish()
             connection.finish(reply)
@@ -1584,6 +1612,9 @@ final class ClaudeSessionService: ObservableObject {
             switch kind {
             case .permission(let p) where p.requestID == proceeded, .heldPermission(let p) where p.requestID == proceeded:
                 // Let through: nothing waits on the person.
+                continue
+            case .question where event.provider == .qwen && hookAgents.entry(event.id)?.permission != nil:
+                // Qwen Code's dialog for a question or plan the island shows a card for.
                 continue
             default: break
             }
@@ -1653,6 +1684,20 @@ final class ClaudeSessionService: ObservableObject {
             }
         }
         return nil
+    }
+
+    /// Lets Qwen Code's held requests go unanswered, so it asks in its own
+    /// dialog: the person went to answer there (#239).
+    private func releaseHeld(_ id: String) {
+        queue.async { [self] in
+            for (request, waiting) in agentPending where waiting.session == id {
+                agentPending[request] = nil
+                agentInputs[request] = nil
+                waiting.connection.finish()
+                hookAgents.resolve(id, request: request)
+            }
+            publish(now: Date())
+        }
     }
 
     /// Lets go of OpenCode and ZCode requests whose session left, whose
@@ -1824,6 +1869,7 @@ final class ClaudeSessionService: ObservableObject {
     /// zellij has no terminal attached (#235).
     func openHost(_ session: ClaudeSession, completion: @escaping (ClaudeHostOpen) -> Void = { _ in }) {
         acknowledge(session.id)
+        if session.provider == .qwen { releaseHeld(session.id) }
         if session.id == ClaudeSessionSample.id { return completion(.missing) }
         if session.provider == .codex, session.host.remoteAlias != nil {
             // A host's Codex runs in a terminal there, which nothing here shows.

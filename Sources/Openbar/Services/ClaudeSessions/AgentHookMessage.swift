@@ -89,6 +89,10 @@ enum AgentHookMessage {
         /// The input of a question the hook holds, handed back whole with
         /// the answers (ZCode).
         var input: [String: Any]? = nil
+        /// Qwen Code's prompt id, which its tools and its stop carry, and
+        /// what the event says of the turn (#239).
+        var turn: String? = nil
+        var qwen: AgentQwen.Turns.Fact? = nil
         let provider: ClaudeSessionProvider
         let pid: Int32
     }
@@ -98,12 +102,13 @@ enum AgentHookMessage {
         AgentLogParser.contains(data, #""openbar":"#)
     }
 
-    /// Whether the hook waits for the island's answer: an OpenCode or ZCode
-    /// permission, or OpenCode's plugin or Pi's extension listening. Every
-    /// other hook is let go at once.
+    /// Whether the hook waits for the island's answer: an OpenCode, ZCode or
+    /// Qwen Code permission, or OpenCode's plugin or Pi's extension
+    /// listening. Every other hook is let go at once.
     static func waits(_ data: Data) -> Bool {
         guard isEnvelope(data), AgentLogParser.contains(data, "\"opencode\"") || AgentLogParser.contains(data, "\"pi\"")
             || AgentLogParser.contains(data, "\"proxy\"") || AgentLogParser.contains(data, "\"zcode\"")
+            || AgentLogParser.contains(data, "\"qwen\"")
         else { return false }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let name = json[key] as? String, let provider = ClaudeSessionProvider(rawValue: name),
@@ -113,6 +118,11 @@ enum AgentHookMessage {
         if provider == .vibe { return json["hook"] as? String == "proxy" && (kind == "approval" || kind == "question") }
         // ZCode's permission hook prints the island's answer.
         if provider == .zcode { return json["hook"] as? String == "PermissionRequest" }
+        // So does Qwen Code's, but for a question or a plan, which only its own dialog takes.
+        if provider == .qwen {
+            return json["hook"] as? String == "PermissionRequest"
+                && !AgentQwen.askedInQwen.contains(event["tool_name"] as? String ?? "")
+        }
         guard provider.reportsThroughPlugin else { return false }
         return kind == "listen" || (provider == .opencode && kind == "permission")
     }
@@ -152,6 +162,7 @@ enum AgentHookMessage {
             decoded.transcript = text(event, "transcriptPath")
         case .zcode: zcode(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .hermes: decoded.events = hermes(hook, event, pid: pid, now: now, policy: policy)
+        case .qwen: qwen(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .claude: return nil
         }
         return decoded
@@ -550,6 +561,96 @@ enum AgentHookMessage {
         }
         let output: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": body]]
         return try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])
+    }
+
+    // MARK: Qwen Code
+
+    /// Qwen Code's hooks (docs/users/features/hooks.md in its repository),
+    /// in Claude Code's format. Its permission hook runs before its dialog
+    /// shows: a tool's request is held for the island, a question's or a
+    /// plan's is let go and answered in its dialog, by keys where the
+    /// terminal takes them. A turn the person cancels with Escape ends with
+    /// `idle_prompt` and no `Stop`; `AgentQwen.Turns` tells which
+    /// `idle_prompt` ends one.
+    private static func qwen(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                             policy: ClaudeContentPolicy, into decoded: inout Decoded) {
+        guard let session = text(json, "session_id") else { return }
+        let cwd = text(json, "cwd")
+        func add(_ kind: AgentHookEvent.Kind) {
+            decoded.events.append(AgentHookEvent(provider: .qwen, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+        }
+        decoded.turn = text(json, "prompt_id")
+        let raw = json["tool_name"] as? String ?? ""
+        let tool = AgentHookTools.name(.qwen, raw)
+        let input = arguments(json["tool_input"])
+        let call = text(json, "tool_use_id") ?? text(json, "tool_call_id")
+        let inQwen = AgentQwen.askedInQwen.contains(raw)
+        switch text(json, "hook_event_name") ?? hook {
+        case "SessionStart":
+            add(.started)
+            if let model = text(json, "model") { add(.model(model)) }
+        case "SessionEnd":
+            add(.ended)
+        case "UserPromptSubmit":
+            // The same prompt goes on after each tool, with no text of its own.
+            guard let prompt = json["prompt"] as? String, !prompt.isEmpty else { return }
+            decoded.qwen = .prompt
+            add(.prompt(policy.previews ? preview(prompt) : nil))
+        case "PreToolUse":
+            decoded.qwen = .tool
+            // A question or a plan is told by its permission request.
+            if inQwen { break }
+            var use = toolUse(tool, input: input, at: now, policy: policy)
+            if let call { use = ClaudeToolUse(id: call, name: use.name, summary: use.summary, started: now, inputKey: use.inputKey) }
+            add(.toolStarted(use))
+        case "PermissionRequest":
+            decoded.qwen = .asked
+            let questions = raw == AgentQwen.questionTool ? ClaudeQuestion.questions(in: input) ?? [] : []
+            // A question the island can't show is answered in Qwen Code.
+            if raw == AgentQwen.questionTool && questions.isEmpty { add(.question); break }
+            let request = UUID().uuidString
+            // Qwen Code's tools take Claude Code's arguments, so the request
+            // reads as Claude Code's, whatever the previews.
+            let full = ClaudeToolSummary.permissionDetail(name: tool, input: input)
+            let content = PermissionContent(full: full, complete: tool != "Bash" || (input["command"] as? String).map { !$0.isEmpty } == true,
+                                            originalLength: full.unicodeScalars.count)
+            var permission = ClaudePermission(
+                requestID: request, tool: tool.isEmpty ? "Tool" : tool,
+                summary: questions.first.map { ClaudeToolSummary.clip($0.question) } ?? ClaudeToolSummary.summary(name: tool, input: input),
+                detail: content.preview, content: content, offersAlways: false, since: now,
+                inputKey: ClaudeToolSummary.inputKey(name: tool, input: input), questions: questions,
+                diffs: ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: cwd))
+            if raw == AgentQwen.planTool { permission.planModes = AgentQwen.planModes }
+            if inQwen {
+                add(.permission(permission))
+            } else {
+                decoded.permission = (session, request)
+                add(.heldPermission(permission))
+            }
+        case "PostToolUse", "PostToolUseFailure":
+            decoded.qwen = .tool
+            // The tool ran or failed: its request, if any, was answered, here or in Qwen Code.
+            add(.permissionSettled(nil))
+            if inQwen { break }
+            add(.toolFinished(id: call, name: tool, inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                              failed: text(json, "hook_event_name") == "PostToolUseFailure", started: nil))
+        case "Notification":
+            switch text(json, "notification_type") {
+            case "idle_prompt":
+                decoded.qwen = .idle
+                add(.stopped(lastText: nil, failed: false))
+            case "permission_prompt":
+                // Qwen Code's own dialog is up: one the island let go, or one it shows a card for.
+                decoded.qwen = .asked
+                add(.question)
+            default: break
+            }
+        case "Stop", "StopFailure":
+            decoded.qwen = .stopped
+            let failed = (text(json, "hook_event_name") ?? hook) == "StopFailure"
+            add(.stopped(lastText: policy.previews ? preview(json["last_assistant_message"]) : nil, failed: failed))
+        default: break
+        }
     }
 
     // MARK: Hermes
@@ -1004,6 +1105,11 @@ enum AgentHookTools {
         .hermes: ["terminal": "Bash", "read_file": "Read", "write_file": "Write", "patch": "Edit", "search_files": "Grep",
                   "web_search": "WebSearch", "web_extract": "WebFetch", "todo": "TodoWrite", "delegate_task": "Task",
                   "clarify": "AskUserQuestion", "process": "BashOutput"],
+        .qwen: ["run_shell_command": "Bash", "read_file": "Read", "write_file": "Write", "edit": "Edit",
+                "grep_search": "Grep", "glob": "Glob", "list_directory": "LS", "web_fetch": "WebFetch",
+                "web_search": "WebSearch", "todo_write": "TodoWrite", "agent": "Task", "monitor": "BashOutput",
+                "notebook_edit": "NotebookEdit", "ask_user_question": "AskUserQuestion",
+                "enter_plan_mode": "EnterPlanMode", "exit_plan_mode": "ExitPlanMode"],
         // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.
         .zcode: ["ApplyPatch": "Edit", "Agent": "Task"],
         .devin: ["exec": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "apply_patch": "Edit", "grep": "Grep",

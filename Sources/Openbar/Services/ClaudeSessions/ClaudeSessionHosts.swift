@@ -285,19 +285,23 @@ extension ClaudeTerminalScripts {
     /// each bring a return of their own.
     static func press(_ steps: [ClaudeTypingStep], tty: String) -> String {
         var lines: [String] = []
-        var held: [ClaudeKey] = []
+        // Keys and text typed at a dialog (Qwen Code's own answer, #239),
+        // as AppleScript expressions.
+        var held: [String] = []
+        func flush() {
+            lines.append(held.isEmpty ? "do script \"\" in theTab" : "do script (\(held.joined(separator: " & "))) in theTab")
+            held = []
+        }
         for step in steps {
             switch step {
-            case .keys(let keys): held += keys
-            case .enter:
-                lines.append(held.isEmpty ? "do script \"\" in theTab" : "do script (\(ClaudeKey.appleScript(held))) in theTab")
-                held = []
+            case .keys(let keys): held += keys.map(\.appleScript)
+            case .enter: flush()
             case .interrupt: lines.append("do script (ASCII character 3) in theTab")
             case .wait(let seconds): lines.append("delay \(seconds)")
-            case .paste: break
+            case .paste(let text): held.append(AppleScriptRunner.literal(text))
             }
         }
-        if !held.isEmpty { lines.append("do script (\(ClaudeKey.appleScript(held))) in theTab") }
+        if !held.isEmpty { flush() }
         return """
         tell application "Terminal"
             repeat with theWindow in windows

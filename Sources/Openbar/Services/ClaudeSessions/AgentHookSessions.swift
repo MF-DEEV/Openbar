@@ -292,9 +292,11 @@ final class AgentHookSessions {
         // A request only the agent can answer is shown as waiting there.
         // Grok's is answered with keys, where its terminal takes them.
         // Hermes's with keys in its classic terminal UI, through its gateway
-        // anywhere else.
+        // anywhere else. Qwen Code's question or plan with keys, in its own
+        // dialog; its tools' through the hook the island holds.
+        let keyed = entry.provider == .grok || (entry.provider == .qwen && entry.permission.map(AgentQwen.answeredByKeys) == true)
         let inAgent = entry.permission != nil
-            && (!entry.answerable || (entry.provider == .grok && !ClaudeTyping.takesKeys(host)))
+            && (!entry.answerable || (keyed && !ClaudeTyping.takesKeys(host)))
         var session = ClaudeSession(
             id: id, pid: entry.pid, cwd: entry.cwd, project: project, name: project, branch: branch, model: entry.model,
             host: host, phase: phase, phaseSince: since, turnStarted: entry.turnStarted,

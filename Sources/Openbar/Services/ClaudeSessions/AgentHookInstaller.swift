@@ -5,10 +5,10 @@ import CryptoKit
 import Foundation
 
 /// Puts the island's hooks into Gemini CLI, Copilot CLI, Cursor, Mistral
-/// Vibe, Devin CLI, Grok CLI and ZCode, and its plugin into OpenCode and Pi, and takes them
+/// Vibe, Devin CLI, Grok CLI, ZCode and Qwen Code, and its plugin into OpenCode and Pi, and takes them
 /// out again, only when the person presses Install or Remove. Where the
 /// agent keeps every hook in one file (Gemini's settings, Cursor's
-/// hooks.json, Vibe's hooks.toml, Devin's and ZCode's config.json) the island's entries
+/// hooks.json, Vibe's hooks.toml, Devin's and ZCode's config.json, Qwen Code's settings.json) the island's entries
 /// go beside the person's own, carry its marker, and the file is copied
 /// aside first, as for Claude Code. Where the agent reads a folder of files
 /// (Copilot's and Grok's hooks, OpenCode's plugins, Pi's extensions) the
@@ -17,9 +17,10 @@ import Foundation
 /// Each hook is the system's `nc` writing the event, wrapped in an envelope
 /// naming the agent and the hook, to the island's socket. When the app is
 /// not running it connects to nothing and prints nothing, and the agent
-/// carries on as if there were no hook. Only ZCode's permission hook waits
-/// for an answer, and ZCode asks in its own prompt at the same time, so it
-/// never holds ZCode up either.
+/// carries on as if there were no hook. Only ZCode's and Qwen Code's
+/// permission hooks wait for an answer. ZCode asks in its own prompt at the
+/// same time; Qwen Code asks only once the hook answered nothing, so the
+/// island lets the hook go whenever the person should answer in Qwen Code.
 enum AgentHookInstaller {
     static let eventTimeout = 5
 
@@ -147,11 +148,11 @@ enum AgentHookInstaller {
 
     /// The agents whose config folder can be named by hand, beside the one
     /// their home variable or default names (#236).
-    static let foldersByHand: [ClaudeSessionProvider] = [.codex, .gemini, .copilot, .pi, .vibe, .grok]
+    static let foldersByHand: [ClaudeSessionProvider] = [.codex, .gemini, .copilot, .pi, .vibe, .grok, .qwen]
 
     /// The agent's hook file in a config folder the person added (#236): the
     /// folder Gemini keeps as `.gemini`, Copilot's `COPILOT_HOME`, Pi's
-    /// `PI_CODING_AGENT_DIR`, Vibe's `VIBE_HOME`, a `CODEX_HOME`, a `GROK_HOME`.
+    /// `PI_CODING_AGENT_DIR`, Vibe's `VIBE_HOME`, a `CODEX_HOME`, a `GROK_HOME`, a `QWEN_HOME`.
     static func file(_ provider: ClaudeSessionProvider, folder: URL, bundle: String) -> URL? {
         switch provider {
         case .gemini: return folder.appending(path: "settings.json")
@@ -160,6 +161,7 @@ enum AgentHookInstaller {
         case .vibe: return folder.appending(path: "hooks.toml")
         case .codex: return folder.appending(path: "hooks.json")
         case .grok: return folder.appending(path: "hooks/\(ownName(bundle)).json")
+        case .qwen: return folder.appending(path: "settings.json")
         default: return nil
         }
     }
@@ -199,6 +201,7 @@ enum AgentHookInstaller {
         case .grok: return grokFolder(home: home, environment: environment)
         case .zcode: return zcodeConfig(home: home).deletingLastPathComponent()
         case .hermes: return AgentHermes.home(home: home, environment: environment)
+        case .qwen: return AgentQwen.folder(home: home, environment: environment)
         case .codex:
             return environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
                 ?? home.appending(path: ".codex")
@@ -449,6 +452,8 @@ enum AgentHookInstaller {
                 }
             case .zcode:
                 return zcodeState(try ClaudeHookInstaller.read(url), socket: socket, bundle: bundle)
+            case .qwen:
+                return qwenState(try ClaudeHookInstaller.read(url), socket: socket, bundle: bundle)
             case .hermes:
                 guard let text = try vibeText(url) else { return .missing }
                 return hermesState(text, socket: socket, bundle: bundle)
@@ -530,6 +535,8 @@ enum AgentHookInstaller {
             }
         case .zcode:
             try ClaudeHookInstaller.update(url) { zcodeInstalling(into: $0, socket: socket, bundle: bundle) }
+        case .qwen:
+            try ClaudeHookInstaller.update(url) { qwenInstalling(into: $0, socket: socket, bundle: bundle) }
         case .hermes:
             // Hooks written in a form the island can't add to are left to the person.
             if let text = try vibeText(url), hermesBlocked(text, bundle: bundle) { throw Failure.unreadable }
@@ -561,7 +568,7 @@ enum AgentHookInstaller {
     static func remove(_ provider: ClaudeSessionProvider, home: URL, bundle: String, folder: URL? = nil) throws {
         guard let url = file(provider, home: home, bundle: bundle, folder: folder) else { return }
         switch provider {
-        case .gemini, .devin, .codex:
+        case .gemini, .devin, .codex, .qwen:
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
             try ClaudeHookInstaller.update(url) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }
         case .cursor:
@@ -745,6 +752,33 @@ enum AgentHookInstaller {
         guard let data = manager.contents(atPath: ClaudeHookInstaller.originalCopy(of: url).path),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
         return .some((json["hooks"] as? [String: Any])?["enabled"] as? Bool)
+    }
+
+    // MARK: Qwen Code's settings
+
+    /// Installed when every event holds the current hook, as Qwen Code's
+    /// entry has it; outdated when some other hook of the island's is there.
+    /// Qwen Code runs none while `disableAllHooks` is on, which is the
+    /// person's to turn off.
+    static func qwenState(_ settings: [String: Any], socket: String, bundle: String) -> State {
+        let hooks = settings["hooks"] as? [String: Any] ?? [:]
+        let current = AgentQwen.events.allSatisfy { event in
+            (hooks[event] as? [[String: Any]] ?? []).contains { group in
+                (group["hooks"] as? [[String: Any]] ?? []).contains {
+                    NSDictionary(dictionary: $0).isEqual(to: AgentQwen.entry(event, socket: socket, bundle: bundle))
+                }
+            }
+        }
+        if current { return .installed }
+        return ClaudeHookInstaller.hasAny(in: settings, bundle: bundle) ? .outdated : .missing
+    }
+
+    /// The island's groups after the person's own, tool events matching
+    /// every tool. Every other key is left as it was.
+    static func qwenInstalling(into settings: [String: Any], socket: String, bundle: String) -> [String: Any] {
+        installingGroups(into: settings, events: AgentQwen.events, bundle: bundle, matched: claudeToolEvents) {
+            AgentQwen.entry($0, socket: socket, bundle: bundle)
+        }
     }
 
     // MARK: Antigravity's named hooks
