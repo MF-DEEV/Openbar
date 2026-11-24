@@ -64,6 +64,12 @@ describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
     expect(S.previewsOffFor("codex")).toBe(S.previewsOffCodex);
     expect(S.previewsOffFor("gemini")).toBe("Turn on previews in Settings to see what Gemini CLI wrote.");
     expect(S.previewsOffFor("cursor")).not.toContain("Claude");
+    // Under a question's card: the agent the answer goes to.
+    expect(S.questionHintFor("claude")).toBe(S.questionHint);
+    expect(S.questionHintFor("codex")).toBe(S.codexQuestionHint);
+    expect(S.questionHintFor("hermes")).toBe(
+      "Your answer goes straight to Hermes. Enter sends what you wrote, and Ctrl+N skips the question.",
+    );
   });
 });
 

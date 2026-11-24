@@ -10,7 +10,7 @@
 mod archive;
 mod claude;
 mod claude_app;
-mod cli;
+pub(crate) mod cli;
 pub(crate) use cli::search_path;
 /// Where `codex` is, for New session too.
 pub(crate) use codex::executable as codex_executable;

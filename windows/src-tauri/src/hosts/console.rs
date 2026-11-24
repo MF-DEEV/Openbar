@@ -47,7 +47,7 @@ pub enum Action {
     /// Presses Return or Ctrl-C as keys, nothing pasted: Grok CLI's
     /// prompt takes them for yes and no (#243).
     Key { interrupt: bool },
-    /// Presses the down arrow (`down`) or a character as a key, for
+    /// Presses the down arrow (`down`) as a key, for
     /// Hermes's menu (#244).
     Press { key: String },
     /// Prints the window that shows the console.
@@ -441,18 +441,7 @@ unsafe fn press(interrupt: bool) -> windows::core::Result<()> {
 unsafe fn press_key(name: &str) -> windows::core::Result<()> {
     let records = match name {
         "down" => key(VK_DOWN.0, '\0'),
-        other => {
-            let Some(c) = other.chars().next() else {
-                return Ok(());
-            };
-            // A digit's or letter's virtual key is its upper-case ASCII code.
-            let code = if c.is_ascii_alphanumeric() {
-                c.to_ascii_uppercase() as u16
-            } else {
-                0
-            };
-            key(code, c)
-        }
+        _ => return Ok(()),
     };
     let input = unsafe { console_input()? };
     let result = write_records(input, &records);

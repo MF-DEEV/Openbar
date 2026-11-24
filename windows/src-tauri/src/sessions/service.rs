@@ -819,6 +819,21 @@ impl Service {
                 };
                 event.pid = place.pid;
                 event.cwd = place.record.as_ref().and_then(|r| r.cwd.clone());
+                // Where the session is shown, as Hermes recorded it when it was made.
+                if let Some(client) = place
+                    .record
+                    .as_ref()
+                    .and_then(|r| r.client())
+                    .filter(|c| super::hermes::CLIENTS.contains(c))
+                    && inner
+                        .hook_agents
+                        .entry(&event.id())
+                        .is_none_or(|e| e.client.as_deref() != Some(client))
+                {
+                    let mut shown = event.clone();
+                    shown.kind = hook_agents::Kind::Client(client.to_owned());
+                    inner.hook_agents.ingest(shown, t);
+                }
                 // A title is made from the prompt: only read with previews on.
                 if previews && let Some(title) = place.record.as_ref().and_then(|r| r.title.clone())
                 {
@@ -1550,29 +1565,64 @@ impl Service {
                 {
                     return false;
                 }
-                // Grok's prompt takes Return for the yes it has picked and
-                // Ctrl-C for no; its hooks tell when it moves on (#243).
                 // Hermes's classic prompt takes Return for the Allow once it
-                // has picked, arrows down to Deny and a question's number (#244).
+                // has picked and arrows down to Deny; anything else (a
+                // question, its Ink UI, its app, a terminal that takes no
+                // keys) goes through Hermes's gateway (#244).
                 if let Some(entry) = inner
                     .hook_agents
                     .entry(session)
-                    .filter(|e| {
-                        matches!(
-                            e.provider,
-                            models::Provider::Grok | models::Provider::Hermes
-                        )
-                    })
+                    .filter(|e| e.provider == models::Provider::Hermes)
                     .cloned()
                 {
-                    let keys = if entry.provider == models::Provider::Grok {
-                        grok_keys(&decision)
-                    } else if hook_agents::hermes_takes_keys(entry.client.as_deref()) {
-                        hermes_keys(&decision, p)
+                    let keys = hook_agents::hermes_takes_keys(entry.client.as_deref())
+                        .then(|| hermes_keys(&decision, p))
+                        .flatten();
+                    let located = inner.hosts.get(&entry.pid).cloned();
+                    if let (Some(keys), Some(located)) =
+                        (keys, located.filter(|l| hosts::takes_keys(&l.host)))
+                    {
+                        drop(inner);
+                        if hosts::press_all(entry.pid as u32, &located, &keys).is_err() {
+                            return false;
+                        }
                     } else {
-                        None
-                    };
-                    let Some(keys) = keys else {
+                        let Some(answer) = super::hermes::gateway::answer(&decision, p) else {
+                            return false;
+                        };
+                        let Some(hermes) = crate::agent_usage::agent_executable("hermes") else {
+                            return false;
+                        };
+                        drop(inner);
+                        if !super::hermes::gateway::send(
+                            &answer,
+                            &entry.session_id,
+                            &hermes,
+                            std::time::Duration::from_secs(8),
+                        ) {
+                            crate::diagnostics::log::info(
+                                "sessions",
+                                "hermes: the gateway took no answer",
+                            );
+                            return false;
+                        }
+                    }
+                    let mut inner = self.inner.lock().unwrap();
+                    let t = now();
+                    inner.hook_agents.resolve(session, request);
+                    inner.hook_agents.acknowledge(session, t);
+                    self.publish(&mut inner, t);
+                    return true;
+                }
+                // Grok's prompt takes Return for the yes it has picked and
+                // Ctrl-C for no; its hooks tell when it moves on (#243).
+                if let Some(entry) = inner
+                    .hook_agents
+                    .entry(session)
+                    .filter(|e| e.provider == models::Provider::Grok)
+                    .cloned()
+                {
+                    let Some(keys) = grok_keys(&decision) else {
                         return false;
                     };
                     let Some(located) = inner.hosts.get(&entry.pid).cloned() else {
@@ -2982,18 +3032,14 @@ fn grok_keys(decision: &Decision) -> Option<Vec<hosts::Key>> {
 /// Hermes's classic prompt (hermes_cli/cli_modal_mixin.py): Allow once is
 /// picked first and Return confirms it; Deny is the last choice but View,
 /// which shows a long command whole, and the arrows stop at the ends, so
-/// three downs reach it whichever choices are offered. A question with
-/// choices takes its number, which answers it at once.
+/// three downs reach it whichever choices are offered. Questions go through
+/// its gateway.
 pub fn hermes_keys(decision: &Decision, asked: &models::Permission) -> Option<Vec<hosts::Key>> {
     use hosts::Key;
     let asks = !asked.questions.is_empty();
     match decision {
         Decision::Allow if !asks => Some(vec![Key::Enter]),
         Decision::Deny if !asks => Some(vec![Key::Down, Key::Down, Key::Down, Key::Enter]),
-        Decision::Answer(answers) => {
-            let key = hook_agents::hermes_answer_key(answers, asked.questions.first()?)?;
-            Some(vec![Key::Char(key)])
-        }
         _ => None,
     }
 }

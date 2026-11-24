@@ -1063,8 +1063,11 @@ fn hermes(
             kind,
         })
     };
+    // A session the island joins to answer through the gateway opens again
+    // (`reason: resume`) under no client of its own.
     if let Some(platform) =
         text(extra, "platform").filter(|p| super::hermes::CLIENTS.contains(&p.as_str()))
+        && text(extra, "reason").as_deref() != Some("resume")
     {
         add(Kind::Client(platform));
     }
@@ -1121,8 +1124,7 @@ fn hermes(
                     &request,
                     now,
                 ))),
-                // Filled in from the question its clarify tool named, when the
-                // island can answer it; else answered in Hermes.
+                // Filled in from the questions its clarify tool named.
                 Some("clarify") => add(Kind::Permission(Permission::new(
                     &request, "", None, false, now,
                 ))),
@@ -1193,64 +1195,46 @@ pub fn hermes_approval(command: &str, request: &str, at: Time) -> Permission {
     permission
 }
 
-/// The most choices a key picks: Hermes's prompt numbers them 1 to 9.
-pub const HERMES_CHOICE_LIMIT: usize = 9;
-
-/// The question a clarify call asks, when the island can answer it with a
-/// key: one question, one answer, with choices.
+/// The questions a clarify call asks (one to five, each with up to four
+/// choices, one pick or several, or none for a free answer), answered
+/// through Hermes's gateway.
 pub fn hermes_question(input: &Map<String, Value>, at: Time) -> Option<Permission> {
     let list = input.get("questions")?.as_array()?;
-    if list.len() != 1 {
-        return None;
+    let mut questions = Vec::new();
+    for item in list {
+        let item = item.as_object()?;
+        let question = str_of(item.get("question"))?.trim();
+        if question.is_empty() {
+            return None;
+        }
+        let choices: Vec<&str> = item
+            .get("choices")
+            .and_then(Value::as_array)
+            .map(|c| {
+                c.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::trim)
+                    .filter(|c| !c.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        questions.push(Question {
+            question: question.to_owned(),
+            header: None,
+            options: choices.iter().map(|c| QuestionOption::new(c)).collect(),
+            multi_select: flag(item.get("multi_select")) && !choices.is_empty(),
+        });
     }
-    let item = list[0].as_object()?;
-    let question = str_of(item.get("question"))?.trim();
-    if question.is_empty() || flag(item.get("multi_select")) {
-        return None;
-    }
-    let choices: Vec<&str> = item
-        .get("choices")?
-        .as_array()?
-        .iter()
-        .map(|c| c.as_str().unwrap_or("").trim())
-        .collect();
-    if choices.is_empty()
-        || choices.len() > HERMES_CHOICE_LIMIT
-        || choices.iter().any(|c| c.is_empty())
-    {
-        return None;
-    }
+    let first = questions.first()?.question.clone();
     let mut permission = Permission::new(
         &format!("{:x}", rand_id()),
         "AskUserQuestion",
-        Some(question),
+        Some(&first),
         false,
         at,
     );
-    permission.questions = vec![Question {
-        question: question.to_owned(),
-        header: None,
-        options: choices.iter().map(|c| QuestionOption::new(c)).collect(),
-        multi_select: false,
-    }];
+    permission.questions = questions;
     Some(permission)
-}
-
-/// The key that picks an answer on Hermes's question: its number.
-pub fn hermes_answer_key(
-    answers: &BTreeMap<String, Vec<String>>,
-    question: &Question,
-) -> Option<char> {
-    let picked = answers.get(&question.question).or_else(|| {
-        (answers.len() == 1)
-            .then(|| answers.values().next())
-            .flatten()
-    })?;
-    if picked.len() != 1 {
-        return None;
-    }
-    let index = question.options.iter().position(|o| o.label == picked[0])?;
-    (index < HERMES_CHOICE_LIMIT).then(|| char::from(b'1' + index as u8))
 }
 
 // MARK: ZCode
@@ -2807,13 +2791,10 @@ fn session(
         cost += part_cost;
     }
     // A request only the agent can answer is shown as waiting there.
-    // Grok's is answered with keys, where its terminal takes them, and
-    // Hermes's too, in its classic terminal UI only.
-    let by_keys = matches!(entry.provider, Provider::Grok | Provider::Hermes);
+    // Grok's is answered with keys, where its terminal takes them. Hermes's
+    // with keys in its classic terminal UI, through its gateway anywhere else.
     let in_agent = entry.permission.is_some()
-        && (!entry.answerable
-            || (by_keys && !place.takes_keys)
-            || (entry.provider == Provider::Hermes && !hermes_takes_keys(entry.client.as_deref())));
+        && (!entry.answerable || (entry.provider == Provider::Grok && !place.takes_keys));
     Session {
         id: id.to_owned(),
         provider: entry.provider,
@@ -2889,15 +2870,15 @@ fn session(
     }
 }
 
-/// The agent process a hook came from: above the hook's own process (this
-/// app run with `--hook`) and the shells the agent started it in, the first
-/// process that is none of these.
-/// Whether a Hermes session's prompts take the island's keys: its classic
-/// terminal UI's do; its Ink UI and its app are answered there.
+/// Whether a Hermes session's approvals take the island's keys: its classic
+/// terminal UI's do; its Ink UI's and its app's go through its gateway.
 pub fn hermes_takes_keys(client: Option<&str>) -> bool {
     client.is_none_or(|c| c == "cli")
 }
 
+/// The agent process a hook came from: above the hook's own process (this
+/// app run with `--hook`) and the shells the agent started it in, the first
+/// process that is none of these.
 pub fn agent_process(chain: &[(u32, String)], hint: i32) -> i32 {
     const SHELLS: [&str; 12] = [
         "openbar.exe",
@@ -6909,10 +6890,20 @@ mod tests {
             [("Which color?".to_owned(), vec!["Blue".to_owned()])].into();
         assert_eq!(
             crate::sessions::service::hermes_keys(
+                &crate::sessions::hook_message::Decision::Answer(picked.clone()),
+                &asked
+            ),
+            None,
+            "a question is never answered with keys: it goes through the gateway"
+        );
+        assert_eq!(
+            crate::sessions::hermes::gateway::answer(
                 &crate::sessions::hook_message::Decision::Answer(picked),
                 &asked
             ),
-            Some(vec![crate::hosts::Key::Char('2')])
+            Some(crate::sessions::hermes::gateway::Answer::Clarify(vec![
+                Some(vec!["Blue".to_owned()])
+            ]))
         );
         assert_eq!(
             crate::sessions::service::hermes_keys(
@@ -6932,35 +6923,79 @@ mod tests {
             ON,
         );
         assert!(snap(&mut t, NOW, true).0[0].permission.is_none());
-        // Several questions, a free answer or many picks are answered in Hermes.
-        for input in [
-            json!({ "questions": [{ "question": "A?", "choices": ["x"] }, { "question": "B?", "choices": ["y"] }] }),
-            json!({ "questions": [{ "question": "Why?" }] }),
-            json!({ "questions": [{ "question": "Which?", "choices": ["a", "b"], "multi_select": true }] }),
-        ] {
-            let mut other = Tracker::default();
-            feed(
-                &mut other,
-                &hermes("pre_tool_call", Some("clarify"), input, json!({})),
-                ON,
-            );
-            feed(
-                &mut other,
-                &hermes(
-                    "on_human_input_request",
-                    None,
-                    Value::Null,
-                    json!({ "kind": "clarify", "request_id": "q2" }),
-                ),
-                ON,
-            );
-            let row = &snap(&mut other, NOW, true).0[0];
-            assert_eq!(row.phase, SessionPhase::WaitingInput);
-            assert!(
-                row.permission.is_none() && row.waiting_for.as_deref() == Some(ANSWER_IN_TERMINAL)
-            );
-        }
-        // Its Ink UI's prompt is answered in Hermes.
+        // Several questions, a free answer and many picks are on the card too.
+        let mut several = Tracker::default();
+        feed(
+            &mut several,
+            &hermes(
+                "pre_tool_call",
+                Some("clarify"),
+                json!({ "questions": [
+                    { "question": "A?", "choices": ["x", " "] },
+                    { "question": "Why?" },
+                    { "question": "Which?", "choices": ["a", "b"], "multi_select": true }
+                ] }),
+                json!({}),
+            ),
+            ON,
+        );
+        feed(
+            &mut several,
+            &hermes(
+                "on_human_input_request",
+                None,
+                Value::Null,
+                json!({ "kind": "clarify", "request_id": "q2" }),
+            ),
+            ON,
+        );
+        let row = &snap(&mut several, NOW, true).0[0];
+        assert_eq!(row.phase, SessionPhase::WaitingPermission);
+        let card = row
+            .permission
+            .as_ref()
+            .expect("the questions are on the card");
+        assert_eq!(
+            card.questions
+                .iter()
+                .map(|q| (q.question.as_str(), q.options.len(), q.multi_select))
+                .collect::<Vec<_>>(),
+            vec![("A?", 1, false), ("Why?", 0, false), ("Which?", 2, true)]
+        );
+        let picks: BTreeMap<String, Vec<String>> =
+            [("Which?".to_owned(), vec!["a".to_owned(), "b".to_owned()])].into();
+        assert_eq!(
+            crate::sessions::hermes::gateway::answer(
+                &crate::sessions::hook_message::Decision::Answer(picks),
+                card
+            ),
+            Some(crate::sessions::hermes::gateway::Answer::Clarify(vec![
+                None,
+                None,
+                Some(vec!["a".to_owned(), "b".to_owned()])
+            ])),
+            "each question gets its own answer, one left out skipped"
+        );
+        assert_eq!(
+            crate::sessions::hermes::gateway::answer(
+                &crate::sessions::hook_message::Decision::Deny,
+                card
+            ),
+            Some(crate::sessions::hermes::gateway::Answer::Clarify(vec![
+                None, None, None
+            ])),
+            "Skip leaves every question unanswered"
+        );
+        assert!(
+            hermes_question(
+                json!({ "questions": [{ "question": " " }] })
+                    .as_object()
+                    .unwrap(),
+                NOW
+            )
+            .is_none()
+        );
+        // Its Ink UI's prompt is on the card too, answered through the gateway.
         let mut tui = Tracker::default();
         feed(
             &mut tui,
@@ -6983,7 +7018,26 @@ mod tests {
             ON,
         );
         let row = &snap(&mut tui, NOW, true).0[0];
-        assert!(row.permission.is_none() && row.waiting_for.as_deref() == Some(ANSWER_IN_TERMINAL));
+        assert!(
+            row.permission.as_ref().map(|p| p.request_id.as_str()) == Some("r")
+                && row.waiting_for.is_none()
+        );
+        // The island joining the session to answer doesn't change where it is shown.
+        feed(
+            &mut tui,
+            &hermes(
+                "on_session_open",
+                None,
+                Value::Null,
+                json!({ "platform": "cli", "reason": "resume" }),
+            ),
+            ON,
+        );
+        assert_eq!(
+            tui.entry("hermes:local-5bae")
+                .and_then(|e| e.client.as_deref()),
+            Some("tui")
+        );
     }
 
     #[test]

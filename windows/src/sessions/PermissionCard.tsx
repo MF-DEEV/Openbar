@@ -422,40 +422,34 @@ function QuestionForm({ session }: { session: Session }) {
               })}
             </div>
             {preview ? <pre className="s-detail is-preview">{preview}</pre> : null}
-            {/* Hermes's question is answered with a choice's number: no answer of one's own (#244). */}
-            {session.provider === "hermes" ? null : (
-              <input
-                className="s-own"
-                value={own[qi] ?? ""}
-                disabled={disabled}
-                placeholder={q.options.length ? S.ownAnswer : S.replyPlaceholderFor(session.provider)}
-                maxLength={OWN_ANSWER_LIMIT}
-                onChange={(e) => {
-                  const text = e.target.value;
-                  setOwn((cur) => ({ ...cur, [qi]: text }));
-                  if (!q.multiSelect && text) setPicks((cur) => ({ ...cur, [qi]: [] }));
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && complete && !disabled) void send();
-                }}
-              />
-            )}
+            <input
+              className="s-own"
+              value={own[qi] ?? ""}
+              disabled={disabled}
+              placeholder={q.options.length ? S.ownAnswer : S.replyPlaceholderFor(session.provider)}
+              maxLength={OWN_ANSWER_LIMIT}
+              onChange={(e) => {
+                const text = e.target.value;
+                setOwn((cur) => ({ ...cur, [qi]: text }));
+                if (!q.multiSelect && text) setPicks((cur) => ({ ...cur, [qi]: [] }));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && complete && !disabled) void send();
+              }}
+            />
           </div>
         );
       })}
       <div className="s-card-buttons">
-        {/* Hermes's question has no key that skips it: it is answered there (#244). */}
-        {session.provider === "hermes" ? null : (
-          <button
-            type="button"
-            className="s-button is-deny"
-            disabled={disabled}
-            onClick={() => void useSessions.getState().skip(session)}
-          >
-            <FastForward size={10} strokeWidth={3} />
-            {S.skip}
-          </button>
-        )}
+        <button
+          type="button"
+          className="s-button is-deny"
+          disabled={disabled}
+          onClick={() => void useSessions.getState().skip(session)}
+        >
+          <FastForward size={10} strokeWidth={3} />
+          {S.skip}
+        </button>
         <span className="s-spacer" />
         <button
           type="button"
@@ -467,7 +461,7 @@ function QuestionForm({ session }: { session: Session }) {
           {S.sendAnswer}
         </button>
       </div>
-      <div className="s-hint">{session.provider === "codex" ? S.codexQuestionHint : S.questionHint}</div>
+      <div className="s-hint">{S.questionHintFor(session.provider)}</div>
     </div>
   );
 }

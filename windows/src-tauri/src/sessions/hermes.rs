@@ -1093,6 +1093,279 @@ impl Places {
     }
 }
 
+/// Answers a prompt through Hermes's own gateway, the way its Ink UI and its
+/// app do (AgentHermes.swift's `AgentHermesGateway`): `hermes gateway attach
+/// --json` hands out a one-use ticket for the gateway's local WebSocket, the
+/// island joins the session as one more viewer (`session.resume`, which lists
+/// what waits), answers (`approval.respond`, `clarify.lock`) and leaves. Its
+/// Ink UI and app close their card when the answer comes from elsewhere, and
+/// so does its classic terminal UI for a question; it keeps an approval's
+/// menu up until a key is pressed, so there the island presses keys instead
+/// wherever the terminal takes them.
+pub mod gateway {
+    use std::collections::BTreeMap;
+    use std::net::{TcpStream, ToSocketAddrs};
+    use std::path::Path;
+    use std::time::{Duration, Instant};
+
+    use serde_json::{Value, json};
+    use tungstenite::Message;
+    use tungstenite::client::IntoClientRequest;
+
+    use crate::sessions::hook_message::Decision;
+    use crate::sessions::models::Permission;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum Answer {
+        /// `once` or `deny` for a dangerous command.
+        Approval(&'static str),
+        /// Each question's picks, or None when skipped.
+        Clarify(Vec<Option<Vec<String>>>),
+    }
+
+    impl Answer {
+        fn kind(&self) -> &'static str {
+            match self {
+                Answer::Approval(_) => "approval",
+                Answer::Clarify(_) => "clarify",
+            }
+        }
+    }
+
+    /// What answers the island's decision, or None for one Hermes can't take.
+    pub fn answer(decision: &Decision, asked: &Permission) -> Option<Answer> {
+        let asks = !asked.questions.is_empty();
+        match decision {
+            Decision::Allow if !asks => Some(Answer::Approval("once")),
+            Decision::Deny if !asks => Some(Answer::Approval("deny")),
+            Decision::Deny => Some(Answer::Clarify(vec![None; asked.questions.len()])),
+            Decision::Answer(answers) if asks => {
+                let picks: Vec<Option<Vec<String>>> = asked
+                    .questions
+                    .iter()
+                    .map(|q| {
+                        let picked = answers.get(&q.question).or_else(|| {
+                            (asked.questions.len() == 1 && answers.len() == 1)
+                                .then(|| answers.values().next())
+                                .flatten()
+                        });
+                        let picked: Vec<String> = picked
+                            .map(|p| p.iter().filter(|a| !a.is_empty()).cloned().collect())
+                            .unwrap_or_default();
+                        (!picked.is_empty()).then_some(picked)
+                    })
+                    .collect();
+                picks
+                    .iter()
+                    .any(Option::is_some)
+                    .then_some(Answer::Clarify(picks))
+            }
+            _ => None,
+        }
+    }
+
+    /// The ticket `hermes gateway attach --json` prints: the socket's URL and
+    /// the subprotocols that carry the ticket, for a gateway on this computer.
+    pub fn ticket(printed: &Value) -> Option<(String, Vec<String>)> {
+        if printed.get("state").is_some_and(|s| s != "ready") {
+            return None;
+        }
+        let url = printed.get("url")?.as_str()?;
+        let rest = url.strip_prefix("ws://")?;
+        let host = rest.split('/').next()?;
+        let name = host.rsplit_once(':').map_or(host, |(name, _)| name);
+        if !["127.0.0.1", "localhost", "[::1]"].contains(&name) {
+            return None;
+        }
+        let protocols: Vec<String> = printed
+            .get("protocols")?
+            .as_array()?
+            .iter()
+            .filter_map(|p| p.as_str().map(str::to_owned))
+            .collect();
+        (!protocols.is_empty()).then(|| (url.to_owned(), protocols))
+    }
+
+    /// The prompt of `kind` waiting in a session, from `session.resume`'s
+    /// result: its id and the run it belongs to.
+    pub fn pending(result: &Value, kind: &str) -> Option<(String, i64)> {
+        let prompt = result
+            .get("prompts")?
+            .as_array()?
+            .iter()
+            .rev()
+            .find(|p| p.get("kind").and_then(Value::as_str) == Some(kind))?;
+        let id = prompt
+            .get("prompt_id")?
+            .as_str()
+            .filter(|i| !i.is_empty())?;
+        let generation = prompt
+            .get("execution_generation")
+            .or_else(|| result.get("execution_generation"))
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        Some((id.to_owned(), generation))
+    }
+
+    /// A question the gateway asks as a request of its own
+    /// (`open_requests`): its id and each question's id.
+    pub fn open_question(result: &Value) -> Option<(String, Vec<String>)> {
+        let request = result
+            .get("open_requests")?
+            .as_array()?
+            .iter()
+            .rev()
+            .find(|r| r.get("method").and_then(Value::as_str) == Some("clarify"))?;
+        let id = request.get("id")?.as_str().filter(|i| !i.is_empty())?;
+        let ids: Vec<String> = request
+            .get("params")?
+            .get("questions")?
+            .as_array()?
+            .iter()
+            .filter_map(|q| q.get("qid").and_then(Value::as_str).map(str::to_owned))
+            .collect();
+        (!ids.is_empty()).then(|| (id.to_owned(), ids))
+    }
+
+    /// What `clarify.lock` takes for one question: a single pick as text,
+    /// several as a list, a skipped one as null.
+    fn locked(picked: Option<&Vec<String>>) -> Value {
+        match picked {
+            Some(p) if p.len() == 1 => json!(p[0]),
+            Some(p) => json!(p),
+            None => Value::Null,
+        }
+    }
+
+    /// Answers the prompt waiting in `session`. Blocks a few seconds at most;
+    /// call it off the service's lock.
+    pub fn send(answer: &Answer, session: &str, hermes: &Path, timeout: Duration) -> bool {
+        let path = crate::agent_usage::cli::child_path(hermes);
+        let Some(mut attach) = crate::agent_usage::cli::Conversation::start(
+            hermes,
+            &["gateway", "attach", "--json"],
+            &[("PATH".to_owned(), path)],
+            &[],
+            timeout,
+        ) else {
+            return false;
+        };
+        let printed = attach.next();
+        attach.end(Duration::from_millis(500));
+        let Some((url, protocols)) = printed.as_ref().and_then(ticket) else {
+            return false;
+        };
+        let Some(mut socket) = Socket::open(&url, &protocols, timeout) else {
+            return false;
+        };
+        let done = socket.answer(answer, session);
+        socket.close();
+        done
+    }
+
+    struct Socket {
+        socket: tungstenite::WebSocket<TcpStream>,
+        timeout: Duration,
+        next: i64,
+    }
+
+    impl Socket {
+        fn open(url: &str, protocols: &[String], timeout: Duration) -> Option<Socket> {
+            let address = url.strip_prefix("ws://")?.split('/').next()?;
+            let address = address.to_socket_addrs().ok()?.next()?;
+            let stream = TcpStream::connect_timeout(&address, timeout).ok()?;
+            stream.set_read_timeout(Some(timeout)).ok()?;
+            stream.set_write_timeout(Some(timeout)).ok()?;
+            let mut request = url.into_client_request().ok()?;
+            request
+                .headers_mut()
+                .insert("Sec-WebSocket-Protocol", protocols.join(", ").parse().ok()?);
+            let (socket, _) = tungstenite::client::client(request, stream).ok()?;
+            Some(Socket {
+                socket,
+                timeout,
+                next: 0,
+            })
+        }
+
+        /// The call's result, past the events between; None on an error, a
+        /// refusal or no answer in time.
+        fn call(&mut self, method: &str, params: Value) -> Option<Value> {
+            self.next += 1;
+            let id = self.next;
+            let request = json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params});
+            self.socket.send(Message::text(request.to_string())).ok()?;
+            let deadline = Instant::now() + self.timeout;
+            while Instant::now() < deadline {
+                let text = match self.socket.read().ok()? {
+                    Message::Text(text) => text.to_string(),
+                    Message::Binary(bytes) => String::from_utf8(bytes.to_vec()).ok()?,
+                    Message::Close(_) => return None,
+                    _ => continue,
+                };
+                let Ok(reply) = serde_json::from_str::<Value>(&text) else {
+                    continue;
+                };
+                if reply.get("id").and_then(Value::as_i64) == Some(id) {
+                    return reply.get("result").cloned();
+                }
+            }
+            None
+        }
+
+        fn answer(&mut self, answer: &Answer, session: &str) -> bool {
+            let Some(resumed) = self.call("session.resume", json!({"session_id": session})) else {
+                return false;
+            };
+            // A question is the gateway's own request: each answer locked in turn, the last lock
+            // settling it.
+            if let Answer::Clarify(picks) = answer
+                && let Some((request, questions)) = open_question(&resumed)
+            {
+                for (index, question) in questions.iter().enumerate() {
+                    let value = locked(picks.get(index).and_then(Option::as_ref));
+                    let params =
+                        json!({"request_id": request, "question_id": question, "answer": value});
+                    match self.call("clarify.lock", params) {
+                        Some(r) if r.get("status").and_then(Value::as_str) != Some("expired") => {}
+                        _ => return false,
+                    }
+                }
+                return true;
+            }
+            let Some((prompt, generation)) = pending(&resumed, answer.kind()) else {
+                return false;
+            };
+            let mut params = BTreeMap::new();
+            params.insert("session_id", json!(session));
+            params.insert("execution_generation", json!(generation));
+            params.insert("prompt_id", json!(prompt));
+            let method = match answer {
+                Answer::Approval(choice) => {
+                    params.insert("choice", json!(choice));
+                    "approval.respond"
+                }
+                Answer::Clarify(picks) => {
+                    let first = picks.first().cloned().flatten().unwrap_or_default();
+                    params.insert("answer", json!(first.join(", ")));
+                    "clarify.respond"
+                }
+            };
+            self.call(method, json!(params)).is_some_and(|r| {
+                matches!(
+                    r.get("status").and_then(Value::as_str),
+                    Some("resolved" | "already_resolved")
+                )
+            })
+        }
+
+        fn close(mut self) {
+            let _ = self.socket.close(None);
+            let _ = self.socket.flush();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1403,5 +1676,82 @@ mod tests {
             places.place("d1", 100.0, false, &desktop).map(|p| p.pid),
             Some(999)
         );
+    }
+
+    #[test]
+    fn gateway_ticket_prompt_and_question() {
+        use super::gateway::{open_question, pending, ticket};
+        let printed = serde_json::json!({"state": "ready", "url": "ws://127.0.0.1:56033/api/ws",
+            "protocols": ["hermes-gateway-v1", "hermes-gateway-ticket.Al0c"], "ticket": "Al0c"});
+        assert_eq!(
+            ticket(&printed),
+            Some((
+                "ws://127.0.0.1:56033/api/ws".to_owned(),
+                vec![
+                    "hermes-gateway-v1".to_owned(),
+                    "hermes-gateway-ticket.Al0c".to_owned()
+                ]
+            ))
+        );
+        // Only a local gateway that is ready is joined.
+        for other in [
+            serde_json::json!({"state": "ready", "url": "ws://example.com/api/ws", "protocols": ["x"]}),
+            serde_json::json!({"state": "absent"}),
+            serde_json::json!({"state": "ready", "url": "ws://127.0.0.1:1/api/ws", "protocols": []}),
+        ] {
+            assert_eq!(ticket(&other), None, "{other}");
+        }
+        let resumed = serde_json::json!({"execution_generation": 3, "prompts": [
+            {"kind": "clarify", "prompt_id": "c1", "execution_generation": 2},
+            {"kind": "approval", "prompt_id": "a1", "execution_generation": 2},
+        ]});
+        assert_eq!(pending(&resumed, "approval"), Some(("a1".to_owned(), 2)));
+        assert_eq!(
+            pending(&resumed, "clarify").map(|p| p.0),
+            Some("c1".to_owned())
+        );
+        assert_eq!(
+            pending(&serde_json::json!({"prompts": []}), "approval"),
+            None
+        );
+        let asking = serde_json::json!({"open_requests": [
+            {"id": "srq-1", "method": "sudo", "params": {}},
+            {"id": "srq-3c49", "method": "clarify", "params": {"questions": [
+                {"qid": "q0", "question": "Which color?", "choices": ["Red (Recommended)", "Blue"]}]}},
+        ]});
+        assert_eq!(
+            open_question(&asking),
+            Some(("srq-3c49".to_owned(), vec!["q0".to_owned()]))
+        );
+        assert_eq!(
+            open_question(
+                &serde_json::json!({"open_requests": [{"id": "srq-1", "method": "sudo"}]})
+            ),
+            None
+        );
+    }
+
+    /// Answers a live Hermes gateway: with `OB_HERMES` the `hermes` to run,
+    /// `HERMES_HOME` its home, `OB_SESSION` the session waiting and
+    /// `OB_ANSWER` `once`, `deny`, `skip` or a question's answer (`a|b` for
+    /// several picks of one question).
+    #[test]
+    #[ignore]
+    fn gateway_answers_a_live_session() {
+        use super::gateway::{Answer, send};
+        let hermes = std::env::var("OB_HERMES").expect("OB_HERMES");
+        let session = std::env::var("OB_SESSION").expect("OB_SESSION");
+        let answer = match std::env::var("OB_ANSWER").expect("OB_ANSWER").as_str() {
+            "once" => Answer::Approval("once"),
+            "deny" => Answer::Approval("deny"),
+            "skip" => Answer::Clarify(vec![None]),
+            text => Answer::Clarify(vec![Some(text.split('|').map(str::to_owned).collect())]),
+        };
+        assert!(send(
+            &answer,
+            &session,
+            Path::new(&hermes),
+            std::time::Duration::from_secs(8)
+        ));
     }
 }
