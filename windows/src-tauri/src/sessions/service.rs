@@ -646,6 +646,26 @@ impl Service {
             .map(|e| e.session_id.clone())
             .collect();
         inner.hermes_places.keep(&hermes);
+        // Qwen Code stops waiting for its hook after a minute and asks in its
+        // own dialog, which the island then answers with keys (#239).
+        let dialogs: Vec<(String, String)> = inner
+            .agent_pending
+            .iter()
+            .filter(|(request, p)| {
+                t - p.since > super::qwen::HOLD_LIMIT
+                    && inner.hook_agents.entry(&p.session).is_some_and(|e| {
+                        e.provider == models::Provider::Qwen
+                            && e.permission
+                                .as_ref()
+                                .is_some_and(|q| &q.request_id == *request)
+                    })
+            })
+            .map(|(r, p)| (r.clone(), p.session.clone()))
+            .collect();
+        for (request, session) in dialogs {
+            inner.agent_pending.remove(&request);
+            inner.hook_agents.move_to_dialog(&session, &request);
+        }
         let stale: Vec<String> = inner
             .agent_pending
             .iter()
@@ -1673,9 +1693,9 @@ impl Service {
                     .entry(session)
                     .filter(|e| e.provider == models::Provider::Qwen)
                     .cloned()
-                    && super::qwen::answered_by_keys(p)
+                    && (entry.in_dialog || super::qwen::answered_by_keys(p))
                 {
-                    let Some(steps) = super::qwen::keys(&decision, p) else {
+                    let Some(steps) = super::qwen::keys(&decision, p, entry.in_dialog) else {
                         return false;
                     };
                     let Some(located) = inner
@@ -2203,9 +2223,10 @@ impl Service {
             .map(|(r, _)| r.clone())
             .collect();
         for request in held {
-            // Dropped unanswered: the hook prints nothing.
+            // Dropped unanswered: the hook prints nothing, and Qwen Code asks
+            // in its own dialog, which the island answers with keys.
             inner.agent_pending.remove(&request);
-            inner.hook_agents.resolve(session, &request);
+            inner.hook_agents.move_to_dialog(session, &request);
         }
         let t = now();
         self.publish(&mut inner, t);

@@ -199,6 +199,13 @@ final class AgentHookSessions {
         entries[id]?.clearWait()
     }
 
+    /// The agent shows its own dialog for the request now: the island
+    /// answers it there, with keys (Qwen Code, #239).
+    func moveToDialog(_ id: String, request: String) {
+        guard entries[id]?.permission?.requestID == request else { return }
+        entries[id]?.permission?.inAgentDialog = true
+    }
+
     func acknowledge(_ id: String, now: Date) {
         entries[id]?.acknowledged = now
     }

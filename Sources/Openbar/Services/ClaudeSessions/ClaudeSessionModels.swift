@@ -348,6 +348,9 @@ struct ClaudePermission: Equatable {
     /// What it looks like it does, for the queue's Allow all (#269). Set
     /// when the island publishes it; until then it is never allowed in bulk.
     var risk: PermissionRisk = .unassessed
+    /// The agent shows its own dialog for it now, which the island answers
+    /// with keys (Qwen Code's, once its hook was let go, #239).
+    var inAgentDialog = false
 
     var asksQuestions: Bool { !questions.isEmpty }
 
@@ -369,6 +372,7 @@ extension ClaudePermission {
         copy.questions = questions
         copy.diffs = diffs
         copy.planModes = planModes
+        copy.inAgentDialog = inAgentDialog
         return copy
     }
 }

@@ -2515,6 +2515,9 @@ pub struct Entry {
     usage: BTreeMap<String, (Tokens, f64)>,
     /// Where the person sees a Hermes session: `cli`, `tui` or `desktop`.
     pub client: Option<String>,
+    /// The agent shows its own dialog for `permission` now, which the island
+    /// answers with keys (Qwen Code's, once its hook was let go, #239).
+    pub in_dialog: bool,
 }
 
 impl Entry {
@@ -2541,6 +2544,7 @@ impl Entry {
             chat: Vec::new(),
             usage: BTreeMap::new(),
             client: None,
+            in_dialog: false,
         }
     }
 
@@ -2553,6 +2557,7 @@ impl Entry {
     }
 
     fn clear_wait(&mut self) {
+        self.in_dialog = false;
         self.permission = None;
         self.answerable = false;
         self.asking = false;
@@ -2761,6 +2766,7 @@ impl Tracker {
                     permission = asked;
                 }
                 entry.permission = Some(permission);
+                entry.in_dialog = false;
                 // Codex through hooks only hears of a request: Codex asks in its terminal (#236).
                 entry.answerable = event.provider.answers_permissions()
                     && via_of(event.provider, &event.session_id).is_none();
@@ -2769,6 +2775,7 @@ impl Tracker {
             Kind::HeldPermission(permission) => {
                 entry.open_turn(date);
                 entry.permission = Some(permission);
+                entry.in_dialog = false;
                 entry.answerable = true;
                 entry.asking = false;
             }
@@ -2830,6 +2837,19 @@ impl Tracker {
     }
 
     /// The person answered the request here; the agent tells when it moves on.
+    /// The agent shows its own dialog for the request now: the island
+    /// answers it there, with keys (Qwen Code, #239).
+    pub fn move_to_dialog(&mut self, id: &str, request: &str) {
+        if let Some(entry) = self.entries.get_mut(id)
+            && entry
+                .permission
+                .as_ref()
+                .is_some_and(|p| p.request_id == request)
+        {
+            entry.in_dialog = true;
+        }
+    }
+
     pub fn resolve(&mut self, id: &str, request: &str) {
         if let Some(entry) = self.entries.get_mut(id)
             && entry
@@ -3007,10 +3027,11 @@ fn session(
     // through the hook the island holds (#239).
     let keyed = entry.provider == Provider::Grok
         || (entry.provider == Provider::Qwen
-            && entry
-                .permission
-                .as_ref()
-                .is_some_and(super::qwen::answered_by_keys));
+            && (entry.in_dialog
+                || entry
+                    .permission
+                    .as_ref()
+                    .is_some_and(super::qwen::answered_by_keys)));
     let in_agent =
         entry.permission.is_some() && (!entry.answerable || (keyed && !place.takes_keys));
     Session {

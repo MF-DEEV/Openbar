@@ -274,6 +274,24 @@ enum QwenAgentTests {
         }
         suite.expect(AgentQwen.keys(.allow, held) == nil && !AgentQwen.answeredByKeys(held) && !AgentQwen.keyable(held, oneBurst: false),
                      "a tool's request is answered through the hook, never by keys")
+        // Once the hook is let go (after Qwen Code's minute, or on Open) its own dialog takes keys.
+        var shown = held
+        shown.inAgentDialog = true
+        suite.expect(AgentQwen.answeredByKeys(shown) && AgentQwen.keys(.allow, shown) == apart([nil])
+                     && AgentQwen.keys(.deny, shown) == apart([.escape]) && AgentQwen.keys(.allowAlways, shown) == nil
+                     && AgentQwen.keys(.allow, shown, oneBurst: true) == [.keys([.digit(1)])]
+                     && AgentQwen.keys(.deny, shown, oneBurst: true) == nil && AgentQwen.keyable(shown, oneBurst: true)
+                     && AgentQwen.holdLimit < 60,
+                     "its dialog's Allow once is picked first and Escape says no; the island lets go within Qwen Code's minute")
+        let tracker = AgentHookSessions()
+        send(tracker, "UserPromptSubmit", ["prompt": "go"])
+        T.feed(tracker, envelope("PermissionRequest", shell))
+        tracker.moveToDialog("qwen:\(session)", request: held.requestID)
+        let moved = T.snapshot(tracker).sessions[0]
+        tracker.moveToDialog("qwen:\(session)", request: moved.permission?.requestID ?? "")
+        let after = T.snapshot(tracker).sessions[0]
+        suite.expect(after.phase == .waitingPermission && after.permission?.inAgentDialog == true && after.waitingFor == nil,
+                     "the card stays when the dialog shows, answered there by keys")
         // The keys reach a terminal as each of them names them.
         suite.expect(ClaudeKey.escape.multiplexerName == "Escape" && ClaudeKey.escape.zellijName == "Esc"
                      && ClaudeKey.space.multiplexerName == "Space" && ClaudeKey.space.kittyName == "space"

@@ -1705,7 +1705,7 @@ final class ClaudeSessionService: ObservableObject {
                 agentPending[request] = nil
                 agentInputs[request] = nil
                 waiting.connection.finish()
-                hookAgents.resolve(id, request: request)
+                hookAgents.moveToDialog(id, request: request)
             }
             publish(now: Date())
         }
@@ -1718,7 +1718,17 @@ final class ClaudeSessionService: ObservableObject {
         hookAgents.prune(now: now)
         hermesPlaces.keep(Set(hookAgents.entries.values.filter { $0.provider == .hermes }.map(\.sessionID)))
         for (request, waiting) in agentPending {
-            let current = hookAgents.entry(waiting.session)?.permission?.requestID == request
+            let entry = hookAgents.entry(waiting.session)
+            let current = entry?.permission?.requestID == request
+            // Qwen Code stops waiting for its hook after a minute and asks in
+            // its own dialog, which the island then answers with keys (#239).
+            if current, entry?.provider == .qwen, !waiting.connection.peerIsGone,
+               now.timeIntervalSince(waiting.since) > AgentQwen.holdLimit {
+                agentPending[request] = nil
+                waiting.connection.finish()
+                hookAgents.moveToDialog(waiting.session, request: request)
+                continue
+            }
             guard !current || waiting.connection.isClosed || waiting.connection.peerIsGone
                 || now.timeIntervalSince(waiting.since) > Self.permissionDeadline
             else { continue }

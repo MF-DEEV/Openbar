@@ -71,10 +71,16 @@ pub enum Step {
     Wait(u64),
 }
 
-/// Whether the request is answered in Qwen Code's own dialog, by keys.
+/// Whether the request is answered in Qwen Code's own dialog, by keys: a
+/// question or a plan; a tool's too once its hook was let go (`in_dialog`).
 pub fn answered_by_keys(asked: &Permission) -> bool {
     !asked.questions.is_empty() || asked.tool == tool_summary::PLAN_TOOL
 }
+
+/// How long Qwen Code waits for its permission hook: its message bus gives
+/// up on a request after 60 seconds and shows its own dialog. The island
+/// lets the hook go a little before, and answers that dialog.
+pub const HOLD_LIMIT: f64 = 55.0;
 
 /// The keys that answer Qwen Code's dialog for a question or a plan:
 /// arrows and Return, never a choice's number, which picks at once (the
@@ -85,7 +91,15 @@ pub fn answered_by_keys(asked: &Permission) -> bool {
 /// offers four choices and its arrows wrap around them. Escape skips a
 /// question. Two returns at Qwen Code's empty prompt would send the reply
 /// it suggests, so no answer ends on a spare one.
-pub fn keys(decision: &Decision, asked: &Permission) -> Option<Vec<Step>> {
+pub fn keys(decision: &Decision, asked: &Permission, in_dialog: bool) -> Option<Vec<Step>> {
+    if in_dialog && asked.questions.is_empty() && asked.tool != tool_summary::PLAN_TOOL {
+        // A tool's dialog: "Yes, allow once" is picked first, Escape says no.
+        return match decision {
+            Decision::Allow => Some(vec![Step::Key(Key::Enter)]),
+            Decision::Deny => Some(vec![Step::Key(Key::Escape)]),
+            _ => None,
+        };
+    }
     if asked.tool == tool_summary::PLAN_TOOL {
         let downs = match decision {
             Decision::Allow | Decision::AllowAlways => 1,
@@ -359,7 +373,7 @@ mod tests {
             vec![question("Which color?", &["Red", "Blue", "Green"], false)],
         );
         assert_eq!(
-            keys(&answers(&[("Which color?", &["Green"])]), &color),
+            keys(&answers(&[("Which color?", &["Green"])]), &color, false),
             Some(vec![
                 Step::Key(Key::Down),
                 Step::Key(Key::Down),
@@ -368,7 +382,7 @@ mod tests {
             ])
         );
         assert_eq!(
-            keys(&answers(&[("Which color?", &["Purple"])]), &color),
+            keys(&answers(&[("Which color?", &["Purple"])]), &color, false),
             Some(vec![
                 Step::Key(Key::Down),
                 Step::Key(Key::Down),
@@ -378,10 +392,10 @@ mod tests {
             ])
         );
         assert_eq!(
-            keys(&Decision::Deny, &color),
+            keys(&Decision::Deny, &color, false),
             Some(vec![Step::Key(Key::Escape)])
         );
-        assert_eq!(keys(&Decision::Allow, &color), None);
+        assert_eq!(keys(&Decision::Allow, &color, false), None);
         let two = asked(
             "AskUserQuestion",
             vec![
@@ -395,7 +409,8 @@ mod tests {
                     ("Which database?", &["SQLite"]),
                     ("Which extras?", &["CI", "Tests"])
                 ]),
-                &two
+                &two,
+                false
             ),
             Some(vec![
                 Step::Key(Key::Down),
@@ -416,12 +431,13 @@ mod tests {
                     ("Which database?", &["SQLite"]),
                     ("Which extras?", &["Mine"])
                 ]),
-                &two
+                &two,
+                false
             ),
             None
         );
         assert_eq!(
-            keys(&answers(&[("Which database?", &["SQLite"])]), &two),
+            keys(&answers(&[("Which database?", &["SQLite"])]), &two, false),
             None
         );
     }
@@ -435,19 +451,37 @@ mod tests {
             Some(v)
         };
         assert_eq!(
-            keys(&Decision::ApprovePlan(PlanMode::AcceptEdits), &plan),
+            keys(&Decision::ApprovePlan(PlanMode::AcceptEdits), &plan, false),
             downs(1)
         );
         assert_eq!(
-            keys(&Decision::ApprovePlan(PlanMode::Manual), &plan),
+            keys(&Decision::ApprovePlan(PlanMode::Manual), &plan, false),
             downs(2)
         );
-        assert_eq!(keys(&Decision::Allow, &plan), downs(1));
-        assert_eq!(keys(&Decision::Deny, &plan), downs(3));
-        assert_eq!(keys(&Decision::ApprovePlan(PlanMode::Auto), &plan), None);
+        assert_eq!(keys(&Decision::Allow, &plan, false), downs(1));
+        assert_eq!(keys(&Decision::Deny, &plan, false), downs(3));
+        assert_eq!(
+            keys(&Decision::ApprovePlan(PlanMode::Auto), &plan, false),
+            None
+        );
         assert!(answered_by_keys(&plan));
+        // A tool's own dialog, once its hook was let go.
+        let tool = asked("Bash", Vec::new());
+        assert_eq!(
+            keys(&Decision::Allow, &tool, true),
+            Some(vec![Step::Key(Key::Enter)])
+        );
+        assert_eq!(
+            keys(&Decision::Deny, &tool, true),
+            Some(vec![Step::Key(Key::Escape)])
+        );
+        assert_eq!(keys(&Decision::AllowAlways, &tool, true), None);
+        assert!(HOLD_LIMIT < 60.0);
         assert!(!answered_by_keys(&asked("Bash", Vec::new())));
-        assert_eq!(keys(&Decision::Allow, &asked("Bash", Vec::new())), None);
+        assert_eq!(
+            keys(&Decision::Allow, &asked("Bash", Vec::new()), false),
+            None
+        );
     }
 
     #[test]

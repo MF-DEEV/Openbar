@@ -76,10 +76,16 @@ enum AgentQwen {
         return false
     }
 
-    /// Whether the request is answered in Qwen Code's own dialog, by keys.
+    /// Whether the request is answered in Qwen Code's own dialog, by keys:
+    /// a question, a plan, or a tool's once its hook was let go.
     static func answeredByKeys(_ asked: ClaudePermission) -> Bool {
-        asked.asksQuestions || asked.tool == ClaudeToolSummary.planTool
+        asked.asksQuestions || asked.tool == ClaudeToolSummary.planTool || asked.inAgentDialog
     }
+
+    /// How long Qwen Code waits for its permission hook: its message bus
+    /// gives up on a request after 60 seconds and shows its own dialog.
+    /// The island lets the hook go a little before, and answers that dialog.
+    static let holdLimit: TimeInterval = 55
 
     /// The keys that answer Qwen Code's own dialog for a question or a plan.
     ///
@@ -116,6 +122,14 @@ enum AgentQwen {
             }
             return oneBurst ? [.keys([.digit(choice)])] : apart(Array(repeating: .down, count: choice - 1) + [nil])
         }
+        if asked.inAgentDialog && !asked.asksQuestions {
+            // A tool's dialog: "Yes, allow once" is picked first, Escape says no.
+            switch decision {
+            case .allow: return oneBurst ? [.keys([.digit(1)])] : apart([nil])
+            case .deny: return oneBurst ? nil : apart([.escape])
+            default: return nil
+            }
+        }
         guard asked.asksQuestions else { return nil }
         switch decision {
         case .deny: return oneBurst ? nil : apart([.escape])
@@ -131,7 +145,7 @@ enum AgentQwen {
     static func keyable(_ asked: ClaudePermission, oneBurst: Bool) -> Bool {
         guard answeredByKeys(asked) else { return false }
         guard oneBurst else { return true }
-        if asked.tool == ClaudeToolSummary.planTool { return true }
+        if asked.tool == ClaudeToolSummary.planTool || (asked.inAgentDialog && !asked.asksQuestions) { return true }
         return asked.questions.count == 1 && !asked.questions[0].multiSelect && asked.questions[0].options.count <= 9
     }
 
