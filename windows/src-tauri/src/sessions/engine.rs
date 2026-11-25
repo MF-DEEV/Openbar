@@ -758,6 +758,7 @@ fn session(
             && super::claude_desktop::is_code_tab(record.entrypoint.as_deref()))
         .then_some(super::claude_desktop::Origin::Desktop),
         editor: None,
+        served: false,
     }
 }
 

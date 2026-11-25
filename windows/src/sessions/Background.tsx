@@ -549,6 +549,7 @@ export const AGENT_PREF = {
   qwen: "agentQwen",
   droid: "agentDroid",
   cline: "agentCline",
+  kimi: "agentKimi",
 } as const;
 
 /** The model, picked from a menu that opens upward: Codex lists more than fit as chips. */

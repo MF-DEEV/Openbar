@@ -14,6 +14,7 @@ import {
   QWEN_TINT,
   DROID_TINT,
   CLINE_TINT,
+  KIMI_TINT,
   ZCODE_TINT,
 } from "./format";
 import { MARK_SCALE, markOf } from "./glyphs";
@@ -32,7 +33,7 @@ const counts = (working: number, others: Partial<Counts> = {}): Counts => ({
 describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
   it("counts each agent's work apart, Claude's being what no other claims", () => {
     const c = counts(4, { workingGemini: 1, workingOpencode: 2 });
-    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(workingOf(counts(1, { workingCursor: 5 }), "cursor")).toBe(1);
     expect(workingOf(counts(-1, { workingGemini: -3 }), "gemini")).toBe(0);
   });
@@ -100,7 +101,7 @@ describe("Google Antigravity in Sessions (#247)", () => {
     const c = counts(3, { workingAntigravity: 2 });
     expect(workingOf(c, "antigravity")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-7)).toBe("antigravity");
+    expect(HOOK_AGENTS.at(-8)).toBe("antigravity");
     expect(PROVIDER_NAMES.antigravity).toBe("Google Antigravity");
     expect(SHORT_NAMES.antigravity).toBe("Antigravity");
     expect(stripAgents(counts(2, { workingAntigravity: 1, workingDevin: 1 }))).toEqual(["devin", "antigravity"]);
@@ -142,8 +143,8 @@ describe("ZCode in Sessions (#245)", () => {
     const c = counts(3, { workingZcode: 2 });
     expect(workingOf(c, "zcode")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-5)).toBe("zcode");
-    expect(PROVIDERS.at(-5)).toBe("zcode");
+    expect(HOOK_AGENTS.at(-6)).toBe("zcode");
+    expect(PROVIDERS.at(-6)).toBe("zcode");
     expect(isHookAgent("zcode")).toBe(true);
     expect(PROVIDER_NAMES.zcode).toBe("ZCode");
     expect(SHORT_NAMES.zcode).toBe("ZCode");
@@ -166,8 +167,8 @@ describe("Hermes in Sessions (#244)", () => {
     const c = counts(3, { workingHermes: 2 });
     expect(workingOf(c, "hermes")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-4)).toBe("hermes");
-    expect(PROVIDERS.at(-4)).toBe("hermes");
+    expect(HOOK_AGENTS.at(-5)).toBe("hermes");
+    expect(PROVIDERS.at(-5)).toBe("hermes");
     expect(isHookAgent("hermes")).toBe(true);
     expect(PROVIDER_NAMES.hermes).toBe("Hermes");
     expect(SHORT_NAMES.hermes).toBe("Hermes");
@@ -189,8 +190,8 @@ describe("Qwen Code in Sessions (#239)", () => {
     const c = counts(3, { workingQwen: 2 });
     expect(workingOf(c, "qwen")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-3)).toBe("qwen");
-    expect(PROVIDERS.at(-3)).toBe("qwen");
+    expect(HOOK_AGENTS.at(-4)).toBe("qwen");
+    expect(PROVIDERS.at(-4)).toBe("qwen");
     expect(isHookAgent("qwen")).toBe(true);
     expect(PROVIDER_NAMES.qwen).toBe("Qwen Code");
     expect(SHORT_NAMES.qwen).toBe("Qwen");
@@ -213,8 +214,8 @@ describe("Factory Droid in Sessions (#242)", () => {
     const c = counts(3, { workingDroid: 2 });
     expect(workingOf(c, "droid")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-2)).toBe("droid");
-    expect(PROVIDERS.at(-2)).toBe("droid");
+    expect(HOOK_AGENTS.at(-3)).toBe("droid");
+    expect(PROVIDERS.at(-3)).toBe("droid");
     expect(isHookAgent("droid")).toBe(true);
     expect(PROVIDER_NAMES.droid).toBe("Factory Droid");
     expect(SHORT_NAMES.droid).toBe("Droid");
@@ -237,8 +238,8 @@ describe("Cline in Sessions (#241)", () => {
     const c = counts(3, { workingCline: 2 });
     expect(workingOf(c, "cline")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-1)).toBe("cline");
-    expect(PROVIDERS.at(-1)).toBe("cline");
+    expect(HOOK_AGENTS.at(-2)).toBe("cline");
+    expect(PROVIDERS.at(-2)).toBe("cline");
     expect(isHookAgent("cline")).toBe(true);
     expect(PROVIDER_NAMES.cline).toBe("Cline");
     expect(SHORT_NAMES.cline).toBe("Cline");
@@ -253,5 +254,30 @@ describe("Cline in Sessions (#241)", () => {
   it("names the editor its extension runs in", () => {
     expect(S.agentInEditor("Cline", "VS Code")).toBe("Cline in VS Code");
     expect(S.replyIn("cline")).toBe("Reply in Cline");
+  });
+});
+
+describe("Kimi Code in Sessions (#240)", () => {
+  it("counts, names and draws it as itself", () => {
+    const c = counts(3, { workingKimi: 2 });
+    expect(workingOf(c, "kimi")).toBe(2);
+    expect(workingOf(c, "claude")).toBe(1);
+    expect(HOOK_AGENTS.at(-1)).toBe("kimi");
+    expect(PROVIDERS.at(-1)).toBe("kimi");
+    expect(isHookAgent("kimi")).toBe(true);
+    expect(PROVIDER_NAMES.kimi).toBe("Kimi Code");
+    expect(SHORT_NAMES.kimi).toBe("Kimi");
+    expect(stripAgents(counts(2, { workingCline: 1, workingKimi: 1 }))).toEqual(["cline", "kimi"]);
+    expect(characterOf("kimi")).toBe("kimi");
+    expect(FAVOURED_SHELL.kimi).toBe("sky");
+    expect(providerTint("kimi")).toBe(KIMI_TINT);
+    expect(markOf("kimi")).not.toBe(markOf("cline"));
+    expect(MARK_SCALE.kimi).toBe(1.1);
+  });
+
+  it("sends what the island can't answer to Kimi Code", () => {
+    expect(S.answerIn("kimi")).toBe("Answer this one in Kimi Code.");
+    expect(S.replyPlaceholderFor("kimi")).toBe("Reply to Kimi Code…");
+    expect(S.replyIn("kimi")).toBe("Reply in Kimi Code");
   });
 });

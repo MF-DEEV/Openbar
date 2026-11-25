@@ -148,7 +148,8 @@ export type Character =
   | "hermes"
   | "qwen"
   | "droid"
-  | "cline";
+  | "cline"
+  | "kimi";
 
 /** The shell each character's lots favour: Claude's clay, for Codex the iris
  * closest to its violet-blue, and for the others the shell nearest their color. */
@@ -169,6 +170,7 @@ export const FAVOURED_SHELL: Readonly<Record<Character, ClawdShell>> = {
   qwen: "iris",
   droid: "coral",
   cline: "teal",
+  kimi: "sky",
 };
 
 /** The figure a session of each agent is drawn as: Claude Code's Clawd, the

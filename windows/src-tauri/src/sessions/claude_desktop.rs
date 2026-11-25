@@ -909,6 +909,7 @@ fn session(
         via: None,
         origin: Some(Origin::Cowork),
         editor: None,
+        served: false,
     }
 }
 

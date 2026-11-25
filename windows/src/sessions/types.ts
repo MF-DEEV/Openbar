@@ -195,6 +195,8 @@ export type Provider =
   | "droid"
   /** Cline (its VS Code extension and its CLI), read from its own session store; nothing is installed into it (#241). */
   | "cline"
+  /** Moonshot AI's Kimi Code (kimi, kimi web and its app), heard through hooks in its config.toml; its terminal takes the island's keys, its server its answers (#240). */
+  | "kimi"
   /** A tool with Claude Code style hooks added on the Hooks page (#236): never one of the named agents. */
   | "custom";
 
@@ -216,6 +218,7 @@ export const PROVIDERS: readonly Provider[] = [
   "qwen",
   "droid",
   "cline",
+  "kimi",
 ];
 
 /** The agents that report through the island's hooks or plugin
@@ -235,6 +238,7 @@ export const HOOK_AGENTS = [
   "qwen",
   "droid",
   "cline",
+  "kimi",
 ] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
@@ -256,6 +260,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   qwen: "Qwen",
   droid: "Droid",
   cline: "Cline",
+  kimi: "Kimi",
   custom: "Other tool",
 };
 
@@ -280,6 +285,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   qwen: "Qwen Code",
   droid: "Factory Droid",
   cline: "Cline",
+  kimi: "Kimi Code",
   custom: "Other tool",
 };
 
@@ -355,6 +361,8 @@ export interface Session {
   origin?: SessionOrigin;
   /** The editor whose own panel runs it ("VS Code"): Cline's extension, which asks and takes replies there (#241). */
   editor?: string;
+  /** Its agent's own local server holds it and takes the island's answers and replies: `kimi web` and the Kimi Code app (#240). */
+  served?: boolean;
   /** Permissions the island allowed without asking, newest last (#234). */
   letThrough?: LetThrough[];
 }
@@ -416,6 +424,7 @@ export interface Counts {
   workingQwen?: number;
   workingDroid?: number;
   workingCline?: number;
+  workingKimi?: number;
   /** Of `working`, the tools added on the Hooks page (#236). */
   workingCustom?: number;
   waiting: number;
@@ -489,6 +498,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     qwen: counts.workingQwen ?? 0,
     droid: counts.workingDroid ?? 0,
     cline: counts.workingCline ?? 0,
+    kimi: counts.workingKimi ?? 0,
     custom: counts.workingCustom ?? 0,
   };
   if (provider === "claude") {

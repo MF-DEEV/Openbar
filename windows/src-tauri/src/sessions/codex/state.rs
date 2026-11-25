@@ -1459,6 +1459,7 @@ fn session(
             .collect(),
         origin: None,
         editor: None,
+        served: false,
     }
 }
 

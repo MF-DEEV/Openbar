@@ -47,6 +47,8 @@ export const QWEN_TINT = "#7873FF";
 export const DROID_TINT = "#FF6B21";
 /** Cline's sea green: its mark is white on black too, so a color no other agent wears, between Gemini's sky and Grok's moss. */
 export const CLINE_TINT = "#40D6BD";
+/** Kimi Code's pale blue, the one its mark's head fades to: lighter than Antigravity's, less green than Gemini's sky. */
+export const KIMI_TINT = "#78B5FF";
 
 const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   claude: CLAUDE_TINT,
@@ -65,6 +67,7 @@ const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   qwen: QWEN_TINT,
   droid: DROID_TINT,
   cline: CLINE_TINT,
+  kimi: KIMI_TINT,
   // A tool added by hand has no color of its own (#236).
   custom: CURSOR_TINT,
 };

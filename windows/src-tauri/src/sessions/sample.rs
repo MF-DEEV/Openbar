@@ -73,6 +73,7 @@ pub fn waiting(round: u64, home: &str, t: Time) -> Session {
         later_asks: Vec::new(),
         origin: None,
         editor: None,
+        served: false,
     }
 }
 
