@@ -419,6 +419,7 @@ fn agent_name(provider: Provider) -> &'static str {
         Provider::Hermes => "Hermes",
         Provider::Qwen => "Qwen Code",
         Provider::Droid => "Factory Droid",
+        Provider::Cline => "Cline",
         Provider::Custom => "Other tool",
     }
 }

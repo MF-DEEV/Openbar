@@ -77,6 +77,20 @@ export function MultiplexerMark({ name, detached = false }: { name: string; deta
   );
 }
 
+/** The editor whose own panel runs an agent's session: Cline in VS Code (#241). */
+export function EditorMark({ agent, editor }: { agent: string; editor: string }) {
+  useLocale();
+  const help = S.agentInEditor(agent, editor);
+  return (
+    <span className="s-multiplexer-mark" title={help} aria-label={help}>
+      <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden>
+        <path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+      {editor}
+    </span>
+  );
+}
+
 /** The Claude app's Code tab or Cowork, beside the name of a session it runs,
  * so it never passes for one in a terminal (#246). */
 export function OriginMark({ origin }: { origin: SessionOrigin }) {
@@ -534,6 +548,7 @@ export const AGENT_PREF = {
   hermes: "agentHermes",
   qwen: "agentQwen",
   droid: "agentDroid",
+  cline: "agentCline",
 } as const;
 
 /** The model, picked from a menu that opens upward: Codex lists more than fit as chips. */

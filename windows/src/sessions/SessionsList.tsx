@@ -28,7 +28,15 @@ import {
   sessionPhaseLabel,
 } from "./format";
 import { useNow } from "./useNow";
-import { AccountMark, BackgroundMark, OriginMark, RemoteHostMark, MultiplexerMark, multiplexerOf } from "./Background";
+import {
+  AccountMark,
+  BackgroundMark,
+  EditorMark,
+  OriginMark,
+  RemoteHostMark,
+  MultiplexerMark,
+  multiplexerOf,
+} from "./Background";
 import { AutoMark } from "./AutoMode";
 import { S } from "./strings";
 import { settled, useSessions } from "./store";
@@ -223,6 +231,7 @@ function Row({
           {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
           {session.origin ? <OriginMark origin={session.origin} /> : null}
           {multiplexerOf(session) ? <MultiplexerMark name={multiplexerOf(session)!} /> : null}
+          {session.editor ? <EditorMark agent={PROVIDER_NAMES[session.provider]} editor={session.editor} /> : null}
           {session.accountLabel ? <AccountMark name={session.accountLabel} /> : null}
           {session.autoMode ? <AutoMark provider={session.provider} /> : null}
           <ModelLabel session={session} />

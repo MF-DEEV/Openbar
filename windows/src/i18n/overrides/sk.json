@@ -988,5 +988,6 @@
   "windows.hooks.linkWorksMany": "Fungujúce konfigurácie: %d",
   "windows.hooks.linkAttentionOne": ", 1 treba skontrolovať",
   "windows.hooks.linkAttentionMany": ", na kontrolu: %d",
-  "windows.hooks.open": "Otvoriť hooky"
+  "windows.hooks.open": "Otvoriť hooky",
+  "windows.sessions.agentInEditor": "%@ v %@"
 }

@@ -988,5 +988,6 @@
   "windows.hooks.linkWorksMany": "Configurazioni funzionanti: %d",
   "windows.hooks.linkAttentionOne": ", 1 da controllare",
   "windows.hooks.linkAttentionMany": ", %d da controllare",
-  "windows.hooks.open": "Apri Hook"
+  "windows.hooks.open": "Apri Hook",
+  "windows.sessions.agentInEditor": "%@ in %@"
 }

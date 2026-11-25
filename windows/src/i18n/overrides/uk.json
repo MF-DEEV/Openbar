@@ -988,5 +988,6 @@
   "windows.hooks.linkWorksMany": "Робочих конфігурацій: %d",
   "windows.hooks.linkAttentionOne": ", 1 потребує уваги",
   "windows.hooks.linkAttentionMany": ", потребують уваги: %d",
-  "windows.hooks.open": "Відкрити хуки"
+  "windows.hooks.open": "Відкрити хуки",
+  "windows.sessions.agentInEditor": "%@ у %@"
 }

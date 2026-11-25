@@ -45,6 +45,8 @@ export const HERMES_TINT = "#F5D666";
 export const QWEN_TINT = "#7873FF";
 /** Factory Droid's tangerine, from its terminal's own highlights: redder than Vibe's amber, brighter than Claude's clay. */
 export const DROID_TINT = "#FF6B21";
+/** Cline's sea green: its mark is white on black too, so a color no other agent wears, between Gemini's sky and Grok's moss. */
+export const CLINE_TINT = "#40D6BD";
 
 const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   claude: CLAUDE_TINT,
@@ -62,6 +64,7 @@ const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   hermes: HERMES_TINT,
   qwen: QWEN_TINT,
   droid: DROID_TINT,
+  cline: CLINE_TINT,
   // A tool added by hand has no color of its own (#236).
   custom: CURSOR_TINT,
 };

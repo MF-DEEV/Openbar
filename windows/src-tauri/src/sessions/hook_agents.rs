@@ -40,7 +40,26 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 13] = [
+    pub const HOOK_AGENTS: [Provider; 14] = [
+        Provider::Gemini,
+        Provider::Copilot,
+        Provider::Opencode,
+        Provider::Cursor,
+        Provider::Pi,
+        Provider::Vibe,
+        Provider::Devin,
+        Provider::Antigravity,
+        Provider::Grok,
+        Provider::Zcode,
+        Provider::Hermes,
+        Provider::Qwen,
+        Provider::Droid,
+        Provider::Cline,
+    ];
+
+    /// The hook agents the island puts hooks or a plugin into. Cline is read
+    /// from its own session store instead, and gets nothing (#241).
+    pub const INSTALLED_AGENTS: [Provider; 13] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -55,6 +74,11 @@ impl Provider {
         Provider::Qwen,
         Provider::Droid,
     ];
+
+    /// Whether the island puts hooks or a plugin into the agent.
+    pub fn installs_hooks(self) -> bool {
+        Self::INSTALLED_AGENTS.contains(&self)
+    }
 
     pub fn reports_through_hooks(self) -> bool {
         Self::HOOK_AGENTS.contains(&self)
@@ -73,7 +97,9 @@ impl Provider {
     /// hook holds its request until the island answers; its questions and
     /// plans take keys in its terminal (#239). Factory Droid's prompts take
     /// Return for yes, arrows down to its no, and numbers for its questions
-    /// and specs (#242).
+    /// and specs (#242). Cline's CLI takes Return and `n`, and a question's
+    /// number, and a session its hub runs is answered there too; its
+    /// extension asks only in its own panel (#241).
     pub fn answers_permissions(self) -> bool {
         matches!(
             self,
@@ -85,6 +111,7 @@ impl Provider {
                 | Provider::Hermes
                 | Provider::Qwen
                 | Provider::Droid
+                | Provider::Cline
         )
     }
 
@@ -105,6 +132,7 @@ impl Provider {
             Provider::Hermes => "hermes",
             Provider::Qwen => "qwen",
             Provider::Droid => "droid",
+            Provider::Cline => "cline",
             Provider::Custom => "custom",
         }
     }
@@ -132,6 +160,7 @@ impl Provider {
             Provider::Hermes,
             Provider::Qwen,
             Provider::Droid,
+            Provider::Cline,
             Provider::Custom,
         ]
         .into_iter()
@@ -357,7 +386,8 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
             decoded.events = grok(&hook, event, pid, now, policy);
             decoded.transcript = text(event, "transcriptPath");
         }
-        Provider::Claude => return None,
+        // Cline is read from its own store, never through a hook (#241).
+        Provider::Claude | Provider::Cline => return None,
     }
     Some(decoded)
 }
@@ -399,7 +429,12 @@ pub fn arguments(value: Option<&Value>) -> Map<String, Value> {
     }
 }
 
-fn tool_use(name: &str, input: &Map<String, Value>, at: Time, policy: ContentPolicy) -> ToolUse {
+pub(crate) fn tool_use(
+    name: &str,
+    input: &Map<String, Value>,
+    at: Time,
+    policy: ContentPolicy,
+) -> ToolUse {
     let name = if name.is_empty() { "Tool" } else { name };
     let mut tool = ToolUse::new(
         &format!("{:x}", rand_id()),
@@ -2542,7 +2577,7 @@ pub fn name(provider: Provider, tool: &str) -> String {
             ("view_image", "Read"),
             ("web_search", "WebSearch"),
         ],
-        Provider::Claude | Provider::Custom => &[],
+        Provider::Claude | Provider::Cline | Provider::Custom => &[],
     };
     if let Some((_, name)) = known.iter().find(|(k, _)| *k == tool) {
         return (*name).to_owned();
@@ -3147,8 +3182,24 @@ fn session(
                     .permission
                     .as_ref()
                     .is_some_and(super::qwen::answered_by_keys)));
-    let in_agent =
-        entry.permission.is_some() && (!entry.answerable || (keyed && !place.takes_keys));
+    // Cline's CLI takes keys where its terminal does, and an approval
+    // through Cline's hub anywhere; its extension asks in its own panel (#241).
+    let client = entry.client.as_deref();
+    let cline_answers = entry.provider == Provider::Cline
+        && client != Some(super::cline::EXTENSION_CLIENT)
+        && (place.takes_keys
+            || (client == Some(super::cline::HUB_CLIENT)
+                && entry
+                    .permission
+                    .as_ref()
+                    .is_some_and(|p| !p.asks_questions())));
+    let in_agent = entry.permission.is_some()
+        && (!entry.answerable
+            || (keyed && !place.takes_keys)
+            || (entry.provider == Provider::Cline && !cline_answers));
+    let editor = (entry.provider == Provider::Cline
+        && client == Some(super::cline::EXTENSION_CLIENT))
+    .then(|| super::cline::editor_name(place.host_name.as_deref()));
     Session {
         id: id.to_owned(),
         provider: entry.provider,
@@ -3221,6 +3272,7 @@ fn session(
         later_asks: Vec::new(),
         via: via_of(entry.provider, &entry.session_id).map(str::to_owned),
         origin: None,
+        editor,
     }
 }
 
@@ -3277,6 +3329,7 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Hermes => Some("hermes"),
         Provider::Qwen => Some("qwen"),
         Provider::Droid => Some("droid"),
+        Provider::Cline => Some("cline"),
         Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
 }
@@ -3323,6 +3376,8 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         Provider::Devin | Provider::Grok | Provider::Droid => vec!["--".into(), prompt.into()],
         // On a terminal, `hermes chat -q` opens the session with it as the first turn.
         Provider::Hermes => vec!["chat".into(), "-q".into(), prompt.into()],
+        // A prompt alone runs Cline headless; `--tui` keeps its terminal UI with it as the first turn.
+        Provider::Cline => vec!["--tui".into(), prompt.into()],
         Provider::Zcode | Provider::Claude | Provider::Codex | Provider::Custom => Vec::new(),
     }
 }
@@ -3718,6 +3773,7 @@ pub mod installer {
             Provider::Hermes => super::super::hermes::home(home),
             Provider::Qwen => qwen_folder(home),
             Provider::Droid => super::super::droid::folder(home),
+            Provider::Cline => super::super::cline::folder(home),
             Provider::Claude | Provider::Custom => return None,
         })
     }
@@ -3898,7 +3954,7 @@ pub mod installer {
         use crate::diagnostics::hook_records::State as Derived;
         let mut install = Vec::new();
         let mut remove = Vec::new();
-        for provider in Provider::HOOK_AGENTS {
+        for provider in Provider::INSTALLED_AGENTS {
             let now = state(provider);
             if !hidden.contains(&provider) {
                 if !found.contains(&provider) || opted_out.contains(&provider) {
@@ -4475,7 +4531,7 @@ pub mod installer {
                     Err(_) => State::Unreadable,
                 }
             }
-            Provider::Claude | Provider::Custom => State::Missing,
+            Provider::Claude | Provider::Cline | Provider::Custom => State::Missing,
         }
     }
 
@@ -4699,7 +4755,7 @@ pub mod installer {
                     .map_err(failure),
                 None => Ok(()),
             },
-            Provider::Claude | Provider::Custom => Ok(()),
+            Provider::Claude | Provider::Cline | Provider::Custom => Ok(()),
         }
     }
 
@@ -4749,7 +4805,7 @@ pub mod installer {
                 })
                 .map_err(failure)
             }
-            Provider::Claude | Provider::Custom => Ok(()),
+            Provider::Claude | Provider::Cline | Provider::Custom => Ok(()),
         }
     }
 
@@ -7256,7 +7312,7 @@ mod tests {
         assert_eq!(name(Provider::Zcode, "ApplyPatch"), "Edit");
         assert_eq!(name(Provider::Zcode, "Bash"), "Bash");
         assert!(Provider::Zcode.answers_permissions());
-        assert!(Provider::HOOK_AGENTS.ends_with(&[
+        assert!(Provider::INSTALLED_AGENTS.ends_with(&[
             Provider::Zcode,
             Provider::Hermes,
             Provider::Qwen,

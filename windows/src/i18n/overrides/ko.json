@@ -988,5 +988,6 @@
   "windows.hooks.linkWorksMany": "설정 %d개 작동 중",
   "windows.hooks.linkAttentionOne": ", 1개 확인 필요",
   "windows.hooks.linkAttentionMany": ", %d개 확인 필요",
-  "windows.hooks.open": "후크 열기"
+  "windows.hooks.open": "후크 열기",
+  "windows.sessions.agentInEditor": "%@ · %@"
 }

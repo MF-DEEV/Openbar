@@ -112,7 +112,7 @@ pub fn set_opt_out(id: &str, out: bool) {
 /// The hook agents whose own row the person took the hooks out of, which
 /// keeping hooks in step leaves alone.
 pub fn opted_out_agents(ids: &HashSet<String>) -> HashSet<Provider> {
-    Provider::HOOK_AGENTS
+    Provider::INSTALLED_AGENTS
         .into_iter()
         .filter(|p| ids.contains(&hook_records::agent_id(*p)))
         .collect()
@@ -1098,7 +1098,7 @@ pub fn list(ctx: &Context) -> Vec<Target> {
     for setting in ctx.folders.iter().filter(|s| s.agent == "codex") {
         targets.push(folder_target(Provider::Codex, setting, ctx));
     }
-    for provider in Provider::HOOK_AGENTS {
+    for provider in Provider::INSTALLED_AGENTS {
         let present = ctx.found.contains(&provider);
         if let Some((file, whole)) = hook_records::hook_file(provider, &ctx.home, &ctx.app) {
             let id = hook_records::agent_id(provider);
@@ -1245,6 +1245,7 @@ pub fn display_name(provider: Provider) -> &'static str {
         Provider::Hermes => "Hermes",
         Provider::Qwen => "Qwen Code",
         Provider::Droid => "Factory Droid",
+        Provider::Cline => "Cline",
         Provider::Custom => "Other tool",
     }
 }

@@ -60,7 +60,7 @@ pub fn env() -> Option<Env> {
 
 pub fn context(env: &Env) -> page::Context {
     let settings = page::settings();
-    let mut found: HashSet<Provider> = Provider::HOOK_AGENTS
+    let mut found: HashSet<Provider> = Provider::INSTALLED_AGENTS
         .into_iter()
         .filter(|p| crate::sessions::hook_agents::installer::is_present(*p, &env.home))
         .collect();

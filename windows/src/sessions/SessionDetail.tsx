@@ -55,6 +55,7 @@ import {
   BackgroundLogs,
   RemoteHostMark,
   MultiplexerMark,
+  EditorMark,
   multiplexerOf,
   WorktreeBar,
 } from "./Background";
@@ -64,7 +65,15 @@ import { useSessions } from "./store";
 import { setPrefs } from "../shared/prefs";
 import { bridge } from "../shared/bridge";
 import { IMAGE_LIMIT, imageDataUrl, imageFiles, isImagePasteShortcut } from "./paste";
-import { CLAUDE_DESKTOP, codexServer, isWaiting, isWorking, type ReplyFailure, type Session } from "./types";
+import {
+  CLAUDE_DESKTOP,
+  codexServer,
+  isWaiting,
+  isWorking,
+  PROVIDER_NAMES,
+  type ReplyFailure,
+  type Session,
+} from "./types";
 import { VoiceButton, VoiceProblem } from "./VoiceReply";
 import { isActive as voiceActive, showsMicrophone, useVoice, voiceWanted } from "./voice";
 
@@ -251,6 +260,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
                   detached={detached !== null && detached.id === session.id && Date.now() / 1000 < detached.until}
                 />
               ) : null}
+              {session.editor ? <EditorMark agent={PROVIDER_NAMES[session.provider]} editor={session.editor} /> : null}
               {session.accountLabel ? <AccountMark name={session.accountLabel} /> : null}
               {session.autoMode ? <AutoMark provider={session.provider} /> : null}
               <span className="s-tag" style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
@@ -663,6 +673,8 @@ function unavailable(session: Session): string | null {
   if (session.background?.ended) return S.replyEnded;
   if (!session.acceptsReplies) {
     if (session.provider === "cursor") return S.replyIn(session.provider);
+    // Cline's extension takes a reply only in its own panel (#241).
+    if (session.editor) return S.replyIn(session.provider);
     // The Claude app has no terminal to type into (#246).
     if (session.origin) return tf("windows.sessions.replyInAgent", CLAUDE_DESKTOP);
     if (session.remote) return S.replyNeedsTmux;
