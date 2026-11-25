@@ -581,3 +581,33 @@ fn nothing_is_installed_into_cline() {
     assert_eq!(editor_name(Some("Visual Studio Code")), "VS Code");
     assert_eq!(editor_name(None), "VS Code");
 }
+
+/// Reads a live Cline store: `OB_CLINE_DB=<path to sessions.db> cargo test
+/// -- --ignored reads_a_live_store --nocapture`.
+#[test]
+#[ignore]
+fn reads_a_live_store() {
+    let path = std::env::var("OB_CLINE_DB").expect("OB_CLINE_DB");
+    let found = records(Path::new(&path));
+    println!("{found:#?}");
+    assert!(!found.is_empty());
+    if let Some(messages) = found.iter().find_map(|r| r.messages.clone()) {
+        println!(
+            "{:#?}",
+            transcript(Path::new(&messages)).map(|t| (t.calls.len(), t.open().cloned()))
+        );
+    }
+}
+
+/// Asks a live Cline hub which CLI shows each session: `OB_CLINE_DATA=<data
+/// folder> cargo test -- --ignored asks_a_live_hub --nocapture`.
+#[test]
+#[ignore]
+fn asks_a_live_hub() {
+    let data = std::env::var("OB_CLINE_DATA").expect("OB_CLINE_DATA");
+    let found = hub::discovery(Path::new(&data), &|_| true);
+    println!("{found:?}");
+    let shown = hub::shown(&found.expect("a hub"), std::time::Duration::from_secs(3));
+    println!("{shown:?}");
+    assert!(shown.is_some());
+}

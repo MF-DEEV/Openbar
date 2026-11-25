@@ -2286,16 +2286,21 @@ final class ClaudeSessionService: ObservableObject {
         let records = AgentCline.records(database: database)
         let hub = records.isEmpty ? nil : AgentCline.hub(home: home)
         let onHub = Set(records.filter { $0.pid == hub?.pid }.map(\.id))
-        // A hub session's CLI is asked for when it is new, then every few ticks: it may have quit.
-        if let hub, !onHub.isEmpty, !clineAsking,
-           !onHub.isSubset(of: Set(clineShown.keys)) || ticks % Self.sideFilesEvery == 0 {
-            clineAsking = true
-            actions.async { [weak self] in
-                let shown = AgentClineHub.shown(hub)
-                self?.queue.async { [weak self] in
-                    guard let self else { return }
-                    clineAsking = false
-                    if let shown { clineShown = shown }
+        // A hub session's CLI is asked for when it is new, so its row shows now
+        // (the hub is on this computer and answers at once), then every few
+        // ticks, off the queue: it may have quit.
+        if let hub, !onHub.isEmpty, !clineAsking {
+            if !onHub.isSubset(of: Set(clineShown.keys)) {
+                if let shown = AgentClineHub.shown(hub, timeout: 0.5) { clineShown = shown }
+            } else if ticks % Self.sideFilesEvery == 0 {
+                clineAsking = true
+                actions.async { [weak self] in
+                    let shown = AgentClineHub.shown(hub)
+                    self?.queue.async { [weak self] in
+                        guard let self else { return }
+                        clineAsking = false
+                        if let shown { clineShown = shown }
+                    }
                 }
             }
         }

@@ -587,23 +587,30 @@ impl Service {
             .filter(|r| hub.as_ref().is_some_and(|h| h.pid == r.pid))
             .map(|r| r.id.clone())
             .collect();
-        // A hub session's CLI is asked for when it is new, then every few ticks: it may have quit.
-        let shown = inner.cline_shown.lock().unwrap().clone();
+        // A hub session's CLI is asked for when it is new, then every few ticks: it
+        // may have quit. A new one waits a moment for the answer, so its row shows now.
+        let mut shown = inner.cline_shown.lock().unwrap().clone();
+        let new = on_hub.iter().any(|id| !shown.contains_key(id));
         if let Some(hub) = hub
             && !on_hub.is_empty()
-            && (on_hub.iter().any(|id| !shown.contains_key(id)) || inner.ticks % 3 == 0)
+            && (new || inner.ticks % 3 == 0)
             && !inner
                 .cline_asking
                 .swap(true, std::sync::atomic::Ordering::SeqCst)
         {
             let into = inner.cline_shown.clone();
             let asking = inner.cline_asking.clone();
+            let (done, answered) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
                 if let Some(found) = super::cline::hub::shown(&hub, Duration::from_secs(2)) {
                     *into.lock().unwrap() = found;
                 }
                 asking.store(false, std::sync::atomic::Ordering::SeqCst);
+                let _ = done.send(());
             });
+            if new && answered.recv_timeout(Duration::from_millis(500)).is_ok() {
+                shown = inner.cline_shown.lock().unwrap().clone();
+            }
         }
         let events = inner.cline.scan(
             &records,
