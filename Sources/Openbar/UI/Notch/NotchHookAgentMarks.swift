@@ -4,16 +4,16 @@
 import SwiftUI
 
 /// The makers' own marks of Gemini CLI, GitHub Copilot, OpenCode, Cursor,
-/// Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode, Hermes, Qwen Code, Factory Droid and Cline, drawn by the app from
+/// Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode, Hermes, Qwen Code, Factory Droid, Cline and Kimi Code, drawn by the app from
 /// the same paths the Windows island uses, so a session reads as its
 /// agent's whether that agent's app is on the Mac or not. Paths from
 /// @lobehub/icons-static-svg (MIT), Pi's colors from pi.dev's own logo; the
 /// marks belong to Google, GitHub, OpenCode, Anysphere, Earendil, Mistral AI,
-/// Cognition, xAI, Z.ai, Nous Research, Alibaba, Factory and Cline Bot and only name whose session it is; ZCode's comes from
+/// Cognition, xAI, Z.ai, Nous Research, Alibaba, Factory, Cline Bot and Moonshot AI and only name whose session it is; ZCode's comes from
 /// its own open-source app (zai-org/ZCode, Apache-2.0), Factory's from its site's icon
-/// (factory.com/icon.svg). Gemini CLI's keeps its
+/// (factory.com/icon.svg), Kimi Code's from its repository (MoonshotAI/kimi-code, MIT). Gemini CLI's keeps its
 /// gradient, Antigravity's arch Google's four colors across it, and Pi's,
-/// Mistral's and Devin's their colors, Qwen's its blue lifted for the dark
+/// Mistral's and Devin's their colors, Qwen's and Kimi's their blue lifted for the dark
 /// island; the other three are one color, as
 /// their makers show them on dark. Each breathes while its session works, unless Reduce Motion
 /// is on.
@@ -117,6 +117,12 @@ enum NotchHookAgentMarkPaths {
     /// Cline's mark: its robot's head with the ball above it (lobehub, MIT).
     static let cline = "M17.035 3.991c2.75 0 4.98 2.24 4.98 5.003v1.667l1.45 2.896a1.01 1.01 0 01-.002.909l-1.448 2.864v1.668c0 2.762-2.23 5.002-4.98 5.002H7.074c-2.751 0-4.98-2.24-4.98-5.002V17.33l-1.48-2.855a1.01 1.01 0 01-.003-.927l1.482-2.887V8.994c0-2.763 2.23-5.003 4.98-5.003h9.962zM8.265 9.6a2.274 2.274 0 00-2.274 2.274v4.042a2.274 2.274 0 004.547 0v-4.042A2.274 2.274 0 008.265 9.6zm7.326 0a2.274 2.274 0 00-2.274 2.274v4.042a2.274 2.274 0 104.548 0v-4.042A2.274 2.274 0 0015.59 9.6z"
         + "M12.054 5.558a2.779 2.779 0 100-5.558 2.779 2.779 0 000 5.558z"
+    /// Kimi Code's mark, from the white one in its repository ("KIMI CODE
+    /// LOGO"), fitted to 24 points: the head with its two eyes, the terminal
+    /// bar under it with its prompt, and the dot it speaks by.
+    static let kimiHead = "M10.92 1.64C16.71 1.64 21.403 6.334 21.403 12.124C21.403 12.858 21.328 13.575 21.185 14.266H0.654C0.511 13.575 0.435 12.858 0.435 12.124C0.435 6.334 5.129 1.64 10.92 1.64ZM12.303 7.655C12.202 6.924 11.532 6.411 10.806 6.511C10.081 6.611 9.574 7.284 9.674 8.016L9.98 10.244C10.081 10.976 10.751 11.488 11.476 11.388C12.202 11.289 12.709 10.615 12.609 9.883L12.303 7.655ZM17.555 6.989C17.46 6.293 16.853 5.803 16.2 5.892C15.546 5.982 15.094 6.618 15.19 7.313L15.48 9.43C15.576 10.125 16.183 10.616 16.836 10.526C17.489 10.436 17.941 9.8 17.846 9.105L17.555 6.989Z"
+    static let kimiBar = "M23.129 14.776C23.61 14.776 24 15.166 24 15.646V21.757C24 22.237 23.61 22.628 23.129 22.628H0.871C0.39 22.628 0 22.237 0 21.757V15.646C0 15.166 0.39 14.776 0.871 14.776H23.129ZM6.568 20.01C6.295 20.01 6.074 20.231 6.074 20.504C6.074 20.777 6.295 20.998 6.568 20.998H8.745C9.018 20.998 9.239 20.777 9.239 20.504C9.239 20.231 9.018 20.01 8.745 20.01H6.568ZM2.222 16.768C1.986 16.632 1.684 16.712 1.548 16.949C1.411 17.185 1.492 17.487 1.728 17.623L3.6 18.704L1.728 19.785C1.492 19.921 1.411 20.223 1.548 20.459C1.684 20.695 1.986 20.776 2.222 20.64L4.427 19.367C4.937 19.073 4.937 18.336 4.427 18.041L2.222 16.768Z"
+    static let kimiDot = "M21.79 1.372C22.74 1.372 23.51 2.142 23.51 3.092C23.51 4.042 22.74 4.812 21.79 4.812L20.272 4.812C20.16 4.812 20.07 4.722 20.07 4.61L20.07 3.092C20.07 2.142 20.84 1.372 21.79 1.372Z"
     static let zcode = "M12.525 3.085L11.055 5.175C10.824 5.5 10.446 5.7 10.037 5.7H2.025V3.075C2.025 3.085 12.525 3.085 12.525 3.085Z"
         + "M22.5 3.075L9.9 20.925H1.5L14.1 3.075H22.5Z"
         + "M11.475 20.924L12.955 18.823C13.187 18.498 13.564 18.299 13.974 18.299H21.975V20.924H11.475Z"
@@ -174,6 +180,9 @@ enum NotchHookAgentMarkPaths {
         .qwen: Mark(layers: [Layer(path: path(qwen), fill: .solid(Color(red: 0x6F / 255, green: 0x69 / 255, blue: 0xF7 / 255)))]),
         .droid: Mark(layers: [Layer(path: path(droid), fill: .solid(light))]),
         .cline: Mark(layers: [Layer(path: path(cline), fill: .solid(light))]),
+        // The head and the dot in its blue, lifted for the dark island; the bar white.
+        .kimi: Mark(layers: [Layer(path: path(kimiHead + kimiDot), fill: .solid(Color(red: 0x3D / 255, green: 0x97 / 255, blue: 0xFF / 255))),
+                             Layer(path: path(kimiBar), fill: .solid(light))]),
         .hermes: Mark(layers: [Layer(path: path(hermes0), fill: .solid(light)), Layer(path: path(hermes1), fill: .solid(light))]),
         .devin: Mark(layers: [
             Layer(path: path(devin0), fill: .solid(Color(red: 0x39 / 255, green: 0x69 / 255, blue: 0xCA / 255))),

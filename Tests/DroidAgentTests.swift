@@ -378,7 +378,7 @@ enum DroidAgentTests {
                                                       exists: { $0.hasSuffix(".factory") }),
                      "found by its command and its folder, never by one alone")
         suite.expect(ClaudeSessionProvider.droid.displayName == "Factory Droid" && ClaudeSessionProvider.droid.shortName == "Droid"
-                     && ClaudeSessionProvider.installedAgents.last == .droid && ClaudeSessionProvider.droid.answersPermissions
+                     && ClaudeSessionProvider.installedAgents.contains(.droid) && ClaudeSessionProvider.droid.answersPermissions
                      && ClaudeSessionProvider.droid.reportsThroughHooks && !ClaudeSessionProvider.droid.takesRepliesDirectly
                      && AgentCLI.command(.droid) == "droid" && AgentCLI.startArguments(.droid, prompt: "go") == ["--", "go"]
                      && AgentCLI.startsWithPrompt(.droid) && AgentHookInstaller.foldersByHand.contains(.droid)

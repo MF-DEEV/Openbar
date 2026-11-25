@@ -393,6 +393,7 @@ struct NotchClaudeSessionStrings {
         case .qwen: return agentHintQwen
         case .droid: return agentHintDroid
         case .cline: return agentHintCline
+        case .kimi: return agentHintKimi
         case .claude, .codex, .custom: return ""
         }
     }
@@ -747,6 +748,10 @@ extension NotchClaudeSessionStrings {
 
     var agentHintCline: String {
         "Nothing is added to Cline: the island reads the sessions Cline keeps in ~/.cline, from VS Code (and the editors built on it) and from cline. In the CLI, Approve, Deny and its questions are answered on the island by keys typed into its terminal, or through Cline’s hub; replies go the same way. The extension asks in its own panel, where Open takes you."
+    }
+
+    var agentHintKimi: String {
+        "Hooks in ~/.kimi-code/config.toml, next to your own, for kimi, kimi web and the Kimi Code app. Sessions show what runs and when Kimi Code waits on you. Allow, Always, Deny, its questions and its plans are answered on the island: by keys typed into its terminal in Terminal, iTerm2, tmux, zellij, WezTerm or kitty, and through Kimi’s own server in kimi web and the app. Replies go the same way. Kimi Code for VS Code asks in its own panel, where Open takes you."
     }
 
     var agentHintDroid: String {

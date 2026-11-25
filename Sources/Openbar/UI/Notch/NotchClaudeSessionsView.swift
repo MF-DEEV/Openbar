@@ -425,7 +425,9 @@ extension ClaudeSessionProvider {
     /// Factory Droid, white on black too, the bright tangerine of its
     /// terminal's own highlights, redder than Vibe's amber and brighter
     /// than Claude's clay. Cline, white on black as well, a sea green no
-    /// other agent wears, between Gemini's sky and Grok's moss.
+    /// other agent wears, between Gemini's sky and Grok's moss. Kimi Code
+    /// the pale blue its mark's head fades to, lighter than Antigravity's
+    /// and less green than Gemini's sky.
     var tint: Color {
         if let agent { return agent.tint }
         switch self {
@@ -440,6 +442,7 @@ extension ClaudeSessionProvider {
         case .qwen: return Color(red: 0.47, green: 0.45, blue: 1.0)
         case .droid: return Color(red: 1.0, green: 0.42, blue: 0.13)
         case .cline: return Color(red: 0.25, green: 0.84, blue: 0.74)
+        case .kimi: return Color(red: 0.47, green: 0.71, blue: 1.0)
         default: return Color(red: 0.80, green: 0.82, blue: 0.90)
         }
     }
