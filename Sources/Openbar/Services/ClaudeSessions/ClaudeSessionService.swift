@@ -1815,6 +1815,10 @@ final class ClaudeSessionService: ObservableObject {
                 default: break
                 }
             }
+            if event.provider == .kimi, case .client(let client) = kind, hookAgents.entry(event.id)?.client == client {
+                // Kimi tells its client with every event: only a change is news.
+                continue
+            }
             if event.provider == .kimi {
                 // A session whose hooks Kimi Code's server runs is held there,
                 // and answered there (#240).
@@ -2106,15 +2110,20 @@ final class ClaudeSessionService: ObservableObject {
             queue.async { [self] in
                 let folder = AgentKimi.folder(home: home)
                 let entry = hookAgents.entry(session.id)
-                let page = entry.flatMap { entry in
-                    AgentKimiServer.server(for: entry.pid, client: entry.client, folder: folder).flatMap { server in
-                        server.product == AgentKimiServer.appProduct ? nil
-                            : AgentKimiServer.page(server, session: entry.sessionID, token: AgentKimiServer.token(folder: folder))
+                let server = entry.flatMap { AgentKimiServer.server(for: $0.pid, client: $0.client, folder: folder) }
+                DispatchQueue.main.async { [self] in
+                    // The app's window, by its own process: whatever started it.
+                    if let server, server.product == AgentKimiServer.appProduct,
+                       let app = NSRunningApplication(processIdentifier: server.pid) {
+                        return completion(app.activate() ? .opened : .missing)
                     }
+                    let page = server.flatMap { server in
+                        entry.flatMap { AgentKimiServer.page(server, session: $0.sessionID, token: AgentKimiServer.token(folder: folder)) }
+                    }
+                    // The list of sessions is read on the main thread.
+                    guard let page else { return openHostFocus(session, completion: completion) }
+                    completion(NSWorkspace.shared.open(page) ? .opened : .missing)
                 }
-                // The list of sessions is read on the main thread.
-                guard let page else { return DispatchQueue.main.async { self.openHostFocus(session, completion: completion) } }
-                DispatchQueue.main.async { completion(NSWorkspace.shared.open(page) ? .opened : .missing) }
             }
             return
         }
@@ -2860,6 +2869,9 @@ enum ClaudeTerminalReply {
         let steps = delay.map { ClaudeTyping.steps(text, images: paths, enterAfter: $0) } ?? ClaudeTyping.steps(text, images: paths)
         switch session.host {
         case .terminal(let tty):
+            // Kimi Code sends on the return that comes with the paste there; a
+            // second one would answer the dialog it may open next (#240).
+            let delay = session.provider == .kimi ? nil : delay
             let script = !paths.isEmpty ? ClaudeTerminalScripts.type(text, images: paths, tty: tty)
                 : delay.map { ClaudeTerminalScripts.type(text, tty: tty, enterAfter: $0) } ?? ClaudeTerminalScripts.type(text, tty: tty)
             return run(script, in: ClaudeSessionHosts.terminal)
