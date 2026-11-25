@@ -908,6 +908,7 @@ fn session(
         let_through: Vec::new(),
         via: None,
         origin: Some(Origin::Cowork),
+        editor: None,
     }
 }
 

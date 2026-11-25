@@ -319,6 +319,11 @@ enum NotchClawdSprite {
         case .droid:
             put(Stamp(x: 0, y: 0, rows: droidBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .cline:
+            // The antenna goes first, so a hat simply covers it.
+            clineAntenna.forEach { put($0) }
+            put(Stamp(x: 0, y: 0, rows: clineBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -363,6 +368,7 @@ enum NotchClawdSprite {
         case .hermes: return [(3, true), (4, true), (8, false), (9, false)]
         case .qwen: return [(3, true), (4, true), (8, false), (9, false)]
         case .droid: return [(3, true), (4, true), (8, false), (9, false)]
+        case .cline: return [(3, true), (4, true), (8, false), (9, false)]
         }
     }
 
@@ -518,6 +524,19 @@ enum NotchClawdSprite {
         ".cCCCACACCCc.",
         "...ccccccc...",
     ]
+    /// Cline's figure: its robot's head, square with round corners, the
+    /// ball of its antenna (A) above it.
+    static let clineBody = [
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "cCCCCCCCCCCCc",
+        ".ccccccccccc.",
+    ]
+    private static let clineAntenna = [Stamp(x: 5, y: -3, rows: [".A.", "AAA", ".c."])]
     static let hermesBody = [
         "...AAAAAAA...",
         ".CCCCCCCCCCC.",
@@ -1116,7 +1135,7 @@ enum NotchClawdSprite {
             }
         case .hermes:
             if letter == "W" { return hermesWing }
-        case .vibe, .devin, .antigravity, .grok, .zcode, .qwen, .droid:
+        case .vibe, .devin, .antigravity, .grok, .zcode, .qwen, .droid, .cline:
             break
         case .clawd:
             break

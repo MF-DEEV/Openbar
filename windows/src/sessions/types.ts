@@ -193,6 +193,8 @@ export type Provider =
   | "qwen"
   /** Factory's Droid, heard through hooks in ~/.factory; its prompts take the island's keys (#242). */
   | "droid"
+  /** Cline (its VS Code extension and its CLI), read from its own session store; nothing is installed into it (#241). */
+  | "cline"
   /** A tool with Claude Code style hooks added on the Hooks page (#236): never one of the named agents. */
   | "custom";
 
@@ -213,6 +215,7 @@ export const PROVIDERS: readonly Provider[] = [
   "hermes",
   "qwen",
   "droid",
+  "cline",
 ];
 
 /** The agents that report through the island's hooks or plugin
@@ -231,6 +234,7 @@ export const HOOK_AGENTS = [
   "hermes",
   "qwen",
   "droid",
+  "cline",
 ] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
@@ -251,6 +255,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   hermes: "Hermes",
   qwen: "Qwen",
   droid: "Droid",
+  cline: "Cline",
   custom: "Other tool",
 };
 
@@ -274,6 +279,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   hermes: "Hermes",
   qwen: "Qwen Code",
   droid: "Factory Droid",
+  cline: "Cline",
   custom: "Other tool",
 };
 
@@ -347,6 +353,8 @@ export interface Session {
   autoMode?: boolean;
   /** The Claude app runs it, in its Code tab or Cowork, not a terminal (#246). */
   origin?: SessionOrigin;
+  /** The editor whose own panel runs it ("VS Code"): Cline's extension, which asks and takes replies there (#241). */
+  editor?: string;
   /** Permissions the island allowed without asking, newest last (#234). */
   letThrough?: LetThrough[];
 }
@@ -407,6 +415,7 @@ export interface Counts {
   workingHermes?: number;
   workingQwen?: number;
   workingDroid?: number;
+  workingCline?: number;
   /** Of `working`, the tools added on the Hooks page (#236). */
   workingCustom?: number;
   waiting: number;
@@ -479,6 +488,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     hermes: counts.workingHermes ?? 0,
     qwen: counts.workingQwen ?? 0,
     droid: counts.workingDroid ?? 0,
+    cline: counts.workingCline ?? 0,
     custom: counts.workingCustom ?? 0,
   };
   if (provider === "claude") {

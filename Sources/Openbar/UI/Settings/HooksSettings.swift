@@ -17,7 +17,7 @@ struct HooksSettings: View {
     @State private var confirmingRemoveAll = false
     @State private var removedAll: Int?
 
-    private static let order: [ClaudeSessionProvider] = [.claude, .codex] + ClaudeSessionProvider.hookAgents
+    private static let order: [ClaudeSessionProvider] = [.claude, .codex] + ClaudeSessionProvider.installedAgents
 
     var body: some View {
         ScrollView {

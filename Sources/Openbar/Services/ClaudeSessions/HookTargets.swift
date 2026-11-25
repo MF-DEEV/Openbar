@@ -167,7 +167,7 @@ enum HookTargets {
         for setting in context.folders where setting.provider == .codex {
             targets.append(agentTarget(.codex, setting: setting, context: context))
         }
-        for provider in ClaudeSessionProvider.hookAgents {
+        for provider in ClaudeSessionProvider.installedAgents {
             let present = AgentHookInstaller.isPresent(provider, home: context.home, path: context.path)
             if let file = AgentHookInstaller.hookFile(provider, home: context.home, bundle: context.bundle) {
                 let id = HookRecords.agentID(provider)

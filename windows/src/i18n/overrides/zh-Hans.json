@@ -988,5 +988,6 @@
   "windows.hooks.linkWorksMany": "%d 个配置正常",
   "windows.hooks.linkAttentionOne": "，1 个需要查看",
   "windows.hooks.linkAttentionMany": "，%d 个需要查看",
-  "windows.hooks.open": "打开钩子"
+  "windows.hooks.open": "打开钩子",
+  "windows.sessions.agentInEditor": "%@（位于 %@）"
 }

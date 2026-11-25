@@ -305,9 +305,14 @@ final class AgentHookSessions {
         // dialog; its tools' through the hook the island holds.
         let qwenKeys = entry.provider == .qwen && entry.permission.map(AgentQwen.answeredByKeys) == true
         let keyed = entry.provider == .grok || entry.provider == .droid || qwenKeys
+        // Cline's CLI takes keys where its terminal does, and an approval
+        // through Cline's hub anywhere; its extension asks in its own panel.
+        let clineAnswers = entry.provider == .cline && entry.client != AgentCline.extensionClient
+            && (ClaudeTyping.takesKeys(host) || (entry.client == AgentCline.hubClient && entry.permission?.asksQuestions == false))
         let inAgent = entry.permission != nil
             && (!entry.answerable || (keyed && !ClaudeTyping.takesKeys(host))
-                || (qwenKeys && entry.permission.map { !AgentQwen.keyable($0, oneBurst: AgentQwen.oneBurst(host)) } == true))
+                || (qwenKeys && entry.permission.map { !AgentQwen.keyable($0, oneBurst: AgentQwen.oneBurst(host)) } == true)
+                || (entry.provider == .cline && !clineAnswers))
         var session = ClaudeSession(
             id: id, pid: entry.pid, cwd: entry.cwd, project: project, name: project, branch: branch, model: entry.model,
             host: host, phase: phase, phaseSince: since, turnStarted: entry.turnStarted,
@@ -327,6 +332,7 @@ final class AgentHookSessions {
             hooked: true, provider: entry.provider)
         if previews { session.chat = entry.chat }
         session.via = entry.via
+        if entry.provider == .cline, entry.client == AgentCline.extensionClient { session.editor = AgentCline.editorName(host) }
         if inAgent { session.waitingDiffs = entry.permission?.diffs ?? [] }
         return session
     }

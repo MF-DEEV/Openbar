@@ -167,7 +167,8 @@ enum AgentHookMessage {
         case .hermes: decoded.events = hermes(hook, event, pid: pid, now: now, policy: policy)
         case .qwen: qwen(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .droid: droid(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
-        case .claude: return nil
+        // Cline is read from its own store, never through a hook (#241).
+        case .claude, .cline: return nil
         }
         return decoded
     }

@@ -205,6 +205,7 @@ enum AgentHookInstaller {
         case .hermes: return AgentHermes.home(home: home, environment: environment)
         case .qwen: return AgentQwen.folder(home: home, environment: environment)
         case .droid: return AgentDroid.folder(home: home, environment: environment)
+        case .cline: return AgentCline.folder(home: home, environment: environment)
         case .codex:
             return environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
                 ?? home.appending(path: ".codex")
@@ -257,7 +258,7 @@ enum AgentHookInstaller {
                      repair: Bool = true) -> (install: [ClaudeSessionProvider], remove: [ClaudeSessionProvider]) {
         var install: [ClaudeSessionProvider] = []
         var remove: [ClaudeSessionProvider] = []
-        for provider in ClaudeSessionProvider.hookAgents {
+        for provider in ClaudeSessionProvider.installedAgents {
             let state = states[provider] ?? .missing
             if shown.contains(provider) {
                 guard found.contains(provider), !optedOut.contains(provider) else { continue }
@@ -477,7 +478,7 @@ enum AgentHookInstaller {
                 return groupsState(try ClaudeHookInstaller.read(url), events: codexEvents, bundle: bundle) {
                     command(.codex, event: $0, socket: socket, bundle: bundle, via: tag)
                 }
-            case .claude, .custom:
+            case .claude, .cline, .custom:
                 return .missing
             }
         } catch {
@@ -569,7 +570,7 @@ enum AgentHookInstaller {
                      "command": command(.codex, event: event, socket: socket, bundle: bundle, via: tag)]
                 }
             }
-        case .claude, .custom:
+        case .claude, .cline, .custom:
             break
         }
     }
@@ -600,7 +601,7 @@ enum AgentHookInstaller {
         case .hermes:
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
             try updateVibe(url) { text in text.flatMap { AgentHermesConfig.removing($0, marker: marker(bundle: bundle)) } }
-        case .claude, .custom:
+        case .claude, .cline, .custom:
             break
         }
     }
@@ -635,7 +636,7 @@ enum AgentHookInstaller {
 
     /// Takes every agent's hooks out, as the app is uninstalled.
     static func removeAll(home: URL, bundle: String) {
-        for provider in ClaudeSessionProvider.hookAgents { try? remove(provider, home: home, bundle: bundle) }
+        for provider in ClaudeSessionProvider.installedAgents { try? remove(provider, home: home, bundle: bundle) }
     }
 
     // MARK: Gemini's groups

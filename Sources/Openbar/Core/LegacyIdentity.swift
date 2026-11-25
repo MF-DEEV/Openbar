@@ -145,7 +145,7 @@ enum LegacyIdentity {
             }) != nil
         }
         var agents: [ClaudeSessionProvider] = []
-        for provider in ClaudeSessionProvider.hookAgents {
+        for provider in ClaudeSessionProvider.installedAgents {
             let old = AgentHookInstaller.state(provider, home: home, socket: socket, bundle: legacy)
             guard old == .installed || old == .outdated else { continue }
             if install, AgentHookInstaller.state(provider, home: home, socket: socket, bundle: current) != .installed {

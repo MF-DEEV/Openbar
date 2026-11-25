@@ -452,6 +452,11 @@ unsafe fn press_key(name: &str) -> windows::core::Result<()> {
             let ch = digit.chars().next().unwrap_or('1');
             key(ch as u16, ch)
         }
+        // Cline's dialog (#241): `n` for Deny. A letter's virtual key is its capital.
+        letter if letter.len() == 1 && letter.chars().all(|c| c.is_ascii_lowercase()) => {
+            let ch = letter.chars().next().unwrap_or('n');
+            key(ch.to_ascii_uppercase() as u16, ch)
+        }
         _ => return Ok(()),
     };
     let input = unsafe { console_input()? };

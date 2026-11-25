@@ -30,7 +30,7 @@ enum HookMaintenance {
     /// which keeping hooks in step leaves alone.
     static func optedOutAgents(_ defaults: UserDefaults = .standard) -> Set<ClaudeSessionProvider> {
         let ids = optOut(defaults)
-        return Set(ClaudeSessionProvider.hookAgents.filter { ids.contains(HookRecords.agentID($0)) })
+        return Set(ClaudeSessionProvider.installedAgents.filter { ids.contains(HookRecords.agentID($0)) })
     }
 
     static func autoRepair(_ defaults: UserDefaults = .standard) -> Bool {

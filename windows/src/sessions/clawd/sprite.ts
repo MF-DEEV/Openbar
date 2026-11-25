@@ -931,6 +931,12 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [8, false],
     [9, false],
   ],
+  cline: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -1077,6 +1083,19 @@ export const DROID_BODY = [
   "...ccccccc...",
 ];
 
+/** Cline's figure: its robot's head, square with round corners, the ball
+ * of its antenna (A) above it (NotchClawdSprite.clineBody). */
+export const CLINE_BODY = [
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "cCCCCCCCCCCCc",
+  ".ccccccccccc.",
+];
+
 export const QWEN_BODY = [
   "...CCCCCCC...",
   "..CCCCCCCCC..",
@@ -1187,6 +1206,11 @@ function compose(
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else if (character === "droid") {
     put(s(0, 0, DROID_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "cline") {
+    // The antenna goes first, so a hat simply covers it.
+    put(s(5, -3, [".A.", "AAA", ".c."]));
+    put(s(0, 0, CLINE_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));

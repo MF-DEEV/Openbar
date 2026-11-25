@@ -171,7 +171,8 @@ extension AgentHookInstaller {
         case .hermes: return (AgentHermes.config(home: home), false)
         case .qwen: return (AgentQwen.settings(home: home), false)
         case .droid: return (AgentDroid.settings(home: home), false)
-        case .claude, .codex, .custom: return nil
+        // Cline gets no hooks: the island reads its own session store (#241).
+        case .claude, .codex, .cline, .custom: return nil
         }
     }
 

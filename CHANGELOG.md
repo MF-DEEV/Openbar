@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Cline joins the Sessions list on Mac, Windows and Linux, its VS Code extension (in VS Code, Cursor, Windsurf or VSCodium) and its CLI alike, with its own mark, color, pixel figure and switch, and its mark joins the closed island's stack (#241). Nothing is added to Cline: the island reads the session store Cline keeps for itself. The CLI's approvals and questions are answered from the island by keys in its terminal, or through Cline's hub where keys can't reach, and replies go through the hub. The extension's rows name the editor, show when Cline waits on you, and open the right editor window.
 - Factory Droid (`droid`) joins the Sessions list on Mac, Windows and Linux, with its own mark, color, pixel figure and switch, and its mark joins the closed island's stack (#242). Its hooks go into `~/.factory` next to your own, each where Droid reads its event. Allow and Deny answer its permission prompts from the island, and its questions (several tabs, multiple choices) and specs too, by keys in its terminal. Replies are typed into its terminal, and the model and last reply come from the session's own files.
 
 ## [3.5.0] - 2026-11-24

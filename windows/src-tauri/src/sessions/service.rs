@@ -212,6 +212,13 @@ struct Inner {
     hermes_places: super::hermes::Places,
     /// Which of Qwen Code's events end or carry on its turns (#239).
     qwen_turns: super::qwen::Turns,
+    /// Cline's sessions, read from its own store (#241).
+    cline: super::cline::Watcher,
+    /// When Cline's store last changed, so it is read again only then.
+    cline_stamp: Vec<Option<std::time::SystemTime>>,
+    /// The CLI that shows each session Cline's hub runs, as the hub last said.
+    cline_shown: Arc<Mutex<HashMap<String, i32>>>,
+    cline_asking: Arc<std::sync::atomic::AtomicBool>,
     agent_pending: HashMap<String, AgentPending>,
     inspection: super::inspection::Gate,
     /// What each ask looks like it does, for the queue's Allow all (#269).
@@ -307,6 +314,10 @@ impl Service {
                 local_codex: Vec::new(),
                 hook_agents: HookAgents::default(),
                 hermes_places: Default::default(),
+                cline: Default::default(),
+                cline_stamp: Vec::new(),
+                cline_shown: Default::default(),
+                cline_asking: Default::default(),
                 qwen_turns: Default::default(),
                 agent_pending: HashMap::new(),
                 inspection: Default::default(),
@@ -530,8 +541,103 @@ impl Service {
             inner.hooks_installed = hooks::claude_hooks_status_installed();
         }
         Self::read_cowork(&mut inner, t);
+        Self::read_cline(&mut inner, home.as_deref(), t);
         self.release_stale_hooks(&mut inner, t);
         self.publish(&mut inner, t)
+    }
+
+    /// Reads Cline's session store while its switch is on (#241): every tick
+    /// while one of its sessions is listed, else when the store changed or
+    /// every few ticks. Cline's hub is asked, off this thread, which CLI
+    /// shows each session it runs.
+    fn read_cline(inner: &mut Inner, home: Option<&Path>, t: Time) {
+        let policy = inner.engine.policy();
+        let alive = |pid: i32| hosts::process::is_running(pid as u32);
+        let read = |path: &Path| super::cline::transcript(path);
+        let (Some(home), false) = (home, inner.hidden_agents.contains(&models::Provider::Cline))
+        else {
+            if !inner.cline.is_empty() {
+                let events = inner
+                    .cline
+                    .scan(&[], t, policy, &|_| None, &|_| "", &alive, &read);
+                for event in events {
+                    inner.hook_agents.ingest(event, t);
+                }
+            }
+            return;
+        };
+        let database = super::cline::database(home, &super::cline::process_env);
+        let stamp: Vec<Option<std::time::SystemTime>> = [
+            database.clone(),
+            PathBuf::from(format!("{}-wal", database.to_string_lossy())),
+        ]
+        .iter()
+        .map(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
+        .collect();
+        if inner.cline.is_empty() && stamp == inner.cline_stamp && inner.ticks % 3 != 0 {
+            return;
+        }
+        inner.cline_stamp = stamp;
+        let records = super::cline::records(&database);
+        let hub = (!records.is_empty())
+            .then(|| super::cline::hub(home))
+            .flatten();
+        let on_hub: HashSet<String> = records
+            .iter()
+            .filter(|r| hub.as_ref().is_some_and(|h| h.pid == r.pid))
+            .map(|r| r.id.clone())
+            .collect();
+        // A hub session's CLI is asked for when it is new, then every few ticks: it
+        // may have quit. A new one waits a moment for the answer, so its row shows now.
+        let mut shown = inner.cline_shown.lock().unwrap().clone();
+        let new = on_hub.iter().any(|id| !shown.contains_key(id));
+        if let Some(hub) = hub
+            && !on_hub.is_empty()
+            && (new || inner.ticks % 3 == 0)
+            && !inner
+                .cline_asking
+                .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            let into = inner.cline_shown.clone();
+            let asking = inner.cline_asking.clone();
+            let (done, answered) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                if let Some(found) = super::cline::hub::shown(&hub, Duration::from_secs(2)) {
+                    *into.lock().unwrap() = found;
+                }
+                asking.store(false, std::sync::atomic::Ordering::SeqCst);
+                let _ = done.send(());
+            });
+            if new && answered.recv_timeout(Duration::from_millis(500)).is_ok() {
+                shown = inner.cline_shown.lock().unwrap().clone();
+            }
+        }
+        let events = inner.cline.scan(
+            &records,
+            t,
+            policy,
+            &|r| {
+                if on_hub.contains(&r.id) {
+                    shown.get(&r.id).copied()
+                } else {
+                    Some(r.pid)
+                }
+            },
+            &|r| {
+                if r.is_extension() {
+                    super::cline::EXTENSION_CLIENT
+                } else if on_hub.contains(&r.id) {
+                    super::cline::HUB_CLIENT
+                } else {
+                    super::cline::CLI_CLIENT
+                }
+            },
+            &alive,
+            &read,
+        );
+        for event in events {
+            inner.hook_agents.ingest(event, t);
+        }
     }
 
     fn read_transcript(&self, inner: &mut Inner, id: &str, home: Option<&Path>, t: Time) {
@@ -1195,6 +1301,18 @@ impl Service {
                     // and `agy` in a terminal take one.
                     let accepts = match entry.provider {
                         models::Provider::Opencode | models::Provider::Pi => true,
+                        // Cline's extension takes a reply only in its own panel;
+                        // a session its hub runs takes one through the hub (#241).
+                        models::Provider::Cline
+                            if entry.client.as_deref() == Some(super::cline::EXTENSION_CLIENT) =>
+                        {
+                            false
+                        }
+                        models::Provider::Cline
+                            if entry.client.as_deref() == Some(super::cline::HUB_CLIENT) =>
+                        {
+                            true
+                        }
                         models::Provider::Cursor | models::Provider::Antigravity => {
                             matches!(
                                 kind,
@@ -1751,6 +1869,71 @@ impl Service {
                     self.publish(&mut inner, t);
                     return true;
                 }
+                // Cline's CLI takes keys in its terminal: Return for Approve, `n`
+                // for Deny, a question's number. Where they can't be pressed, an
+                // approval goes through Cline's hub. Its store tells when it moves
+                // on; its extension asks only in its own panel (#241).
+                if let Some(entry) = inner
+                    .hook_agents
+                    .entry(session)
+                    .filter(|e| e.provider == models::Provider::Cline)
+                    .cloned()
+                {
+                    if entry.client.as_deref() == Some(super::cline::EXTENSION_CLIENT) {
+                        return false;
+                    }
+                    let located = inner
+                        .hosts
+                        .get(&entry.pid)
+                        .cloned()
+                        .filter(|l| hosts::takes_keys(&l.host));
+                    let asked = p.clone();
+                    drop(inner);
+                    let answered = if let (Some(located), Some(keys)) =
+                        (located, super::cline::keys(&decision, &asked))
+                    {
+                        press_droid(entry.pid as u32, &located, &keys.keys).is_ok()
+                            && keys.typed.is_none_or(|text| {
+                                std::thread::sleep(Duration::from_millis(200));
+                                // The answer row reads keys, not a paste, in a Windows console.
+                                #[cfg(windows)]
+                                let typed =
+                                    hosts::deliver_codex(entry.pid as u32, &located, &text, &[]);
+                                #[cfg(not(windows))]
+                                let typed = hosts::deliver(entry.pid as u32, &located, &text, &[]);
+                                typed.is_ok()
+                            })
+                    } else {
+                        let approved = match decision {
+                            Decision::Allow => true,
+                            Decision::Deny => false,
+                            _ => return false,
+                        };
+                        entry.client.as_deref() == Some(super::cline::HUB_CLIENT)
+                            && !asked.asks_questions()
+                            && hooks::installer::home_dir()
+                                .and_then(|home| super::cline::hub(&home))
+                                .is_some_and(|hub| {
+                                    super::cline::hub::approve(
+                                        approved,
+                                        &entry.session_id,
+                                        request,
+                                        &hub,
+                                        Duration::from_secs(5),
+                                    )
+                                })
+                    };
+                    if !answered {
+                        return false;
+                    }
+                    // Cline's store tells when it moved on: a card whose keys
+                    // didn't take stays to be answered again.
+                    let mut inner = self.inner.lock().unwrap();
+                    let t = now();
+                    inner.hook_agents.acknowledge(session, t);
+                    self.publish(&mut inner, t);
+                    return true;
+                }
                 // Droid's prompts take keys: Return for its yes, arrows to its
                 // no, numbers for questions and specs; its hooks tell when it
                 // moves on (#242).
@@ -1975,6 +2158,7 @@ impl Service {
         inner.engine.set_policy(ContentPolicy { previews: on });
         if !on {
             inner.hook_agents.purge_content();
+            inner.cline.forget_content();
             inner.cowork.purge_content();
             for row in &mut inner.cowork_rows {
                 row.title = None;
@@ -2129,6 +2313,22 @@ impl Service {
                     "unreachable"
                 },
             ));
+        }
+        // A session Cline's hub runs takes the reply there, queued after the
+        // turn under way; the CLI shows it as typed (#241).
+        if entry.provider == models::Provider::Cline
+            && entry.client.as_deref() == Some(super::cline::HUB_CLIENT)
+        {
+            drop(inner);
+            let sent = hooks::installer::home_dir()
+                .and_then(|home| super::cline::hub(&home))
+                .is_some_and(|hub| {
+                    super::cline::hub::send(text, &entry.session_id, &hub, Duration::from_secs(5))
+                });
+            if sent {
+                self.acknowledge(session);
+            }
+            return Some((!sent).then_some("unreachable"));
         }
         if entry.provider.reports_through_plugin() {
             let Some(listener) = inner.listeners.remove(&entry.pid) else {
@@ -3106,12 +3306,12 @@ pub(crate) fn sync_agent_hooks(hidden: &HashSet<models::Provider>) {
         return;
     };
     let endpoint = hooks::transport::endpoint(hooks::APP_ID);
-    let found: Vec<models::Provider> = models::Provider::HOOK_AGENTS
+    let found: Vec<models::Provider> = models::Provider::INSTALLED_AGENTS
         .into_iter()
         .filter(|p| hook_agents::installer::is_present(*p, &home))
         .collect();
     let records = hook_records::all();
-    let states: HashMap<models::Provider, Derived> = models::Provider::HOOK_AGENTS
+    let states: HashMap<models::Provider, Derived> = models::Provider::INSTALLED_AGENTS
         .into_iter()
         .map(|p| {
             let base = hook_agents::installer::state(p, &home, &exe, &endpoint, hooks::APP_ID);
@@ -3314,7 +3514,7 @@ pub fn sessions_agent_hooks_status() -> Vec<AgentHooksStatus> {
         return Vec::new();
     };
     let endpoint = hooks::transport::endpoint(hooks::APP_ID);
-    let statuses: Vec<AgentHooksStatus> = models::Provider::HOOK_AGENTS
+    let statuses: Vec<AgentHooksStatus> = models::Provider::INSTALLED_AGENTS
         .iter()
         .map(|&provider| {
             let state =

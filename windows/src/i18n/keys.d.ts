@@ -4140,6 +4140,7 @@ export type CatalogKey =
   | "windows.sessions.modelPicker"
   | "windows.sessions.moreLetThrough"
   | "windows.sessions.multiplexerHelp"
+  | "windows.sessions.agentInEditor"
   | "windows.sessions.newSession"
   | "windows.sessions.nextStep"
   | "windows.sessions.noImageOnClipboard"

@@ -773,6 +773,10 @@ pub struct Session {
     /// The Claude app runs it, in its Code tab or Cowork, not a terminal (#246).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<super::claude_desktop::Origin>,
+    /// The editor whose own panel runs it, by its short name ("VS Code"):
+    /// Cline's extension, which asks and takes replies there (#241).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editor: Option<String>,
 }
 
 impl Session {
@@ -791,7 +795,7 @@ pub struct SessionCounts {
     pub working_codex: i64,
     /// Of `working`, the ones of Gemini CLI, Copilot CLI, OpenCode, Cursor,
     /// Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode, Hermes
-    /// Qwen Code and Factory Droid.
+    /// Qwen Code, Factory Droid and Cline.
     pub working_gemini: i64,
     pub working_copilot: i64,
     pub working_opencode: i64,
@@ -805,6 +809,7 @@ pub struct SessionCounts {
     pub working_hermes: i64,
     pub working_qwen: i64,
     pub working_droid: i64,
+    pub working_cline: i64,
     /// Of `working`, the ones of tools added on the Hooks page (#236).
     pub working_custom: i64,
     pub waiting: i64,
@@ -834,6 +839,7 @@ impl SessionCounts {
                     Provider::Hermes => counts.working_hermes += 1,
                     Provider::Qwen => counts.working_qwen += 1,
                     Provider::Droid => counts.working_droid += 1,
+                    Provider::Cline => counts.working_cline += 1,
                     Provider::Custom => counts.working_custom += 1,
                     Provider::Claude => {}
                 }
@@ -886,6 +892,10 @@ pub enum Provider {
     /// Factory's Droid (`droid`), heard through hooks in `~/.factory`; its
     /// prompts are answered with keys in its terminal (#242).
     Droid,
+    /// Cline (its VS Code extension and its CLI), read from its own session
+    /// store; its CLI's prompts take keys, its hub answers and takes replies,
+    /// and the extension asks in its own panel (#241).
+    Cline,
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     Custom,
@@ -1559,6 +1569,7 @@ mod tests {
             via: None,
             later_asks: Vec::new(),
             origin: None,
+            editor: None,
         }
     }
 

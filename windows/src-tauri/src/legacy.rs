@@ -98,7 +98,7 @@ pub fn migrate_hooks(
         })
         .is_ok();
     }
-    for provider in Provider::HOOK_AGENTS {
+    for provider in Provider::INSTALLED_AGENTS {
         let old = agents::state(provider, home, exe, endpoint, LEGACY_APP_ID);
         if !matches!(old, agents::State::Installed | agents::State::Outdated) {
             continue;

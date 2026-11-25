@@ -344,6 +344,8 @@ pub enum Key {
     Tab,
     /// A choice's number, 1 to 9.
     Digit(u8),
+    /// A letter its dialog takes: Cline's `n` for Deny (#241).
+    Letter(char),
 }
 
 impl Key {
@@ -357,6 +359,7 @@ impl Key {
             Key::Escape => "\u{1b}".into(),
             Key::Tab => "\t".into(),
             Key::Digit(n) => n.to_string(),
+            Key::Letter(c) => c.to_string(),
         }
     }
 
@@ -370,6 +373,7 @@ impl Key {
             Key::Escape => "Escape".into(),
             Key::Tab => "Tab".into(),
             Key::Digit(n) => n.to_string(),
+            Key::Letter(c) => c.to_string(),
         }
     }
 
@@ -392,6 +396,7 @@ impl Key {
             Key::Escape => "escape".into(),
             Key::Tab => "tab".into(),
             Key::Digit(n) => n.to_string(),
+            Key::Letter(c) => c.to_string(),
         }
     }
 }
@@ -442,6 +447,7 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
                     Key::Escape => "escape".into(),
                     Key::Tab => "tab".into(),
                     Key::Digit(n) => n.to_string(),
+                    Key::Letter(c) => c.to_string(),
                     Key::Enter | Key::Interrupt => unreachable!(),
                 },
             },
@@ -450,7 +456,7 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
         .map_err(|_| DeliveryError::Unreachable),
         (Key::Enter, _) => deliver(pid, located, "", &[]),
         (
-            Key::Down | Key::Space | Key::Escape | Key::Tab | Key::Digit(_),
+            Key::Down | Key::Space | Key::Escape | Key::Tab | Key::Digit(_) | Key::Letter(_),
             Host::Wezterm {
                 gui_pid,
                 pane,
@@ -459,7 +465,7 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
         ) => wezterm::keys(*gui_pid, *pane, socket, &key.bytes())
             .map_err(|_| DeliveryError::Unreachable),
         (
-            Key::Down | Key::Space | Key::Escape | Key::Tab | Key::Digit(_),
+            Key::Down | Key::Space | Key::Escape | Key::Tab | Key::Digit(_) | Key::Letter(_),
             Host::Zellij {
                 session,
                 pane,
@@ -479,7 +485,7 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
         }
         #[cfg(target_os = "linux")]
         (
-            Key::Down | Key::Space | Key::Escape | Key::Tab | Key::Digit(_),
+            Key::Down | Key::Space | Key::Escape | Key::Tab | Key::Digit(_) | Key::Letter(_),
             Host::Tmux { .. } | Host::Kitty { .. },
         ) => crate::linux::hosts::keys(pid, located, key),
         (

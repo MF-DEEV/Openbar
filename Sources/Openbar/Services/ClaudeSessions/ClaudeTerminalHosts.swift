@@ -135,6 +135,8 @@ enum ClaudeKey: Equatable {
     case escape
     /// Moves on from a multiple choice (Factory Droid's questions, #242).
     case tab
+    /// A letter its dialog takes: Cline's `n` for Deny (#241).
+    case letter(Character)
 
     /// What a terminal sends the program for it.
     var bytes: String {
@@ -144,6 +146,7 @@ enum ClaudeKey: Equatable {
         case .space: return " "
         case .escape: return "\u{1B}"
         case .tab: return "\t"
+        case .letter(let letter): return String(letter)
         }
     }
 
@@ -155,6 +158,7 @@ enum ClaudeKey: Equatable {
         case .space: return "Space"
         case .escape: return "Escape"
         case .tab: return "Tab"
+        case .letter(let letter): return String(letter)
         }
     }
 
@@ -169,6 +173,7 @@ enum ClaudeKey: Equatable {
         case .space: return "space"
         case .escape: return "escape"
         case .tab: return "tab"
+        case .letter(let letter): return String(letter)
         }
     }
 
@@ -181,6 +186,7 @@ enum ClaudeKey: Equatable {
         case .space: return "\" \""
         case .escape: return "(character id 27)"
         case .tab: return "(character id 9)"
+        case .letter(let letter): return "\"\(letter)\""
         }
     }
 
@@ -205,9 +211,11 @@ enum ClaudeTyping {
     /// it rather than breaking the line: Gemini CLI's and the other hook
     /// agents' take a quick one as part of the paste. Qwen Code's sends on
     /// the return that comes with the paste, and in Terminal a second one
-    /// would take the reply it suggests next into its prompt (#239).
+    /// would take the reply it suggests next into its prompt (#239). Cline's
+    /// sends on the first return too, and a second one would approve the
+    /// tool it may ask about next (#241).
     static func enterDelay(_ provider: ClaudeSessionProvider) -> Double? {
-        provider.reportsThroughHooks && provider != .qwen ? 0.5 : nil
+        provider.reportsThroughHooks && provider != .qwen && provider != .cline ? 0.5 : nil
     }
 
     /// Whether the session's terminal takes keys from the island as keys,

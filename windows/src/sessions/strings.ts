@@ -456,6 +456,8 @@ export const S = {
   remoteHelp: (alias: string) => tf("windows.sessions.remoteHelp", alias),
   // #235: the tmux or zellij a session's pane belongs to, and one with no terminal attached.
   multiplexerHelp: (name: string) => tf("windows.sessions.multiplexerHelp", name),
+  /** "Cline in VS Code": an agent that runs in an editor's own panel (#241). */
+  agentInEditor: (agent: string, editor: string) => tf("windows.sessions.agentInEditor", agent, editor),
   get detachedAttach() {
     return t("windows.sessions.detachedAttach");
   },

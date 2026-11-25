@@ -988,5 +988,6 @@
   "windows.hooks.linkWorksMany": "%d yapılandırma çalışıyor",
   "windows.hooks.linkAttentionOne": ", 1 tanesine bakılmalı",
   "windows.hooks.linkAttentionMany": ", %d tanesine bakılmalı",
-  "windows.hooks.open": "Hook’ları aç"
+  "windows.hooks.open": "Hook’ları aç",
+  "windows.sessions.agentInEditor": "%@ · %@"
 }

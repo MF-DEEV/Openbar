@@ -1458,6 +1458,7 @@ fn session(
             .map(permission)
             .collect(),
         origin: None,
+        editor: None,
     }
 }
 
