@@ -479,6 +479,10 @@ fn the_log_names_the_model_and_answer() {
     assert!(session_folder_in("none", &folder).is_none());
     std::fs::remove_dir_all(&folder).ok();
     assert_eq!(model_name("kimi-code/kimi-for-coding"), "kimi-for-coding");
+    // A second Return would approve the dialog a reply may open at once.
+    assert!(crate::sessions::hook_agents::takes_one_return(
+        Provider::Kimi
+    ));
 }
 
 use crate::sessions::models::Provider;

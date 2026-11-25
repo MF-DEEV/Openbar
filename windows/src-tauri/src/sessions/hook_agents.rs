@@ -3519,10 +3519,11 @@ pub fn takes_one_return(provider: Provider) -> bool {
         return !cfg!(windows);
     }
     // Cline sends on the first return; a second would approve the tool it
-    // may ask about next (#241).
+    // may ask about next (#241). So does Kimi Code, where a second picks
+    // "Approve once" in the dialog its reply may open at once (#240).
     matches!(
         provider,
-        Provider::Zcode | Provider::Hermes | Provider::Cline
+        Provider::Zcode | Provider::Hermes | Provider::Cline | Provider::Kimi
     )
 }
 
