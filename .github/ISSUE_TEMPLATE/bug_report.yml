@@ -15,21 +15,23 @@ body:
     id: preflight
     attributes:
       label: Before you file
-      description: The [troubleshooting guide](https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md) covers both.
+      description: The [troubleshooting guide](https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md) covers each system.
       options:
-        - label: If the feature does nothing at all, I checked that the app has the permission it needs in System Settings (or Windows Settings) and toggled it off and on.
+        - label: If the feature does nothing at all, I checked that the app has the permission it needs in the system's settings (System Settings on macOS, Settings on Windows) and toggled it off and on.
           required: true
-        - label: It still happens on the latest `main` build or Windows release.
+        - label: It still happens on the latest release or `main` build.
           required: true
 
   - type: dropdown
     id: platform
     attributes:
       label: Platform
+      description: Pick every system it happens on.
+      multiple: true
       options:
         - macOS
         - Windows
-        - Both
+        - Linux
     validations:
       required: true
 
@@ -85,8 +87,8 @@ body:
     id: version
     attributes:
       label: Version
-      description: The commit you built from, or the Windows release number.
-      placeholder: "main @ 0ff09d5, or windows-v0.1.0"
+      description: The release you installed (Settings › About), or the commit you built from.
+      placeholder: "3.5.0 on macOS, 1.2.0 on Windows, 1.0.0 on Linux, or main @ 0ff09d5"
     validations:
       required: true
 
@@ -94,7 +96,7 @@ body:
     id: os_version
     attributes:
       label: OS version
-      placeholder: "macOS 26.1, or Windows 11 24H2"
+      placeholder: "macOS 26.1, Windows 11 24H2, or Ubuntu 24.04 (X11)"
     validations:
       required: true
 

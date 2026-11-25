@@ -31,10 +31,12 @@ body:
     id: platform
     attributes:
       label: Platform
+      description: Pick every system you'd want it on.
+      multiple: true
       options:
         - macOS
         - Windows
-        - Both
+        - Linux
     validations:
       required: true
 
