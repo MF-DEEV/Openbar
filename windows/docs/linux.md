@@ -103,6 +103,6 @@ WebKit gets its GPU buffers for a window through DRI3. On an X server that has n
 
 ## Not done yet
 
-- Wayland. The island needs a layer-shell window (`gtk-layer-shell`), the global shortcuts, the screen capture and the clipboard each need a portal or a compositor protocol, and none of that can be tried without a Wayland compositor, which this was developed without. Nothing in the Linux code claims to work there.
 - "Show in screenshots": X11 has no way to keep a window out of a capture, so the setting does nothing and the island shows in screenshots other programs take (Openbar's own screenshot tool takes its picture before its overlay is shown).
 - The toolkit sections that read Windows APIs and are not ported yet: voice replies (the microphone button next to Reply and the voice settings are hidden on Linux) and the Discord mute reading.
+- What is listed under "Not tried" and "Still X11 only" in [Wayland](#wayland).
