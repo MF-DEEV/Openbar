@@ -131,6 +131,10 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     /// Factory's Droid (`droid`), heard through hooks in `~/.factory`; its
     /// prompts are answered with keys in its terminal (#242).
     case droid
+    /// Cline (its VS Code extension and its CLI), read from its own session
+    /// store; its CLI's prompts take keys, its hub answers and takes
+    /// replies, and the extension asks in its own panel (#241).
+    case cline
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     case custom
@@ -145,7 +149,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .droid, .custom: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .droid, .cline, .custom: return nil
         }
     }
 
@@ -167,6 +171,7 @@ extension ClaudeSessionProvider {
         case .hermes: return "Hermes"
         case .qwen: return "Qwen Code"
         case .droid: return "Factory Droid"
+        case .cline: return "Cline"
         case .custom: return "Other tool"
         }
     }
@@ -192,7 +197,14 @@ extension ClaudeSessionProvider {
 
     /// The agents that report through the island's hooks or plugin.
     static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok,
-                                                      .zcode, .hermes, .qwen, .droid]
+                                                      .zcode, .hermes, .qwen, .droid, .cline]
+
+    /// The hook agents the island puts hooks or a plugin into. Cline is read
+    /// from its own session store instead, and gets nothing (#241).
+    static let installedAgents: [ClaudeSessionProvider] = hookAgents.filter(\.installsHooks)
+
+    /// Whether the island puts hooks or a plugin into the agent.
+    var installsHooks: Bool { self != .cline }
 
     var reportsThroughHooks: Bool { Self.hookAgents.contains(self) }
 
@@ -215,7 +227,7 @@ extension ClaudeSessionProvider {
     /// for yes and Escape for no, and digits for its questions and specs.
     var answersPermissions: Bool {
         switch self {
-        case .claude, .codex, .opencode, .grok, .zcode, .hermes, .qwen, .droid: return true
+        case .claude, .codex, .opencode, .grok, .zcode, .hermes, .qwen, .droid, .cline: return true
         case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return false
         }
     }
@@ -575,6 +587,9 @@ struct ClaudeSession: Equatable, Identifiable {
     var autoMode = false
     /// The Claude app runs it, in its Code tab or Cowork, not a terminal (#246).
     var origin: ClaudeSessionOrigin? = nil
+    /// The editor whose own panel runs it, by its short name ("VS Code"):
+    /// Cline's extension, which asks and takes replies there (#241).
+    var editor: String? = nil
     /// Permissions the island allowed without asking, newest last (#234).
     var letThrough: [ClaudeLetThrough] = []
 

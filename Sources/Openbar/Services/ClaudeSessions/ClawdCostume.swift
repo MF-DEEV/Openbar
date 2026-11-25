@@ -19,9 +19,10 @@ enum ClawdCharacter: String, CaseIterable {
     /// stepped M, Devin CLI's hexagon with two antennae and Google
     /// Antigravity's arch, Grok CLI's round body with the slash through it
     /// ZCode's tile with its Z, Hermes's winged helmet, Qwen Code's
-    /// hexagon with the Y its mark leaves open and Factory Droid's round
-    /// body with its mark's petals crossing under the eyes.
-    case gemini, copilot, opencode, cursor, pi, vibe, devin, antigravity, grok, zcode, hermes, qwen, droid
+    /// hexagon with the Y its mark leaves open, Factory Droid's round
+    /// body with its mark's petals crossing under the eyes and Cline's robot
+    /// head with the ball of its antenna above it.
+    case gemini, copilot, opencode, cursor, pi, vibe, devin, antigravity, grok, zcode, hermes, qwen, droid, cline
 
     /// The shell this character's lots come up in most: Claude's clay, for
     /// Codex the iris closest to its violet-blue, and for the others the
@@ -43,6 +44,7 @@ enum ClawdCharacter: String, CaseIterable {
         case .hermes: return .amber
         case .qwen: return .iris
         case .droid: return .coral
+        case .cline: return .teal
         }
     }
 }
@@ -66,6 +68,7 @@ extension ClaudeSessionProvider {
         case .hermes: return .hermes
         case .qwen: return .qwen
         case .droid: return .droid
+        case .cline: return .cline
         // A tool added by hand wears Claude's figure: its hooks are Claude Code's.
         case .custom: return .clawd
         }

@@ -292,6 +292,7 @@ struct NotchClaudeSessionRow: View {
                 if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
                 if let origin = session.origin { NotchClaudeOriginBadge(origin: origin, text: text) }
                 if let multiplexer = session.host.multiplexer { NotchMultiplexerBadge(name: multiplexer, text: text) }
+                if let editor = session.editor { NotchEditorBadge(agent: session.provider.displayName, editor: editor, text: text) }
                 if let account { NotchClaudeAccountBadge(name: account) }
                 if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text) }
                 Spacer(minLength: 4)
@@ -423,7 +424,8 @@ extension ClaudeSessionProvider {
     /// indigo of its mark, between Antigravity's blue and Devin's violet.
     /// Factory Droid, white on black too, the bright tangerine of its
     /// terminal's own highlights, redder than Vibe's amber and brighter
-    /// than Claude's clay.
+    /// than Claude's clay. Cline, white on black as well, a sea green no
+    /// other agent wears, between Gemini's sky and Grok's moss.
     var tint: Color {
         if let agent { return agent.tint }
         switch self {
@@ -437,6 +439,7 @@ extension ClaudeSessionProvider {
         case .hermes: return Color(red: 0.96, green: 0.84, blue: 0.40)
         case .qwen: return Color(red: 0.47, green: 0.45, blue: 1.0)
         case .droid: return Color(red: 1.0, green: 0.42, blue: 0.13)
+        case .cline: return Color(red: 0.25, green: 0.84, blue: 0.74)
         default: return Color(red: 0.80, green: 0.82, blue: 0.90)
         }
     }

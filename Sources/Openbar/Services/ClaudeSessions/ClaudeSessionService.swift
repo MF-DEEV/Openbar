@@ -196,6 +196,16 @@ final class ClaudeSessionService: ObservableObject {
     private let hermesPlaces = AgentHermesPlaces()
     /// Which of Qwen Code's events end or carry on its turns (#239). Queue.
     private var qwenTurns = AgentQwen.Turns()
+    /// Cline's sessions, read from its own store (#241). Queue.
+    private let clineWatcher = AgentClineWatcher()
+    /// When Cline's store last changed, so it is read again only then.
+    private var clineStamp: [Date] = []
+    /// The CLI that shows each session Cline's hub runs, as the hub last said.
+    private var clineShown: [String: Int32] = [:]
+    private var clineAsking = false
+    /// Cline's events since the last publish, with each session's state
+    /// before them, for the diagnostics journal.
+    private var clineHeard: [(event: AgentHookEvent, before: ClaudeSessionPhase?)] = []
     /// Each OpenCode's plugin listening for replies, by its process.
     private var listeners: [Int32: ClaudeHookServer.Connection] = [:]
     /// The Mistral Vibe sessions a New session runs through the island's
@@ -265,6 +275,7 @@ final class ClaudeSessionService: ObservableObject {
                 } else {
                     ClaudeChatImage.forget()
                     hookAgents.purgeContent()
+                    clineWatcher.forgetContent()
                     cowork.purgeContent()
                 }
                 for key in readers.keys { readers[key]?.reader.policy = policy }
@@ -554,6 +565,47 @@ final class ClaudeSessionService: ObservableObject {
                 }
                 return
             }
+            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .cline {
+                // Cline's CLI takes keys in its terminal: Return for Approve,
+                // `n` for Deny, a question's number. Where they can't be typed,
+                // an approval goes through Cline's hub. Its store tells when it
+                // moves on; its extension asks only in its own panel (#241).
+                guard entry.client != AgentCline.extensionClient else { return }
+                let shown = latest.first(where: { $0.id == id })
+                if let shown, ClaudeTyping.takesKeys(shown.host),
+                   let keys = AgentCline.keys(decision, current, oneBurst: AgentQwen.oneBurst(shown.host)) {
+                    actions.async { [self] in
+                        guard ClaudeTerminalReply.press(keys, to: shown) == nil else { return }
+                        queue.async { [self] in
+                            hookAgents.resolve(id, request: request)
+                            hookAgents.acknowledge(id, now: Date())
+                            publish(now: Date())
+                        }
+                    }
+                    return
+                }
+                guard entry.client == AgentCline.hubClient, !current.asksQuestions,
+                      let hub = AgentCline.hub(home: home) else { return }
+                let approved: Bool
+                switch decision {
+                case .allow: approved = true
+                case .deny: approved = false
+                default: return
+                }
+                let session = entry.sessionID
+                actions.async { [self] in
+                    guard AgentClineHub.approve(approved, session: session, call: request, hub: hub) else {
+                        DiagnosticsLog.info("sessions", "cline: the hub took no answer")
+                        return
+                    }
+                    queue.async { [self] in
+                        hookAgents.resolve(id, request: request)
+                        hookAgents.acknowledge(id, now: Date())
+                        publish(now: Date())
+                    }
+                }
+                return
+            }
             if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .grok {
                 // Grok's prompt takes Return for the yes it has picked and
                 // Ctrl-C for no; its hooks tell when it moves on (#243).
@@ -712,6 +764,26 @@ final class ClaudeSessionService: ObservableObject {
                     hookAgents.acknowledge(session.id, now: Date())
                 }
                 finishSend(sent ? nil : .unreachable, session: session, completion: completion)
+            }
+            return
+        }
+        if session.provider == .cline {
+            // A session Cline's hub runs takes the reply there, queued after
+            // the turn under way; the CLI's own shows it as typed (#241).
+            queue.async { [self] in
+                let entry = hookAgents.entry(session.id)
+                guard entry?.client == AgentCline.hubClient, let id = entry?.sessionID, !reply.isEmpty,
+                      let hub = AgentCline.hub(home: home) else {
+                    let bridge = ClaudeTerminalBridge.folder(home: home)
+                    return actions.async { [self] in
+                        let failure = reply.isEmpty ? .unreachable : ClaudeTerminalReply.send(reply, to: session, bridge: bridge)
+                        finishSend(failure, session: session, completion: completion)
+                    }
+                }
+                actions.async { [self] in
+                    let sent = AgentClineHub.send(reply, session: id, hub: hub)
+                    finishSend(sent ? nil : .unreachable, session: session, completion: completion)
+                }
             }
             return
         }
@@ -1083,12 +1155,12 @@ final class ClaudeSessionService: ObservableObject {
         let bundle = Self.bundleID
         actions.async {
             var states: [ClaudeSessionProvider: (state: AgentHookInstaller.State, present: Bool)] = [:]
-            for provider in ClaudeSessionProvider.hookAgents {
+            for provider in ClaudeSessionProvider.installedAgents {
                 let state = AgentHookInstaller.state(provider, home: home, socket: socket, bundle: bundle)
                 let path = ClaudeCLI.shell(home: home).environment["PATH"]
                 states[provider] = (state, AgentHookInstaller.isPresent(provider, home: home, path: path))
             }
-            let summary = ClaudeSessionProvider.hookAgents.map { provider in
+            let summary = ClaudeSessionProvider.installedAgents.map { provider in
                 let entry = states[provider]
                 return "\(provider.rawValue)=\(entry.map { "\($0.state)" } ?? "?")\(entry?.present == true ? "" : "(absent)")"
             }.joined(separator: " ")
@@ -1132,10 +1204,10 @@ final class ClaudeSessionService: ObservableObject {
         let shown = NotchClaudeSessionsSupport.shownAgents()
         actions.async {
             let path = ClaudeCLI.shell(home: home).environment["PATH"]
-            let found = Set(ClaudeSessionProvider.hookAgents.filter { AgentHookInstaller.isPresent($0, home: home, path: path) })
+            let found = Set(ClaudeSessionProvider.installedAgents.filter { AgentHookInstaller.isPresent($0, home: home, path: path) })
             let records = HookRecords.all()
             var states: [ClaudeSessionProvider: HookRecords.State] = [:]
-            for provider in ClaudeSessionProvider.hookAgents {
+            for provider in ClaudeSessionProvider.installedAgents {
                 states[provider] = AgentHookInstaller.diagnosticsState(provider, home: home, socket: socket, bundle: bundle,
                                                                        records: records)
             }
@@ -2182,10 +2254,69 @@ final class ClaudeSessionService: ObservableObject {
         }
         transcripts = transcripts.filter { ids.contains($0.key) }
         readCowork(now: now)
+        readCline(now: now)
         releaseSettled(now: now)
         publish(now: now)
+        for heard in clineHeard {
+            DiagnosticsJournal.shared.record(DiagnosticsJournal.make(
+                agent: heard.event.provider, event: DiagnosticsJournal.label(heard.event.kind), session: heard.event.id,
+                from: heard.before, to: phase(of: heard.event.id), at: now), at: now)
+        }
+        clineHeard = []
         let active = published.contains { $0.phase.isActive || $0.phase.isWaiting }
         schedule(active ? Self.activeTick : Self.quietTick)
+    }
+
+    /// Reads Cline's session store while its switch is on (#241): every tick
+    /// while one of its sessions is listed, else when the store changed or
+    /// every few ticks. Cline's hub is asked, off the queue, which CLI shows
+    /// each session it runs.
+    private func readCline(now: Date) {
+        guard shownAgents.contains(.cline) else {
+            if !clineWatcher.sessions.isEmpty { ingestCline(clineWatcher.scan([], now: now, policy: engine.policy,
+                                                                                 pid: { _ in nil }, client: { _ in "" }), now: now) }
+            return
+        }
+        let database = AgentCline.database(home: home)
+        let stamp = [database.path, database.path + "-wal"].map {
+            (try? FileManager.default.attributesOfItem(atPath: $0))?[.modificationDate] as? Date ?? .distantPast
+        }
+        guard !clineWatcher.sessions.isEmpty || stamp != clineStamp || ticks % Self.sideFilesEvery == 0 else { return }
+        clineStamp = stamp
+        let records = AgentCline.records(database: database)
+        let hub = records.isEmpty ? nil : AgentCline.hub(home: home)
+        let onHub = Set(records.filter { $0.pid == hub?.pid }.map(\.id))
+        // A hub session's CLI is asked for when it is new, then every few ticks: it may have quit.
+        if let hub, !onHub.isEmpty, !clineAsking,
+           !onHub.isSubset(of: Set(clineShown.keys)) || ticks % Self.sideFilesEvery == 0 {
+            clineAsking = true
+            actions.async { [weak self] in
+                let shown = AgentClineHub.shown(hub)
+                self?.queue.async { [weak self] in
+                    guard let self else { return }
+                    clineAsking = false
+                    if let shown { clineShown = shown }
+                }
+            }
+        }
+        let events = clineWatcher.scan(records, now: now, policy: engine.policy,
+                                       pid: { [clineShown] record in onHub.contains(record.id) ? clineShown[record.id] : record.pid },
+                                       client: { record in
+                                           record.isExtension ? AgentCline.extensionClient
+                                               : onHub.contains(record.id) ? AgentCline.hubClient : AgentCline.cliClient
+                                       })
+        ingestCline(events, now: now)
+    }
+
+    private func ingestCline(_ events: [AgentHookEvent], now: Date) {
+        for event in events {
+            let before = phase(of: event.id)
+            hookAgents.ingest(event, now: now)
+            switch event.kind {
+            case .model, .title, .client: continue
+            default: clineHeard.append((event, before))
+            }
+        }
     }
 
     /// Reads Cowork's session files while its switch is on: every tick while

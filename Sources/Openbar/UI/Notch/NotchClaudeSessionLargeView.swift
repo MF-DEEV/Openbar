@@ -198,6 +198,7 @@ struct NotchClaudeSessionLargeView: View {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias, size: 11) }
                     if let origin = session.origin { NotchClaudeOriginBadge(origin: origin, text: text, size: 11) }
                     if let multiplexer = session.host.multiplexer { NotchMultiplexerBadge(name: multiplexer, text: text, size: 11, detached: detached) }
+                    if let editor = session.editor { NotchEditorBadge(agent: session.provider.displayName, editor: editor, text: text, size: 11) }
                     if let account = ClaudeSessionService.shared.accountLabels[session.id] { NotchClaudeAccountBadge(name: account, size: 11) }
                     if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text, size: 11) }
                     NotchClaudeProjectTag(project: session.project, size: 12)

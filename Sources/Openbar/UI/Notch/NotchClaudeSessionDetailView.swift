@@ -128,6 +128,7 @@ struct NotchClaudeSessionDetailView: View {
                     if let multiplexer = session.host.multiplexer {
                         NotchMultiplexerBadge(name: multiplexer, text: text, detached: detachedLine != nil)
                     }
+                    if let editor = session.editor { NotchEditorBadge(agent: session.provider.displayName, editor: editor, text: text) }
                     if let account = service.accountLabels[session.id] { NotchClaudeAccountBadge(name: account) }
                     if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text) }
                     NotchClaudeProjectTag(project: session.project)

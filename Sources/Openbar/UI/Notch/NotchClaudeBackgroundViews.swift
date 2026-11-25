@@ -352,6 +352,28 @@ struct NotchMultiplexerBadge: View {
     }
 }
 
+/// The editor whose panel runs an agent's session (Cline in VS Code, #241).
+struct NotchEditorBadge: View {
+    let agent: String
+    let editor: String
+    let text: NotchClaudeSessionStrings
+    var size: CGFloat = 9.5
+
+    var body: some View {
+        Label(editor, systemImage: "chevron.left.forwardslash.chevron.right")
+            .labelStyle(NotchClaudeSessionInlineLabel())
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.78))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(.white.opacity(0.1), in: Capsule())
+            .help(text.agentInEditor(agent, editor))
+            .accessibilityLabel(text.agentInEditor(agent, editor))
+    }
+}
+
 /// The SSH host a session runs on, beside its name, so a remote session
 /// never passes for one on this Mac (issue #189).
 struct NotchRemoteHostBadge: View {

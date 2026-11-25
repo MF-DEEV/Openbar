@@ -369,7 +369,7 @@ struct NotchClaudeSessionStrings {
 
     /// The reply field of a session replies can't reach.
     func replyUnavailable(for session: ClaudeSession) -> String {
-        if session.provider == .cursor || session.provider == .antigravity {
+        if session.provider == .cursor || session.provider == .antigravity || session.editor != nil {
             return String(format: replyInAgentFormat, session.provider.displayName)
         }
         // The Claude app has no terminal to type into (#246).
@@ -392,6 +392,7 @@ struct NotchClaudeSessionStrings {
         case .hermes: return agentHintHermes
         case .qwen: return agentHintQwen
         case .droid: return agentHintDroid
+        case .cline: return agentHintCline
         case .claude, .codex, .custom: return ""
         }
     }
@@ -406,6 +407,8 @@ struct NotchClaudeSessionStrings {
     func editorMissing(_ name: String) -> String { String(format: editorMissingFormat, name) }
     func bridgeRefused(_ name: String) -> String { String(format: bridgeRefusedFormat, name) }
     func openIn(_ name: String) -> String { String(format: openInFormat, name) }
+    /// "Cline in VS Code": an agent that runs in an editor's own panel (#241).
+    func agentInEditor(_ agent: String, _ editor: String) -> String { String(format: agentInEditorFormat, agent, editor) }
 
     /// What the reply field says when replies can't reach the session's
     /// terminal, naming that terminal when the island knows it.
@@ -738,6 +741,12 @@ extension NotchClaudeSessionStrings {
     }
     var agentHintQwen: String {
         "Hooks in ~/.qwen/settings.json, next to your own, for qwen. Sessions show what runs and when Qwen Code waits on you. Allow and Deny are answered on the island, which holds Qwen Code’s request until you answer: press Open to answer in Qwen Code instead. Its questions and plans are answered on the island too, by keys typed into its terminal; replies are typed there as well."
+    }
+
+    var agentInEditorFormat: String { "%@ in %@" }
+
+    var agentHintCline: String {
+        "Nothing is added to Cline: the island reads the sessions Cline keeps in ~/.cline, from VS Code (and the editors built on it) and from cline. In the CLI, Approve, Deny and its questions are answered on the island by keys typed into its terminal, or through Cline’s hub; replies go the same way. The extension asks in its own panel, where Open takes you."
     }
 
     var agentHintDroid: String {

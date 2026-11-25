@@ -40,6 +40,7 @@ enum NotchClaudeSessionsSupport {
         case .zcode: return DefaultsKey.notchSessionsAgentZCode
         case .qwen: return DefaultsKey.notchSessionsAgentQwen
         case .droid: return DefaultsKey.notchSessionsAgentDroid
+        case .cline: return DefaultsKey.notchSessionsAgentCline
         case .hermes: return DefaultsKey.notchSessionsAgentHermes
         case .claude, .codex, .custom: return nil
         }
@@ -279,6 +280,8 @@ enum NotchClaudeSessionsSupport {
     static func repliesReach(_ session: ClaudeSession) -> Bool {
         // Codex heard through a second home's hooks takes replies in its terminal (#236).
         if session.provider.takesRepliesDirectly, session.via == nil { return true }
+        // Cline's extension takes a reply only in its own panel (#241).
+        if session.editor != nil { return false }
         if session.provider == .cursor || session.provider == .antigravity {
             switch session.host {
             case .ide, .app, .unknown, .background: return false

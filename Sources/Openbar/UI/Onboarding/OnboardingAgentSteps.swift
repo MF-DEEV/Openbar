@@ -343,7 +343,7 @@ struct OnboardingAgentsStep: View {
             case .notRunning?: return .ready
             case .notFound?: return .missing
             }
-        case .gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .droid, .custom:
+        case .gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .droid, .cline, .custom:
             guard let hooks = service.agentHooks?[provider] else { return .checking }
             if service.agentHookFailures[provider] != nil || hooks.state == .unreadable { return .failed }
             if hooks.state == .installed { return .connected }

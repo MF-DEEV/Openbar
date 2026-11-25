@@ -135,6 +135,8 @@ enum ClaudeKey: Equatable {
     case escape
     /// Moves on from a multiple choice (Factory Droid's questions, #242).
     case tab
+    /// A letter its dialog takes: Cline's `n` for Deny (#241).
+    case letter(Character)
 
     /// What a terminal sends the program for it.
     var bytes: String {
@@ -144,6 +146,7 @@ enum ClaudeKey: Equatable {
         case .space: return " "
         case .escape: return "\u{1B}"
         case .tab: return "\t"
+        case .letter(let letter): return String(letter)
         }
     }
 
@@ -155,6 +158,7 @@ enum ClaudeKey: Equatable {
         case .space: return "Space"
         case .escape: return "Escape"
         case .tab: return "Tab"
+        case .letter(let letter): return String(letter)
         }
     }
 
@@ -169,6 +173,7 @@ enum ClaudeKey: Equatable {
         case .space: return "space"
         case .escape: return "escape"
         case .tab: return "tab"
+        case .letter(let letter): return String(letter)
         }
     }
 
@@ -181,6 +186,7 @@ enum ClaudeKey: Equatable {
         case .space: return "\" \""
         case .escape: return "(character id 27)"
         case .tab: return "(character id 9)"
+        case .letter(let letter): return "\"\(letter)\""
         }
     }
 

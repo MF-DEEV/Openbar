@@ -848,6 +848,7 @@ enum AgentCLI {
         case .hermes: return "hermes"
         case .qwen: return "qwen"
         case .droid: return "droid"
+        case .cline: return "cline"
         case .claude, .codex, .custom: return nil
         }
     }
@@ -879,6 +880,8 @@ enum AgentCLI {
         case .cursor, .pi, .vibe: return [prompt]
         // After `--` a prompt that starts like one of Droid's commands is still a prompt.
         case .devin, .grok, .droid: return ["--", prompt]
+        // A prompt alone runs Cline headless; `--tui` keeps its terminal UI with it as the first turn.
+        case .cline: return ["--tui", prompt]
         // On a terminal, `hermes chat -q` opens the session with it as the first turn.
         case .hermes: return ["chat", "-q", prompt]
         case .zcode, .claude, .codex, .custom: return []
