@@ -211,9 +211,11 @@ enum ClaudeTyping {
     /// it rather than breaking the line: Gemini CLI's and the other hook
     /// agents' take a quick one as part of the paste. Qwen Code's sends on
     /// the return that comes with the paste, and in Terminal a second one
-    /// would take the reply it suggests next into its prompt (#239).
+    /// would take the reply it suggests next into its prompt (#239). Cline's
+    /// sends on the first return too, and a second one would approve the
+    /// tool it may ask about next (#241).
     static func enterDelay(_ provider: ClaudeSessionProvider) -> Double? {
-        provider.reportsThroughHooks && provider != .qwen ? 0.5 : nil
+        provider.reportsThroughHooks && provider != .qwen && provider != .cline ? 0.5 : nil
     }
 
     /// Whether the session's terminal takes keys from the island as keys,

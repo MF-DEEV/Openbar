@@ -570,6 +570,7 @@ final class ClaudeSessionService: ObservableObject {
                 // `n` for Deny, a question's number. Where they can't be typed,
                 // an approval goes through Cline's hub. Its store tells when it
                 // moves on; its extension asks only in its own panel (#241).
+                // Its store tells when it moved on: a card whose keys didn't take stays.
                 guard entry.client != AgentCline.extensionClient else { return }
                 let shown = latest.first(where: { $0.id == id })
                 if let shown, ClaudeTyping.takesKeys(shown.host),
@@ -577,8 +578,7 @@ final class ClaudeSessionService: ObservableObject {
                     actions.async { [self] in
                         guard ClaudeTerminalReply.press(keys, to: shown) == nil else { return }
                         queue.async { [self] in
-                            hookAgents.resolve(id, request: request)
-                            hookAgents.acknowledge(id, now: Date())
+                                hookAgents.acknowledge(id, now: Date())
                             publish(now: Date())
                         }
                     }
@@ -599,7 +599,6 @@ final class ClaudeSessionService: ObservableObject {
                         return
                     }
                     queue.async { [self] in
-                        hookAgents.resolve(id, request: request)
                         hookAgents.acknowledge(id, now: Date())
                         publish(now: Date())
                     }

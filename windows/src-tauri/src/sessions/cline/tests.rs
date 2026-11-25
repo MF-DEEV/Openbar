@@ -483,7 +483,7 @@ fn keys_answer_the_clis_dialog() {
     .unwrap();
     assert_eq!(
         keys(&Decision::Allow, &approval).unwrap().keys,
-        vec![Key::Enter]
+        vec![Key::Letter('y')]
     );
     assert_eq!(
         keys(&Decision::Deny, &approval).unwrap().keys,
@@ -580,6 +580,8 @@ fn nothing_is_installed_into_cline() {
     );
     assert_eq!(editor_name(Some("Visual Studio Code")), "VS Code");
     assert_eq!(editor_name(None), "VS Code");
+    // A second return after a reply would approve the tool Cline asks about next.
+    assert!(super::super::hook_agents::takes_one_return(Provider::Cline));
 }
 
 /// Reads a live Cline store: `OB_CLINE_DB=<path to sessions.db> cargo test

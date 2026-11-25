@@ -341,7 +341,7 @@ enum ClineAgentTests {
 
     static func keys(_ suite: TestSuite) {
         let approval = AgentCline.ask(AgentCline.Call(id: "c", name: "run_commands", input: ["commands": ["ls"]], at: nil), cwd: nil, at: now)!
-        suite.expect(AgentCline.keys(.allow, approval) == [.enter], "Return approves")
+        suite.expect(AgentCline.keys(.allow, approval) == [.keys([.letter("y")])], "y approves, never a Return a notice would take")
         suite.expect(AgentCline.keys(.deny, approval) == [.keys([.letter("n")])], "n denies")
         suite.expect(AgentCline.keys(.allowAlways, approval) == nil, "no Always in Cline's dialog")
         let asked = AgentCline.ask(AgentCline.Call(id: "q", name: "ask_question",
@@ -405,5 +405,7 @@ enum ClineAgentTests {
         suite.expect(AgentCLI.command(.cline) == "cline" && AgentCLI.startArguments(.cline, prompt: "hi") == ["--tui", "hi"],
                      "New session opens its terminal UI with the prompt")
         suite.expect(ClaudeSessionProvider.cline.character == .cline, "its own figure")
+        suite.expect(ClaudeTyping.enterDelay(.cline) == nil,
+                     "a reply sends on one return: a second would approve the tool Cline asks about next")
     }
 }

@@ -16,7 +16,7 @@ import SQLite3
 /// a hook would show as a step of its own in the extension's chat.
 ///
 /// The extension asks in its own panel, and nothing outside it can answer.
-/// The CLI's terminal UI takes `Return` for Approve and `n` for Deny, and a
+/// The CLI's terminal UI takes `y` for Approve and `n` for Deny, and a
 /// question's number. A CLI session that runs in Cline's hub (its local
 /// daemon) can be answered and sent replies through the hub too.
 enum AgentCline {
@@ -335,7 +335,7 @@ enum AgentCline {
     // MARK: Keys
 
     /// The keys that answer the CLI's dialog, nil for an answer it can't be
-    /// given by keys. Its approval takes Return for Approve and `n` for Deny;
+    /// given by keys. Its approval takes `y` for Approve and `n` for Deny;
     /// a question takes its choice's number, or arrows down to "Type a
     /// response..." for an answer of the person's own. `oneBurst` is a
     /// terminal that adds a return to what it sends (Terminal's `do
@@ -360,7 +360,9 @@ enum AgentCline {
             }
         }
         switch decision {
-        case .allow: return [.enter]
+        // `y` rather than Return: a notice Cline shows over its dialog on a
+        // first run opens a web page on Return, but closes on any other key.
+        case .allow: return [.keys([.letter("y")])]
         case .deny: return [.keys([.letter("n")])]
         default: return nil
         }

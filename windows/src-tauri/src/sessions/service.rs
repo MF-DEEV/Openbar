@@ -1895,7 +1895,13 @@ impl Service {
                         press_droid(entry.pid as u32, &located, &keys.keys).is_ok()
                             && keys.typed.is_none_or(|text| {
                                 std::thread::sleep(Duration::from_millis(200));
-                                hosts::deliver(entry.pid as u32, &located, &text, &[]).is_ok()
+                                // The answer row reads keys, not a paste, in a Windows console.
+                                #[cfg(windows)]
+                                let typed =
+                                    hosts::deliver_codex(entry.pid as u32, &located, &text, &[]);
+                                #[cfg(not(windows))]
+                                let typed = hosts::deliver(entry.pid as u32, &located, &text, &[]);
+                                typed.is_ok()
                             })
                     } else {
                         let approved = match decision {
@@ -1920,9 +1926,10 @@ impl Service {
                     if !answered {
                         return false;
                     }
+                    // Cline's store tells when it moved on: a card whose keys
+                    // didn't take stays to be answered again.
                     let mut inner = self.inner.lock().unwrap();
                     let t = now();
-                    inner.hook_agents.resolve(session, request);
                     inner.hook_agents.acknowledge(session, t);
                     self.publish(&mut inner, t);
                     return true;

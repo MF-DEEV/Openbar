@@ -13,7 +13,7 @@
 //! As AgentCline.swift.
 //!
 //! The extension asks in its own panel, and nothing outside it can answer.
-//! The CLI's terminal UI takes Return for Approve and `n` for Deny, and a
+//! The CLI's terminal UI takes `y` for Approve and `n` for Deny, and a
 //! question's number. A CLI session that runs in Cline's hub (its local
 //! daemon) can be answered and sent replies through the hub too.
 
@@ -609,7 +609,7 @@ pub fn ask(call: &Call, cwd: Option<&str>, at: Time) -> Option<Permission> {
 // MARK: Keys
 
 /// What answers the CLI's dialog: keys, then the person's own words typed
-/// with a Return. Its approval takes Return for Approve and `n` for Deny; a
+/// with a Return. Its approval takes `y` for Approve and `n` for Deny; a
 /// question takes its choice's number, or arrows down to "Type a
 /// response..." for an answer of the person's own.
 #[derive(Clone, Debug, PartialEq)]
@@ -655,7 +655,9 @@ pub fn keys(decision: &Decision, asked: &Permission) -> Option<Keys> {
         };
     }
     match decision {
-        Decision::Allow => only(vec![Key::Enter]),
+        // `y` rather than Return: a notice Cline shows over its dialog on a
+        // first run opens a web page on Return, but closes on any other key.
+        Decision::Allow => only(vec![Key::Letter('y')]),
         Decision::Deny => only(vec![Key::Letter('n')]),
         _ => None,
     }

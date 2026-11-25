@@ -3347,7 +3347,12 @@ pub fn takes_one_return(provider: Provider) -> bool {
     if provider == Provider::Qwen {
         return !cfg!(windows);
     }
-    matches!(provider, Provider::Zcode | Provider::Hermes)
+    // Cline sends on the first return; a second would approve the tool it
+    // may ask about next (#241).
+    matches!(
+        provider,
+        Provider::Zcode | Provider::Hermes | Provider::Cline
+    )
 }
 
 /// Whether New session can start the agent with its first prompt. ZCode's
