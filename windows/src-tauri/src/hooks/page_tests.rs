@@ -402,7 +402,8 @@ fn extra_folders() {
             Provider::Vibe,
             Provider::Grok,
             Provider::Qwen,
-            Provider::Droid
+            Provider::Droid,
+            Provider::Kimi
         ]
     );
     assert_eq!(

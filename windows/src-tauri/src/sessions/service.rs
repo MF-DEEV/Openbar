@@ -1044,6 +1044,63 @@ impl Service {
                 named.kind = hook_agents::Kind::Model(model);
                 inner.hook_agents.ingest(named, t);
             }
+            if provider == models::Provider::Kimi {
+                // Kimi tells its client with every event: only a change is news.
+                if let hook_agents::Kind::Client(client) = &event.kind
+                    && inner
+                        .hook_agents
+                        .entry(&event.id())
+                        .is_some_and(|e| e.client.as_deref() == Some(client.as_str()))
+                {
+                    continue;
+                }
+                let kimi = hooks::installer::home_dir().map(|home| super::kimi::folder(&home));
+                // A session whose hooks Kimi Code's server runs is held there,
+                // and answered there (#240).
+                if let Some(kimi) = &kimi
+                    && inner
+                        .hook_agents
+                        .entry(&event.id())
+                        .is_none_or(|e| e.client.is_none())
+                    && super::kimi::serving(event.pid.max(0) as u32, kimi, &|pid| {
+                        hosts::process::is_running(pid)
+                    })
+                    .is_some()
+                {
+                    let mut held = event.clone();
+                    held.kind = hook_agents::Kind::Client(super::kimi::KAP_CLIENT.into());
+                    inner.hook_agents.ingest(held, t);
+                }
+                // A turn's end: the model that answered, and with previews on
+                // its answer, from the session's log.
+                if let hook_agents::Kind::Stopped {
+                    last_text: None,
+                    failed,
+                } = event.kind
+                    && let Some(folder) = kimi
+                        .as_deref()
+                        .and_then(|k| super::kimi::session_folder_in(&event.session_id, k))
+                {
+                    let (model, reply) =
+                        super::kimi::last_turn(&super::kimi::wire(&folder), previews);
+                    if let Some(model) = model
+                        && inner
+                            .hook_agents
+                            .entry(&event.id())
+                            .is_none_or(|e| e.model() != Some(model.as_str()))
+                    {
+                        let mut named = event.clone();
+                        named.kind = hook_agents::Kind::Model(model);
+                        inner.hook_agents.ingest(named, t);
+                    }
+                    if reply.is_some() {
+                        event.kind = hook_agents::Kind::Stopped {
+                            last_text: reply,
+                            failed,
+                        };
+                    }
+                }
+            }
             if provider == models::Provider::Droid
                 && let Some(path) = decoded.transcript.as_deref()
             {
@@ -1312,6 +1369,18 @@ impl Service {
                             if entry.client.as_deref() == Some(super::cline::HUB_CLIENT) =>
                         {
                             true
+                        }
+                        // Kimi Code's server takes them for `kimi web` and its
+                        // app; its VS Code extension only in its own panel (#240).
+                        models::Provider::Kimi
+                            if entry.client.as_deref() == Some(super::kimi::KAP_CLIENT) =>
+                        {
+                            true
+                        }
+                        models::Provider::Kimi
+                            if entry.client.as_deref() == Some(super::kimi::VSCODE_CLIENT) =>
+                        {
+                            false
                         }
                         models::Provider::Cursor | models::Provider::Antigravity => {
                             matches!(
@@ -1934,6 +2003,62 @@ impl Service {
                     self.publish(&mut inner, t);
                     return true;
                 }
+                // Kimi Code's server takes the answer for `kimi web` and its
+                // app; its terminal UI takes a choice's number; its VS Code
+                // extension asks in its own panel. Its hooks tell when it
+                // moves on (#240).
+                if let Some(entry) = inner
+                    .hook_agents
+                    .entry(session)
+                    .filter(|e| e.provider == models::Provider::Kimi)
+                    .cloned()
+                {
+                    if entry.client.as_deref() == Some(super::kimi::VSCODE_CLIENT) {
+                        return false;
+                    }
+                    let asked = p.clone();
+                    let located = inner
+                        .hosts
+                        .get(&entry.pid)
+                        .cloned()
+                        .filter(|l| hosts::takes_keys(&l.host));
+                    drop(inner);
+                    let kimi = hooks::installer::home_dir().map(|home| super::kimi::folder(&home));
+                    let server = kimi.as_deref().and_then(|k| {
+                        super::kimi::server(entry.pid.max(0) as u32, entry.client.as_deref(), k)
+                    });
+                    let answered = match (server, kimi) {
+                        (Some(server), Some(kimi)) => {
+                            super::kimi::token(&kimi).is_some_and(|token| {
+                                super::kimi::answer(
+                                    &decision,
+                                    &asked,
+                                    &entry.session_id,
+                                    &server,
+                                    &token,
+                                )
+                            })
+                        }
+                        _ => {
+                            entry.client.as_deref() != Some(super::kimi::KAP_CLIENT)
+                                && match (located, super::kimi::keys(&decision, &asked)) {
+                                    (Some(located), Some(keys)) => {
+                                        press_droid(entry.pid as u32, &located, &keys).is_ok()
+                                    }
+                                    _ => false,
+                                }
+                        }
+                    };
+                    if !answered {
+                        return false;
+                    }
+                    let mut inner = self.inner.lock().unwrap();
+                    let t = now();
+                    inner.hook_agents.resolve(session, request);
+                    inner.hook_agents.acknowledge(session, t);
+                    self.publish(&mut inner, t);
+                    return true;
+                }
                 // Droid's prompts take keys: Return for its yes, arrows to its
                 // no, numbers for questions and specs; its hooks tell when it
                 // moves on (#242).
@@ -2330,6 +2455,31 @@ impl Service {
             }
             return Some((!sent).then_some("unreachable"));
         }
+        // Kimi Code's server takes the reply for `kimi web` and its app,
+        // queued after the turn under way; its VS Code extension only in its
+        // own panel (#240).
+        if entry.provider == models::Provider::Kimi {
+            if entry.client.as_deref() == Some(super::kimi::VSCODE_CLIENT) {
+                return Some(Some("unreachable"));
+            }
+            let kimi = hooks::installer::home_dir().map(|home| super::kimi::folder(&home));
+            if let Some(kimi) = kimi
+                && let Some(server) =
+                    super::kimi::server(entry.pid.max(0) as u32, entry.client.as_deref(), &kimi)
+            {
+                drop(inner);
+                let sent = super::kimi::token(&kimi).is_some_and(|token| {
+                    super::kimi::send(text, &entry.session_id, &server, &token)
+                });
+                if sent {
+                    self.acknowledge(session);
+                }
+                return Some((!sent).then_some("unreachable"));
+            }
+            if entry.client.as_deref() == Some(super::kimi::KAP_CLIENT) {
+                return Some(Some("unreachable"));
+            }
+        }
         if entry.provider.reports_through_plugin() {
             let Some(listener) = inner.listeners.remove(&entry.pid) else {
                 return Some(Some("unreachable"));
@@ -2497,6 +2647,19 @@ impl Service {
         self.publish(&mut inner, t);
     }
 
+    /// A Kimi Code session its own server holds (#240).
+    fn kimi_served(&self, session: &str) -> Option<hook_agents::Entry> {
+        let inner = self.inner.lock().unwrap();
+        inner
+            .hook_agents
+            .entry(session)
+            .filter(|e| {
+                e.provider == models::Provider::Kimi
+                    && e.client.as_deref() == Some(super::kimi::KAP_CLIENT)
+            })
+            .cloned()
+    }
+
     fn open_found(&self, session: &str) -> bool {
         self.release_held(session);
         let desktop = {
@@ -2519,6 +2682,30 @@ impl Service {
                 self.acknowledge(session);
             }
             return ok;
+        }
+        if let Some(entry) = self.kimi_served(session) {
+            // `kimi web` shows it in the browser, at its own page; the Kimi
+            // Code app in its window, by its own process (#240).
+            let kimi = hooks::installer::home_dir().map(|home| super::kimi::folder(&home));
+            if let Some(kimi) = kimi
+                && let Some(server) =
+                    super::kimi::server(entry.pid.max(0) as u32, entry.client.as_deref(), &kimi)
+            {
+                let ok = if server.product == super::kimi::APP_PRODUCT {
+                    super::kimi::raise_app(server.pid)
+                } else {
+                    let page = super::kimi::page(
+                        &server,
+                        &entry.session_id,
+                        super::kimi::token(&kimi).as_deref(),
+                    );
+                    tauri_plugin_opener::open_url(page, None::<&str>).is_ok()
+                };
+                if ok {
+                    self.acknowledge(session);
+                    return true;
+                }
+            }
         }
         if let Some((link, pid)) = self.remote_target(session) {
             // Its pane comes forward in the host's tmux; no window here shows it.

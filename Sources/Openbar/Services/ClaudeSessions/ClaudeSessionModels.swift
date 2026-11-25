@@ -135,6 +135,10 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     /// store; its CLI's prompts take keys, its hub answers and takes
     /// replies, and the extension asks in its own panel (#241).
     case cline
+    /// Moonshot AI's Kimi Code (`kimi`, `kimi web` and its app), heard
+    /// through hooks in its config.toml; its terminal UI takes keys, its
+    /// local server takes answers and replies (#240).
+    case kimi
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     case custom
@@ -149,7 +153,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .droid, .cline, .custom: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .droid, .cline, .kimi, .custom: return nil
         }
     }
 
@@ -172,6 +176,7 @@ extension ClaudeSessionProvider {
         case .qwen: return "Qwen Code"
         case .droid: return "Factory Droid"
         case .cline: return "Cline"
+        case .kimi: return "Kimi Code"
         case .custom: return "Other tool"
         }
     }
@@ -188,6 +193,7 @@ extension ClaudeSessionProvider {
         case .grok: return "Grok"
         case .qwen: return "Qwen"
         case .droid: return "Droid"
+        case .kimi: return "Kimi"
         default: return displayName
         }
     }
@@ -197,7 +203,7 @@ extension ClaudeSessionProvider {
 
     /// The agents that report through the island's hooks or plugin.
     static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok,
-                                                      .zcode, .hermes, .qwen, .droid, .cline]
+                                                      .zcode, .hermes, .qwen, .droid, .cline, .kimi]
 
     /// The hook agents the island puts hooks or a plugin into. Cline is read
     /// from its own session store instead, and gets nothing (#241).
@@ -225,9 +231,11 @@ extension ClaudeSessionProvider {
     /// questions and plans take keys in its terminal. Factory Droid's hooks
     /// can't approve a call it asks about either, but its prompt takes Return
     /// for yes and Escape for no, and digits for its questions and specs.
+    /// Kimi Code's hooks only tell of a request too: its terminal UI takes
+    /// a choice's number, and its local server the answer itself.
     var answersPermissions: Bool {
         switch self {
-        case .claude, .codex, .opencode, .grok, .zcode, .hermes, .qwen, .droid, .cline: return true
+        case .claude, .codex, .opencode, .grok, .zcode, .hermes, .qwen, .droid, .cline, .kimi: return true
         case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return false
         }
     }
@@ -431,7 +439,7 @@ struct ClaudeQuestion: Equatable {
                               preview: (option["preview"] as? String).flatMap { $0.isEmpty ? nil : $0 })
             }
             return ClaudeQuestion(question: text, header: (item["header"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-                                  options: options, multiSelect: item["multiSelect"] as? Bool ?? false)
+                                  options: options, multiSelect: item["multiSelect"] as? Bool ?? item["multi_select"] as? Bool ?? false)
         }
         // Every question needs an answer Claude Code can match to it.
         return questions.isEmpty || questions.count != list.count ? nil : questions
@@ -590,6 +598,9 @@ struct ClaudeSession: Equatable, Identifiable {
     /// The editor whose own panel runs it, by its short name ("VS Code"):
     /// Cline's extension, which asks and takes replies there (#241).
     var editor: String? = nil
+    /// Its agent's own local server holds it and takes the island's answers
+    /// and replies, wherever its window is: `kimi web` and the Kimi Code app (#240).
+    var served = false
     /// Permissions the island allowed without asking, newest last (#234).
     var letThrough: [ClaudeLetThrough] = []
 

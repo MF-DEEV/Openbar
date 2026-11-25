@@ -276,6 +276,7 @@ pub fn hook_file(provider: Provider, home: &Path, app: &str) -> Option<(PathBuf,
         Provider::Hermes => (crate::sessions::hermes::config(home), false),
         Provider::Qwen => (agents::qwen_settings(home), false),
         Provider::Droid => (crate::sessions::droid::settings(home), false),
+        Provider::Kimi => (crate::sessions::kimi::config(home), false),
         // Cline gets no hooks: the island reads its own session store (#241).
         Provider::Claude | Provider::Codex | Provider::Cline | Provider::Custom => return None,
     })

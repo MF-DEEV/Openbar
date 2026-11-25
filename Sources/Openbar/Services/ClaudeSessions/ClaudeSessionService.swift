@@ -565,6 +565,40 @@ final class ClaudeSessionService: ObservableObject {
                 }
                 return
             }
+            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .kimi {
+                // Kimi Code's server takes the answer for `kimi web` and its
+                // app; its terminal UI takes a choice's number; its VS Code
+                // extension asks in its own panel. Its hooks tell when it moves on (#240).
+                guard entry.client != AgentKimi.vscodeClient else { return }
+                let folder = AgentKimi.folder(home: home)
+                if let server = AgentKimiServer.server(for: entry.pid, client: entry.client, folder: folder) {
+                    let session = entry.sessionID
+                    actions.async { [self] in
+                        guard let token = AgentKimiServer.token(folder: folder),
+                              AgentKimiServer.answer(decision, asked: current, session: session, server: server, token: token) else {
+                            DiagnosticsLog.info("sessions", "kimi: the server took no answer")
+                            return
+                        }
+                        queue.async { [self] in
+                            hookAgents.resolve(id, request: request)
+                            hookAgents.acknowledge(id, now: Date())
+                            publish(now: Date())
+                        }
+                    }
+                    return
+                }
+                guard entry.client != AgentKimi.kapClient, let session = latest.first(where: { $0.id == id }),
+                      ClaudeTyping.takesKeys(session.host), let keys = AgentKimi.keys(decision, current) else { return }
+                actions.async { [self] in
+                    guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
+                    queue.async { [self] in
+                        hookAgents.resolve(id, request: request)
+                        hookAgents.acknowledge(id, now: Date())
+                        publish(now: Date())
+                    }
+                }
+                return
+            }
             if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .cline {
                 // Cline's CLI takes keys in its terminal: Return for Approve,
                 // `n` for Deny, a question's number. Where they can't be typed,
@@ -763,6 +797,33 @@ final class ClaudeSessionService: ObservableObject {
                     hookAgents.acknowledge(session.id, now: Date())
                 }
                 finishSend(sent ? nil : .unreachable, session: session, completion: completion)
+            }
+            return
+        }
+        if session.provider == .kimi {
+            // Kimi Code's server takes the reply for `kimi web` and its app,
+            // queued after the turn under way; its terminal UI takes it typed (#240).
+            queue.async { [self] in
+                let entry = hookAgents.entry(session.id)
+                let folder = AgentKimi.folder(home: home)
+                guard let entry, entry.client != AgentKimi.vscodeClient, !reply.isEmpty else {
+                    return finishSend(.unreachable, session: session, completion: completion)
+                }
+                if let server = AgentKimiServer.server(for: entry.pid, client: entry.client, folder: folder) {
+                    let id = entry.sessionID
+                    return actions.async { [self] in
+                        let sent = AgentKimiServer.token(folder: folder).map {
+                            AgentKimiServer.send(reply, session: id, server: server, token: $0)
+                        } ?? false
+                        if sent { queue.async { [self] in hookAgents.acknowledge(session.id, now: Date()) } }
+                        finishSend(sent ? nil : .unreachable, session: session, completion: completion)
+                    }
+                }
+                guard entry.client != AgentKimi.kapClient else { return finishSend(.unreachable, session: session, completion: completion) }
+                let bridge = ClaudeTerminalBridge.folder(home: home)
+                actions.async { [self] in
+                    finishSend(ClaudeTerminalReply.send(reply, to: session, bridge: bridge), session: session, completion: completion)
+                }
             }
             return
         }
@@ -1754,6 +1815,28 @@ final class ClaudeSessionService: ObservableObject {
                 default: break
                 }
             }
+            if event.provider == .kimi, case .client(let client) = kind, hookAgents.entry(event.id)?.client == client {
+                // Kimi tells its client with every event: only a change is news.
+                continue
+            }
+            if event.provider == .kimi {
+                // A session whose hooks Kimi Code's server runs is held there,
+                // and answered there (#240).
+                if hookAgents.entry(event.id)?.client == nil,
+                   AgentKimiServer.serving(agent, folder: AgentKimi.folder(home: home)) != nil {
+                    hookAgents.ingest(AgentHookEvent(provider: .kimi, sessionID: event.sessionID, pid: agent, cwd: cwd,
+                                                     date: event.date, kind: .client(AgentKimi.kapClient)), now: now)
+                }
+                // A turn's end: the model that answered, and with previews on its answer, from the session's log.
+                if case .stopped(nil, let failed) = kind, let folder = AgentKimi.sessionFolder(event.sessionID, home: home) {
+                    let last = AgentKimi.lastTurn(wire: AgentKimi.wire(sessionFolder: folder), text: engine.policy.previews)
+                    if let model = last.model, hookAgents.entry(event.id)?.model != model {
+                        hookAgents.ingest(AgentHookEvent(provider: .kimi, sessionID: event.sessionID, pid: agent, cwd: cwd,
+                                                         date: event.date, kind: .model(model)), now: now)
+                    }
+                    if let text = last.text { kind = .stopped(lastText: text, failed: failed) }
+                }
+            }
             if event.provider == .droid, let path = decoded.transcript {
                 switch kind {
                 case .prompt, .stopped, .started:
@@ -2021,6 +2104,33 @@ final class ClaudeSessionService: ObservableObject {
                 DispatchQueue.main.async { completion(opened ? .opened : .missing) }
             }
         }
+        if session.provider == .kimi, session.served {
+            // `kimi web` shows it in the browser, at its own page; the Kimi
+            // Code app in its window, which comes forward as any app's (#240).
+            queue.async { [self] in
+                let folder = AgentKimi.folder(home: home)
+                let entry = hookAgents.entry(session.id)
+                let server = entry.flatMap { AgentKimiServer.server(for: $0.pid, client: $0.client, folder: folder) }
+                DispatchQueue.main.async { [self] in
+                    // The app's window, by its own process: whatever started it.
+                    if let server, server.product == AgentKimiServer.appProduct,
+                       let app = NSRunningApplication(processIdentifier: server.pid) {
+                        return completion(app.activate() ? .opened : .missing)
+                    }
+                    let page = server.flatMap { server in
+                        entry.flatMap { AgentKimiServer.page(server, session: $0.sessionID, token: AgentKimiServer.token(folder: folder)) }
+                    }
+                    // The list of sessions is read on the main thread.
+                    guard let page else { return openHostFocus(session, completion: completion) }
+                    completion(NSWorkspace.shared.open(page) ? .opened : .missing)
+                }
+            }
+            return
+        }
+        openHostFocus(session, completion: completion)
+    }
+
+    private func openHostFocus(_ session: ClaudeSession, completion: @escaping (ClaudeHostOpen) -> Void) {
         let homes = ClaudeSessionRegistryReader.homes(home)
         let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
         actions.async {
@@ -2759,6 +2869,9 @@ enum ClaudeTerminalReply {
         let steps = delay.map { ClaudeTyping.steps(text, images: paths, enterAfter: $0) } ?? ClaudeTyping.steps(text, images: paths)
         switch session.host {
         case .terminal(let tty):
+            // Kimi Code sends on the return that comes with the paste there; a
+            // second one would answer the dialog it may open next (#240).
+            let delay = session.provider == .kimi ? nil : delay
             let script = !paths.isEmpty ? ClaudeTerminalScripts.type(text, images: paths, tty: tty)
                 : delay.map { ClaudeTerminalScripts.type(text, tty: tty, enterAfter: $0) } ?? ClaudeTerminalScripts.type(text, tty: tty)
             return run(script, in: ClaudeSessionHosts.terminal)

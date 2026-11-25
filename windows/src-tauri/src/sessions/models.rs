@@ -777,6 +777,10 @@ pub struct Session {
     /// Cline's extension, which asks and takes replies there (#241).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub editor: Option<String>,
+    /// Its agent's own local server holds it and takes the island's answers
+    /// and replies, wherever its window is: `kimi web` and the Kimi Code app (#240).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub served: bool,
 }
 
 impl Session {
@@ -795,7 +799,7 @@ pub struct SessionCounts {
     pub working_codex: i64,
     /// Of `working`, the ones of Gemini CLI, Copilot CLI, OpenCode, Cursor,
     /// Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode, Hermes
-    /// Qwen Code, Factory Droid and Cline.
+    /// Qwen Code, Factory Droid, Cline and Kimi Code.
     pub working_gemini: i64,
     pub working_copilot: i64,
     pub working_opencode: i64,
@@ -810,6 +814,7 @@ pub struct SessionCounts {
     pub working_qwen: i64,
     pub working_droid: i64,
     pub working_cline: i64,
+    pub working_kimi: i64,
     /// Of `working`, the ones of tools added on the Hooks page (#236).
     pub working_custom: i64,
     pub waiting: i64,
@@ -840,6 +845,7 @@ impl SessionCounts {
                     Provider::Qwen => counts.working_qwen += 1,
                     Provider::Droid => counts.working_droid += 1,
                     Provider::Cline => counts.working_cline += 1,
+                    Provider::Kimi => counts.working_kimi += 1,
                     Provider::Custom => counts.working_custom += 1,
                     Provider::Claude => {}
                 }
@@ -896,6 +902,10 @@ pub enum Provider {
     /// store; its CLI's prompts take keys, its hub answers and takes replies,
     /// and the extension asks in its own panel (#241).
     Cline,
+    /// Moonshot AI's Kimi Code (`kimi`, `kimi web` and its app), heard
+    /// through hooks in its config.toml; its terminal UI takes keys, its local
+    /// server takes answers and replies (#240).
+    Kimi,
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     Custom,
@@ -1570,6 +1580,7 @@ mod tests {
             later_asks: Vec::new(),
             origin: None,
             editor: None,
+            served: false,
         }
     }
 

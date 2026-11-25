@@ -937,6 +937,12 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [8, false],
     [9, false],
   ],
+  kimi: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -1096,6 +1102,20 @@ export const CLINE_BODY = [
   ".ccccccccccc.",
 ];
 
+/** Kimi Code's figure: the round head of its mark over the terminal bar (A),
+ * its prompt (c) at the bar's left, and the dot above its right
+ * (NotchClawdSprite.kimiBody). */
+export const KIMI_BODY = [
+  "...CCCCCCC...",
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "AAAAAAAAAAAAA",
+  "AcAccAAAAAAAA",
+  ".AAAAAAAAAAA.",
+];
+
 export const QWEN_BODY = [
   "...CCCCCCC...",
   "..CCCCCCCCC..",
@@ -1211,6 +1231,11 @@ function compose(
     // The antenna goes first, so a hat simply covers it.
     put(s(5, -3, [".A.", "AAA", ".c."]));
     put(s(0, 0, CLINE_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "kimi") {
+    // The dot goes first, so a hat simply covers it.
+    put(s(12, -2, ["AA", "A."]));
+    put(s(0, 0, KIMI_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));

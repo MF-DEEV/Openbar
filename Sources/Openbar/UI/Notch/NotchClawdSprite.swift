@@ -324,6 +324,11 @@ enum NotchClawdSprite {
             clineAntenna.forEach { put($0) }
             put(Stamp(x: 0, y: 0, rows: clineBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .kimi:
+            // The dot goes first, so a hat simply covers it.
+            kimiDot.forEach { put($0) }
+            put(Stamp(x: 0, y: 0, rows: kimiBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -369,6 +374,7 @@ enum NotchClawdSprite {
         case .qwen: return [(3, true), (4, true), (8, false), (9, false)]
         case .droid: return [(3, true), (4, true), (8, false), (9, false)]
         case .cline: return [(3, true), (4, true), (8, false), (9, false)]
+        case .kimi: return [(3, true), (4, true), (8, false), (9, false)]
         }
     }
 
@@ -537,6 +543,19 @@ enum NotchClawdSprite {
         ".ccccccccccc.",
     ]
     private static let clineAntenna = [Stamp(x: 5, y: -3, rows: [".A.", "AAA", ".c."])]
+    /// Kimi Code's figure: the round head of its mark over the terminal bar
+    /// (A), its prompt (c) at the bar's left, and the dot above its right.
+    static let kimiBody = [
+        "...CCCCCCC...",
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "AAAAAAAAAAAAA",
+        "AcAccAAAAAAAA",
+        ".AAAAAAAAAAA.",
+    ]
+    private static let kimiDot = [Stamp(x: 12, y: -2, rows: ["AA", "A."])]
     static let hermesBody = [
         "...AAAAAAA...",
         ".CCCCCCCCCCC.",
@@ -1135,7 +1154,7 @@ enum NotchClawdSprite {
             }
         case .hermes:
             if letter == "W" { return hermesWing }
-        case .vibe, .devin, .antigravity, .grok, .zcode, .qwen, .droid, .cline:
+        case .vibe, .devin, .antigravity, .grok, .zcode, .qwen, .droid, .cline, .kimi:
             break
         case .clawd:
             break

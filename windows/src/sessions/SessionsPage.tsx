@@ -138,7 +138,8 @@ function Trailing() {
       <button
         type="button"
         className="n-pill-button is-prominent s-open"
-        disabled={session.host === "unknown"}
+        // A session Kimi Code's server holds opens in its app or page, whatever its host (#240).
+        disabled={session.host === "unknown" && !session.served}
         title={
           offersAttach ? S.detachedHelp(multiplexer ?? "tmux") : session.hostName ? S.openIn(session.hostName) : S.open
         }

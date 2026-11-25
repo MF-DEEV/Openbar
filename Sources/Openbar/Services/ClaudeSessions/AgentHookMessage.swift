@@ -167,6 +167,7 @@ enum AgentHookMessage {
         case .hermes: decoded.events = hermes(hook, event, pid: pid, now: now, policy: policy)
         case .qwen: qwen(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .droid: droid(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
+        case .kimi: kimi(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         // Cline is read from its own store, never through a hook (#241).
         case .claude, .cline: return nil
         }
@@ -655,6 +656,78 @@ enum AgentHookMessage {
             decoded.qwen = .stopped
             let failed = (text(json, "hook_event_name") ?? hook) == "StopFailure"
             add(.stopped(lastText: policy.previews ? preview(json["last_assistant_message"]) : nil, failed: failed))
+        default: break
+        }
+    }
+
+    // MARK: Kimi Code
+
+    /// Kimi Code's hooks (docs/en/customization/hooks.md in
+    /// MoonshotAI/kimi-code): snake_case input with the session's id,
+    /// folder and the client it runs in. A request is told by
+    /// `PermissionRequest`, its tool and input in it, and answered where
+    /// Kimi shows it or by the island (`AgentKimi`); `PermissionResult`
+    /// tells it was. A question is told only by its tool's `PreToolUse`.
+    private static func kimi(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                             policy: ClaudeContentPolicy, into decoded: inout Decoded) {
+        guard let session = text(json, "session_id") else { return }
+        let cwd = text(json, "cwd")
+        func add(_ kind: AgentHookEvent.Kind) {
+            decoded.events.append(AgentHookEvent(provider: .kimi, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+        }
+        let raw = json["tool_name"] as? String ?? ""
+        let tool = AgentHookTools.name(.kimi, raw)
+        let input = arguments(json["tool_input"])
+        let call = text(json, "tool_call_id")
+        let event = text(json, "hook_event_name") ?? hook
+        switch text(json, "client_type") {
+        case "kimi_code_vscode": add(.client(AgentKimi.vscodeClient))
+        case "kimi_code_desktop": add(.client(AgentKimi.kapClient))
+        default: break
+        }
+        if policy.previews, let title = text(json, "session_title") { add(.title(title)) }
+        switch event {
+        case "SessionStart":
+            add(.started)
+            if let model = text(json, "model") { add(.model(AgentKimi.modelName(model))) }
+        case "SessionEnd":
+            add(.ended)
+        case "UserPromptSubmit":
+            let parts = json["prompt"] as? [[String: Any]] ?? []
+            let prompt = parts.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined(separator: "\n")
+            add(.prompt(policy.previews ? preview(prompt) : nil))
+        case "TurnStarted":
+            // A turn a finished background task or a schedule began.
+            add(.working)
+        case "PreToolUse":
+            if raw == AgentKimi.questionTool {
+                if let call, let question = AgentKimi.question(call: call, input: input, at: now) {
+                    add(.permission(question))
+                } else {
+                    add(.question)
+                }
+                break
+            }
+            // A plan is told by its permission request.
+            if raw == AgentKimi.planTool { break }
+            var use = toolUse(tool, input: AgentKimi.claudeInput(input), at: now, policy: policy)
+            if let call { use = ClaudeToolUse(id: call, name: use.name, summary: use.summary, started: now, inputKey: use.inputKey) }
+            add(.toolStarted(use))
+        case "PermissionRequest":
+            guard let request = text(json, "id") ?? call else { return }
+            add(.permission(AgentKimi.ask(tool, raw: raw, request: request, input: input,
+                                          display: json["display"] as? [String: Any], cwd: cwd, at: now)))
+        case "PermissionResult":
+            add(.permissionSettled(text(json, "id") ?? call))
+        case "PostToolUse", "PostToolUseFailure":
+            if raw == AgentKimi.questionTool { add(.permissionSettled(call)); break }
+            if raw == AgentKimi.planTool { break }
+            add(.toolFinished(id: call, name: tool, inputKey: ClaudeToolSummary.inputKey(name: tool, input: AgentKimi.claudeInput(input)),
+                              failed: event == "PostToolUseFailure", started: nil))
+        case "Stop":
+            add(.stopped(lastText: nil, failed: false))
+        case "StopFailure", "Interrupt":
+            add(.stopped(lastText: nil, failed: true))
         default: break
         }
     }
@@ -1182,6 +1255,8 @@ enum AgentHookTools {
                 "web_search": "WebSearch", "todo_write": "TodoWrite", "agent": "Task", "monitor": "BashOutput",
                 "notebook_edit": "NotebookEdit", "ask_user_question": "AskUserQuestion",
                 "enter_plan_mode": "EnterPlanMode", "exit_plan_mode": "ExitPlanMode"],
+        .kimi: ["FetchURL": "WebFetch", "TodoList": "TodoWrite", "Agent": "Task", "ReadMediaFile": "Read",
+                "TaskOutput": "BashOutput", "TaskStop": "KillShell"],
         .droid: ["Execute": "Bash", "Create": "Write", "ApplyPatch": "Edit", "FetchUrl": "WebFetch",
                  "AskUser": "AskUserQuestion", "ExitSpecMode": "ExitPlanMode"],
         // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.

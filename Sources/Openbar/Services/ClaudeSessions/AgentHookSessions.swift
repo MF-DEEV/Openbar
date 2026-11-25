@@ -229,7 +229,9 @@ final class AgentHookSessions {
             let gone = entry.pid > 0 && !alive(entry.pid)
             // A Hermes session whose client wasn't found lives in its gateway:
             // it goes when its client closes, or once long quiet.
+            // So does a session Kimi Code's server holds: the server outlives it.
             let outlived = Self.outlived.contains(entry.provider) || (entry.provider == .hermes && entry.pid <= 0)
+                || (entry.provider == .kimi && (entry.client == AgentKimi.kapClient || entry.client == AgentKimi.vscodeClient))
             let quiet = outlived && !entry.turnOpen && entry.permission == nil
                 && now.timeIntervalSince(entry.heard) > Self.quietFor
             if gone || quiet {
@@ -309,8 +311,15 @@ final class AgentHookSessions {
         // through Cline's hub anywhere; its extension asks in its own panel.
         let clineAnswers = entry.provider == .cline && entry.client != AgentCline.extensionClient
             && (ClaudeTyping.takesKeys(host) || (entry.client == AgentCline.hubClient && entry.permission?.asksQuestions == false))
+        // Kimi Code's terminal UI takes keys where its terminal does; its
+        // server answers for `kimi web` and its app; its VS Code extension
+        // asks in its own panel (#240).
+        let kimiServed = entry.provider == .kimi && entry.client == AgentKimi.kapClient
+        let kimiAnswers = entry.provider == .kimi && entry.client != AgentKimi.vscodeClient
+            && (kimiServed || ClaudeTyping.takesKeys(host))
         let inAgent = entry.permission != nil
             && (!entry.answerable || (keyed && !ClaudeTyping.takesKeys(host))
+                || (entry.provider == .kimi && !kimiAnswers)
                 || (qwenKeys && entry.permission.map { !AgentQwen.keyable($0, oneBurst: AgentQwen.oneBurst(host)) } == true)
                 || (entry.provider == .cline && !clineAnswers))
         var session = ClaudeSession(
@@ -333,6 +342,8 @@ final class AgentHookSessions {
         if previews { session.chat = entry.chat }
         session.via = entry.via
         if entry.provider == .cline, entry.client == AgentCline.extensionClient { session.editor = AgentCline.editorName(host) }
+        if entry.provider == .kimi, entry.client == AgentKimi.vscodeClient { session.editor = AgentCline.editorName(host) }
+        session.served = kimiServed
         if inAgent { session.waitingDiffs = entry.permission?.diffs ?? [] }
         return session
     }

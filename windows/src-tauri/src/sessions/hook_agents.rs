@@ -40,7 +40,7 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 14] = [
+    pub const HOOK_AGENTS: [Provider; 15] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -55,11 +55,12 @@ impl Provider {
         Provider::Qwen,
         Provider::Droid,
         Provider::Cline,
+        Provider::Kimi,
     ];
 
     /// The hook agents the island puts hooks or a plugin into. Cline is read
     /// from its own session store instead, and gets nothing (#241).
-    pub const INSTALLED_AGENTS: [Provider; 13] = [
+    pub const INSTALLED_AGENTS: [Provider; 14] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -73,6 +74,7 @@ impl Provider {
         Provider::Hermes,
         Provider::Qwen,
         Provider::Droid,
+        Provider::Kimi,
     ];
 
     /// Whether the island puts hooks or a plugin into the agent.
@@ -99,7 +101,9 @@ impl Provider {
     /// Return for yes, arrows down to its no, and numbers for its questions
     /// and specs (#242). Cline's CLI takes Return and `n`, and a question's
     /// number, and a session its hub runs is answered there too; its
-    /// extension asks only in its own panel (#241).
+    /// extension asks only in its own panel (#241). Kimi Code's hooks only
+    /// tell of a request: its terminal UI takes a choice's number, and its
+    /// local server the answer itself (#240).
     pub fn answers_permissions(self) -> bool {
         matches!(
             self,
@@ -112,6 +116,7 @@ impl Provider {
                 | Provider::Qwen
                 | Provider::Droid
                 | Provider::Cline
+                | Provider::Kimi
         )
     }
 
@@ -133,6 +138,7 @@ impl Provider {
             Provider::Qwen => "qwen",
             Provider::Droid => "droid",
             Provider::Cline => "cline",
+            Provider::Kimi => "kimi",
             Provider::Custom => "custom",
         }
     }
@@ -161,6 +167,7 @@ impl Provider {
             Provider::Qwen,
             Provider::Droid,
             Provider::Cline,
+            Provider::Kimi,
             Provider::Custom,
         ]
         .into_iter()
@@ -381,6 +388,7 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
         Provider::Zcode => zcode(&hook, event, pid, now, policy, &mut decoded),
         Provider::Qwen => qwen(&hook, event, pid, now, policy, &mut decoded),
         Provider::Droid => droid(&hook, event, pid, now, policy, &mut decoded),
+        Provider::Kimi => decoded.events = kimi(&hook, event, pid, now, policy),
         Provider::Hermes => decoded.events = hermes(&hook, event, pid, now, policy),
         Provider::Grok => {
             decoded.events = grok(&hook, event, pid, now, policy);
@@ -1787,6 +1795,144 @@ fn grok(
     events
 }
 
+// MARK: Kimi Code
+
+/// Kimi Code's hooks (docs/en/customization/hooks.md in MoonshotAI/kimi-code,
+/// AgentHookMessage.kimi): snake_case input with the session's id, folder
+/// and the client it runs in. A request is told by `PermissionRequest`, its
+/// tool and input in it, and answered where Kimi shows it or by the island
+/// (`kimi::keys`, `kimi::answer`); `PermissionResult` tells it was. A
+/// question is told only by its tool's `PreToolUse`.
+fn kimi(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+) -> Vec<AgentEvent> {
+    use super::kimi::{KAP_CLIENT, PLAN_TOOL, QUESTION_TOOL, VSCODE_CLIENT};
+    let Some(session) = text(json, "session_id") else {
+        return Vec::new();
+    };
+    let cwd = text(json, "cwd");
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Kimi,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    let raw = str_of(json.get("tool_name")).unwrap_or("");
+    let tool = name(Provider::Kimi, raw);
+    let input = arguments(json.get("tool_input"));
+    let call = text(json, "tool_call_id");
+    let event = text(json, "hook_event_name").unwrap_or_else(|| hook.to_owned());
+    match text(json, "client_type").as_deref() {
+        Some("kimi_code_vscode") => add(Kind::Client(VSCODE_CLIENT.into())),
+        Some("kimi_code_desktop") => add(Kind::Client(KAP_CLIENT.into())),
+        _ => {}
+    }
+    if policy.previews
+        && let Some(title) = text(json, "session_title")
+    {
+        add(Kind::Title(title));
+    }
+    match event.as_str() {
+        "SessionStart" => {
+            add(Kind::Started);
+            if let Some(model) = text(json, "model") {
+                add(Kind::Model(super::kimi::model_name(&model)));
+            }
+        }
+        "SessionEnd" => add(Kind::Ended),
+        "UserPromptSubmit" => {
+            let prompt: String = json
+                .get("prompt")
+                .and_then(Value::as_array)
+                .map(|parts| {
+                    parts
+                        .iter()
+                        .filter(|p| p["type"].as_str() == Some("text"))
+                        .filter_map(|p| p["text"].as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .unwrap_or_default();
+            add(Kind::Prompt(
+                policy
+                    .previews
+                    .then(|| reply_preview(Some(&Value::String(prompt))))
+                    .flatten(),
+            ));
+        }
+        // A turn a finished background task or a schedule began.
+        "TurnStarted" => add(Kind::Working),
+        "PreToolUse" => {
+            if raw == QUESTION_TOOL {
+                match call
+                    .as_deref()
+                    .and_then(|c| super::kimi::question(c, &input, now))
+                {
+                    Some(question) => add(Kind::Permission(question)),
+                    None => add(Kind::Question),
+                }
+            } else if raw != PLAN_TOOL {
+                // A plan is told by its permission request.
+                let claude_input = super::kimi::claude_input(&input);
+                let mut use_ = tool_use(&tool, &claude_input, now, policy);
+                if let Some(call) = &call {
+                    use_.id = call.clone();
+                }
+                add(Kind::ToolStarted(use_));
+            }
+        }
+        "PermissionRequest" => {
+            if let Some(request) = text(json, "id").or_else(|| call.clone()) {
+                add(Kind::Permission(super::kimi::ask(
+                    &tool,
+                    raw,
+                    &request,
+                    &input,
+                    json.get("display").and_then(Value::as_object),
+                    cwd.as_deref(),
+                    now,
+                )));
+            }
+        }
+        "PermissionResult" => add(Kind::PermissionSettled(text(json, "id").or(call))),
+        "PostToolUse" | "PostToolUseFailure" => {
+            if raw == QUESTION_TOOL {
+                add(Kind::PermissionSettled(call));
+            } else if raw != PLAN_TOOL {
+                add(Kind::ToolFinished {
+                    id: call,
+                    input_key: Some(tool_summary::input_key(
+                        &tool,
+                        &super::kimi::claude_input(&input),
+                    )),
+                    name: tool,
+                    failed: event == "PostToolUseFailure",
+                    started: None,
+                });
+            }
+        }
+        "Stop" => add(Kind::Stopped {
+            last_text: None,
+            failed: false,
+        }),
+        "StopFailure" | "Interrupt" => add(Kind::Stopped {
+            last_text: None,
+            failed: true,
+        }),
+        _ => {}
+    }
+    events
+}
+
 // MARK: Factory Droid
 
 /// Factory Droid's hooks (docs.factory.ai, "Hooks"), in Claude Code's format
@@ -2494,6 +2640,14 @@ pub fn name(provider: Provider, tool: &str) -> String {
         ],
         // ZCode's tools take Claude Code's names; its patch tool is an edit, its subagent a task.
         Provider::Zcode => &[("ApplyPatch", "Edit"), ("Agent", "Task")],
+        Provider::Kimi => &[
+            ("FetchURL", "WebFetch"),
+            ("TodoList", "TodoWrite"),
+            ("Agent", "Task"),
+            ("ReadMediaFile", "Read"),
+            ("TaskOutput", "BashOutput"),
+            ("TaskStop", "KillShell"),
+        ],
         Provider::Droid => &[
             ("Execute", "Bash"),
             ("Create", "Write"),
@@ -3037,8 +3191,14 @@ impl Tracker {
                 (e.pid > 0 && !alive(e.pid))
                     // A Hermes session whose client wasn't found lives in its
                     // gateway: it goes when its client closes, or once long quiet.
+                    // So does a session Kimi Code's server or VS Code holds: those outlive it.
                     || ((matches!(e.provider, Provider::Cursor | Provider::Antigravity)
-                        || (e.provider == Provider::Hermes && e.pid <= 0))
+                        || (e.provider == Provider::Hermes && e.pid <= 0)
+                        || (e.provider == Provider::Kimi
+                            && matches!(
+                                e.client.as_deref(),
+                                Some(super::kimi::KAP_CLIENT | super::kimi::VSCODE_CLIENT)
+                            )))
                         && !e.turn_open
                         && e.permission.is_none()
                         && now - e.heard > QUIET_FOR)
@@ -3193,12 +3353,21 @@ fn session(
                     .permission
                     .as_ref()
                     .is_some_and(|p| !p.asks_questions())));
+    // Kimi Code's terminal UI takes keys where its terminal does; its server
+    // answers for `kimi web` and its app; its VS Code extension asks in its
+    // own panel (#240).
+    let kimi_served = entry.provider == Provider::Kimi && client == Some(super::kimi::KAP_CLIENT);
+    let kimi_answers = entry.provider == Provider::Kimi
+        && client != Some(super::kimi::VSCODE_CLIENT)
+        && (kimi_served || place.takes_keys);
     let in_agent = entry.permission.is_some()
         && (!entry.answerable
             || (keyed && !place.takes_keys)
-            || (entry.provider == Provider::Cline && !cline_answers));
-    let editor = (entry.provider == Provider::Cline
+            || (entry.provider == Provider::Cline && !cline_answers)
+            || (entry.provider == Provider::Kimi && !kimi_answers));
+    let editor = ((entry.provider == Provider::Cline
         && client == Some(super::cline::EXTENSION_CLIENT))
+        || (entry.provider == Provider::Kimi && client == Some(super::kimi::VSCODE_CLIENT)))
     .then(|| super::cline::editor_name(place.host_name.as_deref()));
     Session {
         id: id.to_owned(),
@@ -3273,6 +3442,7 @@ fn session(
         via: via_of(entry.provider, &entry.session_id).map(str::to_owned),
         origin: None,
         editor,
+        served: kimi_served,
     }
 }
 
@@ -3330,6 +3500,7 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Qwen => Some("qwen"),
         Provider::Droid => Some("droid"),
         Provider::Cline => Some("cline"),
+        Provider::Kimi => Some("kimi"),
         Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
 }
@@ -3348,18 +3519,20 @@ pub fn takes_one_return(provider: Provider) -> bool {
         return !cfg!(windows);
     }
     // Cline sends on the first return; a second would approve the tool it
-    // may ask about next (#241).
+    // may ask about next (#241). So does Kimi Code, where a second picks
+    // "Approve once" in the dialog its reply may open at once (#240).
     matches!(
         provider,
-        Provider::Zcode | Provider::Hermes | Provider::Cline
+        Provider::Zcode | Provider::Hermes | Provider::Cline | Provider::Kimi
     )
 }
 
 /// Whether New session can start the agent with its first prompt. ZCode's
 /// terminal UI takes none (`--prompt` runs headless, without asking
 /// anything), so it is found and connected but not offered there.
+/// Kimi Code's takes none either (`--prompt` runs headless too).
 pub fn starts_with_prompt(provider: Provider) -> bool {
-    provider != Provider::Zcode
+    provider != Provider::Zcode && provider != Provider::Kimi
 }
 
 /// The arguments that open the agent's terminal UI with a first prompt
@@ -3383,7 +3556,11 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         Provider::Hermes => vec!["chat".into(), "-q".into(), prompt.into()],
         // A prompt alone runs Cline headless; `--tui` keeps its terminal UI with it as the first turn.
         Provider::Cline => vec!["--tui".into(), prompt.into()],
-        Provider::Zcode | Provider::Claude | Provider::Codex | Provider::Custom => Vec::new(),
+        Provider::Zcode
+        | Provider::Kimi
+        | Provider::Claude
+        | Provider::Codex
+        | Provider::Custom => Vec::new(),
     }
 }
 
@@ -3612,7 +3789,7 @@ pub mod installer {
     ];
     /// The agents whose config folder can be named by hand, beside the one
     /// their home variable or default names (#236).
-    pub const FOLDERS_BY_HAND: [Provider; 8] = [
+    pub const FOLDERS_BY_HAND: [Provider; 9] = [
         Provider::Codex,
         Provider::Gemini,
         Provider::Copilot,
@@ -3621,6 +3798,7 @@ pub mod installer {
         Provider::Grok,
         Provider::Qwen,
         Provider::Droid,
+        Provider::Kimi,
     ];
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
@@ -3779,6 +3957,7 @@ pub mod installer {
             Provider::Qwen => qwen_folder(home),
             Provider::Droid => super::super::droid::folder(home),
             Provider::Cline => super::super::cline::folder(home),
+            Provider::Kimi => super::super::kimi::folder(home),
             Provider::Claude | Provider::Custom => return None,
         })
     }
@@ -3800,6 +3979,8 @@ pub mod installer {
             Provider::Qwen => folder.join("settings.json"),
             // Droid's `.factory` folder: its hooks.json takes the events it already holds.
             Provider::Droid => folder.join("settings.json"),
+            // A `KIMI_CODE_HOME`: its config.toml.
+            Provider::Kimi => folder.join("config.toml"),
             _ => return None,
         })
     }
@@ -4491,6 +4672,10 @@ pub mod installer {
                 Ok(Some(_)) => State::Missing,
                 Err(_) => State::Unreadable,
             },
+            Provider::Kimi => match vibe_text(&path) {
+                Ok(text) => super::super::kimi::state(text.as_deref(), exe, app),
+                Err(_) => State::Unreadable,
+            },
             Provider::Devin => match read(&path) {
                 Ok(s) => groups_state(&s, &DEVIN_EVENTS, app, |e| {
                     portable_command(Provider::Devin, e, exe, app)
@@ -4723,6 +4908,18 @@ pub mod installer {
                 claude::update_text(&path, |text| Some(vibe_installing(text, exe, app)))
                     .map_err(failure)
             }
+            Provider::Kimi => {
+                // Hooks kept as `hooks = [...]` can't take tables beside them: left to the person.
+                if let Ok(Some(text)) = vibe_text(&path)
+                    && vibe_inline(&text)
+                {
+                    return Err(format!("{} keeps its hooks inline", path.display()));
+                }
+                claude::update_text(&path, |text| {
+                    Some(super::super::kimi::installing(text, exe, app))
+                })
+                .map_err(failure)
+            }
             Provider::Devin => {
                 claude::update(&path, |s| devin_installing(s, exe, app)).map_err(failure)
             }
@@ -4792,7 +4989,7 @@ pub mod installer {
                 claude::update(&path, |s| claude::removing(s, app)).map_err(failure)
             }
             Provider::Cursor => claude::update(&path, |s| flat_removing(s, app)).map_err(failure),
-            Provider::Vibe => {
+            Provider::Vibe | Provider::Kimi => {
                 claude::update_text(&path, |text| text.and_then(|t| vibe_removing(t, app)))
                     .map_err(failure)
             }
@@ -7321,7 +7518,8 @@ mod tests {
             Provider::Zcode,
             Provider::Hermes,
             Provider::Qwen,
-            Provider::Droid
+            Provider::Droid,
+            Provider::Kimi
         ]));
         assert_eq!(Provider::from_key("zcode"), Some(Provider::Zcode));
     }

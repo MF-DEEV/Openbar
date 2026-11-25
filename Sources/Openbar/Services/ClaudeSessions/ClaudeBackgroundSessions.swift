@@ -849,6 +849,7 @@ enum AgentCLI {
         case .qwen: return "qwen"
         case .droid: return "droid"
         case .cline: return "cline"
+        case .kimi: return "kimi"
         case .claude, .codex, .custom: return nil
         }
     }
@@ -856,14 +857,15 @@ enum AgentCLI {
     /// Whether New session can start the agent with its first prompt.
     /// ZCode's terminal UI takes none (`--prompt` runs headless, without
     /// asking anything), so it is found and connected but not offered there.
-    static func startsWithPrompt(_ provider: ClaudeSessionProvider) -> Bool { provider != .zcode }
+    /// Kimi Code's takes none either (`--prompt` runs headless too).
+    static func startsWithPrompt(_ provider: ClaudeSessionProvider) -> Bool { provider != .zcode && provider != .kimi }
 
     /// The command on the person's `PATH`, then where its installers put it.
     static func locate(_ provider: ClaudeSessionProvider, path: String?, home: URL,
                        isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:)) -> String? {
         guard let command = command(provider) else { return nil }
         let onPath = (path ?? "").split(separator: ":").map { "\($0)/\(command)" }
-        let usual = [".local/bin", ".npm-global/bin", ".bun/bin", ".volta/bin", ".opencode/bin", ".cursor/bin", ".grok/bin"]
+        let usual = [".local/bin", ".npm-global/bin", ".bun/bin", ".volta/bin", ".opencode/bin", ".cursor/bin", ".grok/bin", ".kimi-code/bin"]
             .map { home.appending(path: "\($0)/\(command)").path }
             + ["/opt/homebrew/bin/\(command)", "/usr/local/bin/\(command)"]
         return (onPath + usual).first(where: isExecutable)
@@ -884,7 +886,7 @@ enum AgentCLI {
         case .cline: return ["--tui", prompt]
         // On a terminal, `hermes chat -q` opens the session with it as the first turn.
         case .hermes: return ["chat", "-q", prompt]
-        case .zcode, .claude, .codex, .custom: return []
+        case .zcode, .kimi, .claude, .codex, .custom: return []
         }
     }
 }
