@@ -472,16 +472,24 @@ final class ClaudeSessionService: ObservableObject {
     /// Answers the permission the session waits on, if its hook still waits.
     /// Answers the request the person saw, and only that one: a newer request
     /// for the same session, or one already settled, is left alone.
-    func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision, revision: String? = nil, inspectionToken: String? = nil, autoAllowTurn: Bool = false) {
+    /// `batch` is what Allow all showed of the ask; it is listed once the
+    /// agent took the allow (#281).
+    func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision, revision: String? = nil, inspectionToken: String? = nil, autoAllowTurn: Bool = false, batch: BatchApproval? = nil) {
         // Deny waits the same moment, so a ⌘N meant for the request before cannot deny this one.
         guard settled(id, request: request) else { return }
         let revision = revision ?? sessions.first(where: { $0.id == id })?.ask(request)
             .flatMap { p in p.content.map { $0.revision(p) } }
         queue.async { [self] in
             if id == ClaudeSessionSample.id { return answerSample(request: request, decision) }
+            // Called where the agent took the answer, and only for an allow.
+            let landed = {
+                guard let batch, case .allow = decision else { return }
+                BatchApprovalLog.shared.record(batch)
+            }
             // Codex takes its answer through its own server; the first answer wins there.
             if let codex = codexOwner(id) {
                 if codex.answer(id, requestID: request, answer: CodexAnswer(decision), revision: revision, inspectionToken: inspectionToken) {
+                    landed()
                     codex.acknowledge(id, now: Date())
                     if autoAllowTurn, case .allow = decision {
                         _ = autoAllow.set(id, on: true, session: latest.first { $0.id == id }, now: Date())
@@ -511,6 +519,7 @@ final class ClaudeSessionService: ObservableObject {
                         guard ClaudeTerminalReply.press(keys, to: shown) == nil else { return }
                         queue.async { [self] in
                             hookAgents.resolve(id, request: request)
+                            landed()
                             hookAgents.acknowledge(id, now: Date())
                             publish(now: Date())
                         }
@@ -529,6 +538,7 @@ final class ClaudeSessionService: ObservableObject {
                     }
                     queue.async { [self] in
                         hookAgents.resolve(id, request: request)
+                        landed()
                         hookAgents.acknowledge(id, now: Date())
                         publish(now: Date())
                     }
@@ -544,6 +554,7 @@ final class ClaudeSessionService: ObservableObject {
                     guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
                     queue.async { [self] in
                         hookAgents.resolve(id, request: request)
+                        landed()
                         hookAgents.acknowledge(id, now: Date())
                         publish(now: Date())
                     }
@@ -559,6 +570,7 @@ final class ClaudeSessionService: ObservableObject {
                     guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
                     queue.async { [self] in
                         hookAgents.resolve(id, request: request)
+                        landed()
                         hookAgents.acknowledge(id, now: Date())
                         publish(now: Date())
                     }
@@ -574,6 +586,7 @@ final class ClaudeSessionService: ObservableObject {
                     guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
                     queue.async { [self] in
                         hookAgents.resolve(id, request: request)
+                        landed()
                         hookAgents.acknowledge(id, now: Date())
                         publish(now: Date())
                     }
@@ -596,6 +609,7 @@ final class ClaudeSessionService: ObservableObject {
                         }
                         queue.async { [self] in
                             hookAgents.resolve(id, request: request)
+                            landed()
                             hookAgents.acknowledge(id, now: Date())
                             publish(now: Date())
                         }
@@ -608,6 +622,7 @@ final class ClaudeSessionService: ObservableObject {
                     guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
                     queue.async { [self] in
                         hookAgents.resolve(id, request: request)
+                        landed()
                         hookAgents.acknowledge(id, now: Date())
                         publish(now: Date())
                     }
@@ -627,6 +642,7 @@ final class ClaudeSessionService: ObservableObject {
                     actions.async { [self] in
                         guard ClaudeTerminalReply.press(keys, to: shown) == nil else { return }
                         queue.async { [self] in
+                                landed()
                                 hookAgents.acknowledge(id, now: Date())
                             publish(now: Date())
                         }
@@ -648,6 +664,7 @@ final class ClaudeSessionService: ObservableObject {
                         return
                     }
                     queue.async { [self] in
+                        landed()
                         hookAgents.acknowledge(id, now: Date())
                         publish(now: Date())
                     }
@@ -663,6 +680,7 @@ final class ClaudeSessionService: ObservableObject {
                     guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
                     queue.async { [self] in
                         hookAgents.resolve(id, request: request)
+                        landed()
                         hookAgents.acknowledge(id, now: Date())
                         publish(now: Date())
                     }
@@ -697,6 +715,7 @@ final class ClaudeSessionService: ObservableObject {
                 agentInputs[request] = nil
                 asked.connection.finish(reply)
                 hookAgents.resolve(id, request: request)
+                landed()
                 hookAgents.acknowledge(id, now: Date())
                 publish(now: Date())
                 return
@@ -722,6 +741,7 @@ final class ClaudeSessionService: ObservableObject {
             asked.connection.finish(ClaudeHookMessage.reply(decision, suggestions: asked.suggestions, input: asked.question,
                                                                    approved: asked.approved))
             engine.resolvePermission(requestID: request)
+            landed()
             engine.acknowledge(id, now: Date())
             publish(now: Date())
         }
@@ -730,9 +750,16 @@ final class ClaudeSessionService: ObservableObject {
     /// Allows every ask of the queue that looks safe and has been on screen
     /// a moment (#269); each goes through `decide` like a click on its row,
     /// so one that changed, or came since, is left for the person.
+    /// What each one showed is listed under the click's id once its agent
+    /// took the allow (#281).
     func allowAll(_ queue: NotchPermissionQueue) {
+        let batch = UUID().uuidString
+        let now = Date()
         for row in queue.allowAll where settled(row.session.id, request: row.ask.requestID) {
-            decide(row.session.id, request: row.ask.requestID, .allow)
+            var entry = BatchApproval(batch: batch, session: row.session, ask: row.ask, at: now)
+            // The name the row showed, the person's own if they renamed it.
+            entry.session = displayName(row.session)
+            decide(row.session.id, request: row.ask.requestID, .allow, batch: entry)
         }
     }
 

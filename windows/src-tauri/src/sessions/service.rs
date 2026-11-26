@@ -307,6 +307,10 @@ pub struct Service {
 
 impl Service {
     pub fn start(app: AppHandle<Wry>) -> Arc<Self> {
+        // What Allow all let through is kept beside the app's settings (#281).
+        if let Ok(dir) = app.path().app_config_dir() {
+            super::batch_log::LOG.set_path(dir.join("sessions").join("batch-approvals.json"));
+        }
         let service = Arc::new(Service {
             app,
             inner: Mutex::new(Inner {
@@ -3414,6 +3418,15 @@ pub enum UiDecision {
     Deny,
 }
 
+/// The Allow all click an allow came with (#281).
+#[derive(Deserialize)]
+pub struct BatchClick {
+    pub id: String,
+    /// The session's name as the row showed it.
+    #[serde(default)]
+    pub session: Option<String>,
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum UiAnswer {
@@ -3422,7 +3435,9 @@ pub enum UiAnswer {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn sessions_decide(
+    app: AppHandle<Wry>,
     service: tauri::State<'_, Shared>,
     session_id: String,
     request_id: String,
@@ -3430,7 +3445,26 @@ pub fn sessions_decide(
     plan_mode: Option<PlanMode>,
     revision: Option<String>,
     inspection_token: Option<String>,
+    batch: Option<BatchClick>,
 ) -> bool {
+    // Allow all names its click (#281): what the island showed of the ask is
+    // kept once the agent took the allow.
+    let batched = match (&decision, &plan_mode, batch) {
+        (UiDecision::Allow, None, Some(click))
+            if !click.id.is_empty() && session_id != sample::ID =>
+        {
+            service
+                .batch_entry(&click.id, &session_id, &request_id)
+                .map(|mut entry| {
+                    // The name the row showed, the person's own if they renamed it.
+                    if let Some(name) = click.session.filter(|n| !n.trim().is_empty()) {
+                        entry.session = name;
+                    }
+                    entry
+                })
+        }
+        _ => None,
+    };
     let decision = match (decision, plan_mode) {
         (UiDecision::Allow, Some(mode)) => Decision::ApprovePlan(mode),
         (UiDecision::Allow, None) => Decision::Allow,
@@ -3444,13 +3478,49 @@ pub fn sessions_decide(
             !matches!(decision, Decision::Deny),
         );
     }
-    service.answer_inspected(
+    let answered = service.answer_inspected(
         &session_id,
         &request_id,
         decision,
         revision.as_deref(),
         inspection_token.as_deref(),
-    )
+    );
+    if let (true, Some(entry)) = (answered, batched) {
+        super::batch_log::LOG.record(entry);
+        let _ = app.emit(super::batch_log::CHANGED, ());
+    }
+    answered
+}
+
+/// The asks Allow all answered, newest first (#281).
+#[tauri::command]
+pub fn sessions_batch_approvals() -> Vec<super::batch_log::Entry> {
+    super::batch_log::LOG.entries()
+}
+
+#[tauri::command]
+pub fn sessions_clear_batch_approvals(app: AppHandle<Wry>) {
+    super::batch_log::LOG.clear();
+    let _ = app.emit(super::batch_log::CHANGED, ());
+}
+
+impl Service {
+    /// The ask as the island last showed it, for Allow all's list.
+    fn batch_entry(
+        &self,
+        batch: &str,
+        session: &str,
+        request: &str,
+    ) -> Option<super::batch_log::Entry> {
+        let inner = self.inner.lock().unwrap();
+        let shown = inner.sessions.iter().find(|s| s.id == session)?;
+        let ask = shown
+            .permission
+            .iter()
+            .chain(&shown.later_asks)
+            .find(|p| p.request_id == request)?;
+        Some(super::batch_log::Entry::of(batch, shown, ask, now()))
+    }
 }
 
 /// Fetch only the authoritative pending request, never text supplied by the frontend.

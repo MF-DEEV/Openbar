@@ -79,6 +79,12 @@ struct NotchClaudeSessionStrings {
     func queueTitle(_ n: Int) -> String { "\(n) waiting" }
     var allowAll = "Allow all"
     var allowAllHelp = "Allows the asks that look safe. The others stay here for you."
+    // #281: what Allow all let through, in Settings › Sessions.
+    var batchApprovals = "Recent batch approvals"
+    var batchApprovalsHint = "Every ask Allow all let through in the queue, newest first, with its whole command or file paths. Asks you allowed one by one aren’t listed. The last 500 stay on this Mac."
+    var batchApprovalsEmpty = "Nothing has gone through Allow all yet."
+    var batchApprovalsClear = "Clear"
+    func batchApprovalsCount(_ n: Int) -> String { "\(n) allowed" }
     func queueHeldBack(_ n: Int) -> String { "Left for you: \(n)" }
     var queueReview = "Review"
     var queueOpenHelp = "Open this ask on its session’s page"

@@ -1831,3 +1831,102 @@ select {
     margin-left: 44px;
   }
 }
+
+/* #281: what the queue's Allow all let through, grouped by click. */
+.st-batch-log {
+  min-width: 0;
+  margin-top: 8px;
+}
+.st-batch-log-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.st-batch-log-head .st-group-title {
+  margin: 0;
+}
+.st-batch-log-empty {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--st-text-2);
+}
+.st-batch-log-list {
+  margin-top: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--st-stroke);
+  border-radius: var(--st-radius);
+  background: var(--st-card);
+}
+.st-batch-log-list:focus-visible {
+  outline: 2px solid var(--st-accent, currentColor);
+  outline-offset: 2px;
+}
+.st-batch + .st-batch {
+  border-top: 1px solid var(--st-divider);
+}
+.st-batch-when {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--st-card);
+}
+.st-batch-count {
+  font-weight: 400;
+  color: var(--st-text-2);
+}
+.st-batch-entry {
+  display: flex;
+  gap: 10px;
+  padding: 6px 14px 10px;
+}
+.st-batch-mark {
+  flex: none;
+  display: inline-flex;
+  margin-top: 1px;
+}
+.st-batch-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.st-batch-who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  font-size: 12px;
+  color: var(--st-text-2);
+}
+.st-batch-who > span + span::before {
+  content: "·";
+  margin-right: 6px;
+}
+.st-batch-agent {
+  color: var(--st-text);
+}
+.st-batch-tool {
+  font-size: 12px;
+  font-weight: 600;
+}
+.st-batch-detail {
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--st-text) 6%, transparent);
+  font-family: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 11.5px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+  max-height: 160px;
+  overflow-y: auto;
+}

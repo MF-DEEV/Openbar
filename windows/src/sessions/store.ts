@@ -10,10 +10,20 @@ import { bridge } from "../shared/bridge";
 import { localCostumeStore } from "./clawd/costume";
 import { autoAllowConsent } from "./autoAllowConsent";
 import { codexServer } from "./types";
-import type { Decision, PlanMode, ReplyAttachment, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
+import type {
+  BatchClick,
+  Decision,
+  PlanMode,
+  ReplyAttachment,
+  ReplyFailure,
+  Session,
+  SessionEvent,
+  Snapshot,
+} from "./types";
 import { DEFAULT_SESSION_PREFS, type SessionPrefs } from "../shared/prefs";
 import type { AwayLine } from "./away";
 import { asks, type PermissionQueue } from "./queue";
+import { displayName } from "./format";
 
 /** A permission must be on screen this long before a click or Ctrl+Y can answer it. */
 export const SETTLE_DELAY = 0.8;
@@ -61,7 +71,14 @@ interface SessionsState {
   addAttachments(id: string, images: ReplyAttachment[]): void;
   removeAttachment(id: string, path: string): void;
   rename(id: string, name: string): void;
-  decide(session: Session, decision: Decision, planMode?: PlanMode, inspectionToken?: string): Promise<boolean>;
+  /** `batch` names an Allow all click, so the app lists the ask once it went through (#281). */
+  decide(
+    session: Session,
+    decision: Decision,
+    planMode?: PlanMode,
+    inspectionToken?: string,
+    batch?: BatchClick,
+  ): Promise<boolean>;
   answer(session: Session, answers: Record<string, string | string[]>): Promise<boolean>;
   skip(session: Session): Promise<boolean>;
   reply(session: Session, text: string, images: string[]): Promise<ReplyFailure | null>;
@@ -86,6 +103,15 @@ function loadNames(): Record<string, string> {
     return JSON.parse(localStorage.getItem("sessions.names") ?? "{}");
   } catch {
     return {};
+  }
+}
+
+/** An id for one Allow all click. */
+export function batchId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   }
 }
 
@@ -219,7 +245,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     });
   },
 
-  async decide(session, decision, planMode, inspectionToken) {
+  async decide(session, decision, planMode, inspectionToken, batch) {
     if (
       !session.permission ||
       session.permission.questions.length > 0 ||
@@ -237,21 +263,32 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     if (decision !== "deny" && p.command && (!p.command.complete || (p.command.requiresInspection && !inspectionToken)))
       return false;
     // A mode goes along only for a plan's approval.
+    // An Allow all click names itself, so the app lists the ask (#281).
+    const listed = batch ? ([batch] as const) : ([] as const);
     const sent = p.command
-      ? bridge.sessions.decide(id, request, decision, planMode, p.command.revision, inspectionToken)
+      ? bridge.sessions.decide(id, request, decision, planMode, p.command.revision, inspectionToken, ...listed)
       : planMode
         ? bridge.sessions.decide(id, request, decision, planMode)
-        : bridge.sessions.decide(id, request, decision);
+        : batch
+          ? bridge.sessions.decide(id, request, decision, undefined, undefined, undefined, batch)
+          : bridge.sessions.decide(id, request, decision);
     return (await sent) ?? false;
   },
 
   async allowAll(queue) {
     // Each goes through decide like a click on its row, so one that changed,
-    // or came since, is left for the person.
+    // or came since, is left for the person. The click's id lets the app
+    // list what went through (#281).
+    const batch = batchId();
     const results = await Promise.all(
       queue.allowAll.map((row) => {
         const session = { ...row.session, permission: row.ask };
-        return settled(get(), session) ? get().decide(session, "allow") : Promise.resolve(false);
+        return settled(get(), session)
+          ? get().decide(session, "allow", undefined, undefined, {
+              id: batch,
+              session: displayName(row.session, get().names[row.session.id]),
+            })
+          : Promise.resolve(false);
       }),
     );
     return results.filter(Boolean).length;

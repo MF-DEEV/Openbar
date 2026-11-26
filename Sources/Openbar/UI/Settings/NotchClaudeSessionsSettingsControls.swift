@@ -41,6 +41,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             SessionSoundsSettings()
             reminders
             SessionAutoModeSettings()
+            SessionBatchApprovalsSettings()
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
             switchRow("gauge.with.dots.needle.50percent", text.limitsSetting, caption: text.limitsSettingHint, isOn: $limits)
             buddiesRow

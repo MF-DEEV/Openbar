@@ -991,5 +991,10 @@
   "windows.hooks.open": "Hooks öffnen",
   "windows.sessions.agentInEditor": "%@ in %@",
   "windows.sessions.effortPicker": "Aufwand",
-  "windows.sessions.defaultEffort": "Standard"
+  "windows.sessions.defaultEffort": "Standard",
+  "windows.settings.sessions.batchApprovals": "Zuletzt gesammelt erlaubt",
+  "windows.settings.sessions.batchApprovalsCaption": "Jede Anfrage, die „Alle erlauben“ in der Warteschlange durchgelassen hat, die neueste zuerst, mit dem ganzen Befehl oder den Dateipfaden. Einzeln erlaubte Anfragen stehen nicht hier. Die letzten 500 bleiben auf diesem Computer.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Über „Alle erlauben“ ist noch nichts durchgegangen.",
+  "windows.settings.sessions.batchApprovalsClear": "Leeren",
+  "windows.settings.sessions.batchApprovalsCount": "%d erlaubt"
 }

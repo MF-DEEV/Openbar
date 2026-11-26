@@ -991,5 +991,10 @@
   "windows.hooks.open": "Apri Hook",
   "windows.sessions.agentInEditor": "%@ in %@",
   "windows.sessions.effortPicker": "Impegno",
-  "windows.sessions.defaultEffort": "Predefinito"
+  "windows.sessions.defaultEffort": "Predefinito",
+  "windows.settings.sessions.batchApprovals": "Approvazioni in blocco recenti",
+  "windows.settings.sessions.batchApprovalsCaption": "Ogni richiesta che Consenti tutto ha lasciato passare nella coda, dalla più recente, con il comando completo o i percorsi dei file. Le richieste consentite una alla volta non compaiono. Le ultime 500 restano su questo computer.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Ancora nulla è passato da Consenti tutto.",
+  "windows.settings.sessions.batchApprovalsClear": "Cancella",
+  "windows.settings.sessions.batchApprovalsCount": "%d consentite"
 }

@@ -9,6 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { register, unregister, type ShortcutEvent } from "@tauri-apps/plugin-global-shortcut";
 import type {
+  BatchClick,
   Decision,
   PlanMode,
   RecentFolder,
@@ -222,6 +223,8 @@ export const bridge = {
       planMode?: PlanMode,
       revision?: string,
       inspectionToken?: string,
+      /** Allow all's click and the row's name, so the app lists the ask once it went through (#281). */
+      batch?: BatchClick,
     ) =>
       call<boolean>("sessions_decide", {
         sessionId,
@@ -230,7 +233,15 @@ export const bridge = {
         planMode: planMode ?? null,
         revision: revision ?? null,
         inspectionToken: inspectionToken ?? null,
+        batch: batch ?? null,
       }),
+    /** The asks Allow all answered, newest first (#281). */
+    batchApprovals: () => call<import("../sessions/types").BatchApproval[]>("sessions_batch_approvals"),
+    clearBatchApprovals: () => call("sessions_clear_batch_approvals"),
+    onBatchApprovals(handler: () => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen("sessions://batch-approvals", () => handler());
+    },
     inspectCommand: (sessionId: string, requestId: string, revision: string) =>
       call<import("../sessions/types").CommandInspection | null>("sessions_inspect_command", {
         sessionId,

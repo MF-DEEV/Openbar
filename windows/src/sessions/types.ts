@@ -273,6 +273,30 @@ export const isHookAgent = (provider: Provider): provider is HookAgent =>
   (HOOK_AGENTS as readonly string[]).includes(provider);
 
 /** What the island calls each agent; product names, the same in every language. */
+/** The Allow all click an allow comes with, and the name its row showed (#281). */
+export interface BatchClick {
+  id: string;
+  session: string;
+}
+
+/** One ask the queue's Allow all answered, as the app keeps it (#281). */
+export interface BatchApproval {
+  /** The click it came with; the asks of one click share it. */
+  batch: string;
+  /** Seconds since 1970. */
+  at: number;
+  sessionId: string;
+  session: string;
+  project: string;
+  /** The agent, as a provider id. */
+  agent: string;
+  tool: string;
+  /** The whole command, path or arguments. */
+  detail: string;
+  /** The files a change touches, when it names them. */
+  paths?: string[];
+}
+
 export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   claude: "Claude Code",
   codex: "Codex",

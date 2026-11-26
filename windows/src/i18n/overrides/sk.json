@@ -991,5 +991,10 @@
   "windows.hooks.open": "Otvoriť hooky",
   "windows.sessions.agentInEditor": "%@ v %@",
   "windows.sessions.effortPicker": "Úsilie",
-  "windows.sessions.defaultEffort": "Predvolené"
+  "windows.sessions.defaultEffort": "Predvolené",
+  "windows.settings.sessions.batchApprovals": "Nedávne hromadné povolenia",
+  "windows.settings.sessions.batchApprovalsCaption": "Každá žiadosť, ktorú Povoliť všetko pustilo z frontu, od najnovšej, s celým príkazom alebo cestami k súborom. Žiadosti povolené po jednej tu nie sú. Posledných 500 zostáva v tomto počítači.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Cez Povoliť všetko zatiaľ nič neprešlo.",
+  "windows.settings.sessions.batchApprovalsClear": "Vymazať",
+  "windows.settings.sessions.batchApprovalsCount": "Povolené: %d"
 }

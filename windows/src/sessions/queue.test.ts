@@ -92,10 +92,35 @@ it("Allow all answers only the safe asks that settled, each by its own id", asyn
   expect(await useSessions.getState().allowAll(queue)).toBe(0);
   expect(bridge.sessions.decide).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(900);
+  useSessions.setState({ names: { b: "Checkout rename" } });
   expect(await useSessions.getState().allowAll(queue)).toBe(2);
   expect(bridge.sessions.decide).toHaveBeenCalledTimes(2);
-  expect(bridge.sessions.decide).toHaveBeenCalledWith("a", "a1", "allow", undefined, "rev-a1", undefined);
-  expect(bridge.sessions.decide).toHaveBeenCalledWith("b", "b1", "allow", undefined, "rev-b1", undefined);
+  expect(bridge.sessions.decide).toHaveBeenCalledWith("a", "a1", "allow", undefined, "rev-a1", undefined, {
+    id: expect.any(String),
+    session: expect.any(String),
+  });
+  expect(bridge.sessions.decide).toHaveBeenCalledWith("b", "b1", "allow", undefined, "rev-b1", undefined, {
+    id: expect.any(String),
+    session: expect.any(String),
+  });
+  // One click, one batch id, so the app lists them together (#281).
+  const batches = vi.mocked(bridge.sessions.decide).mock.calls.map((c) => c[6]?.id);
+  expect(new Set(batches).size).toBe(1);
+  expect(batches[0]).toBeTruthy();
+  // The name the row showed, the person's own when they renamed it.
+  const names = Object.fromEntries(vi.mocked(bridge.sessions.decide).mock.calls.map((c) => [c[0], c[6]?.session]));
+  expect(names.b).toBe("Checkout rename");
+  expect(names.a).toBeTruthy();
+});
+
+it("a row answered on its own names no batch", async () => {
+  const sessions = [session("a", [ask("a1", 1)])];
+  useSessions.getState().receive({ ...demoSnapshot(), sessions });
+  await vi.advanceTimersByTimeAsync(900);
+  const s = { ...sessions[0], permission: sessions[0].permission };
+  expect(await useSessions.getState().decide(s as never, "allow")).toBe(true);
+  expect(bridge.sessions.decide).toHaveBeenLastCalledWith("a", "a1", "allow", undefined, "rev-a1", undefined);
+  expect(vi.mocked(bridge.sessions.decide).mock.lastCall).toHaveLength(6);
 });
 
 it("a later ask is answered on its own, and an ask no longer held is not", async () => {

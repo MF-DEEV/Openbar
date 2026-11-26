@@ -991,5 +991,10 @@
   "windows.hooks.open": "Open Hooks",
   "windows.sessions.agentInEditor": "%@ in %@",
   "windows.sessions.effortPicker": "Effort",
-  "windows.sessions.defaultEffort": "Default"
+  "windows.sessions.defaultEffort": "Default",
+  "windows.settings.sessions.batchApprovals": "Recent batch approvals",
+  "windows.settings.sessions.batchApprovalsCaption": "Every ask Allow all let through in the queue, newest first, with its whole command or file paths. Asks you allowed one by one aren't listed. The last 500 stay on this computer.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Nothing has gone through Allow all yet.",
+  "windows.settings.sessions.batchApprovalsClear": "Clear",
+  "windows.settings.sessions.batchApprovalsCount": "%d allowed"
 }

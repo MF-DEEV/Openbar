@@ -991,5 +991,10 @@
   "windows.hooks.open": "開啟鈎子",
   "windows.sessions.agentInEditor": "%@（於 %@）",
   "windows.sessions.effortPicker": "推理強度",
-  "windows.sessions.defaultEffort": "預設"
+  "windows.sessions.defaultEffort": "預設",
+  "windows.settings.sessions.batchApprovals": "最近的批次允許",
+  "windows.settings.sessions.batchApprovalsCaption": "佇列中經「全部允許」放行的每個請求，由新到舊，附完整指令或檔案路徑。逐一允許的請求不會列出。最近 500 項保存在這部電腦上。",
+  "windows.settings.sessions.batchApprovalsEmpty": "還沒有請求經「全部允許」放行。",
+  "windows.settings.sessions.batchApprovalsClear": "清除",
+  "windows.settings.sessions.batchApprovalsCount": "已允許 %d 個"
 }

@@ -1066,6 +1066,20 @@ export const T = {
     get cancel() {
       return t("windows.settings.sessions.alwaysProceedCancel");
     },
+    // #281: what the queue's Allow all let through.
+    get batchApprovals() {
+      return t("windows.settings.sessions.batchApprovals");
+    },
+    get batchApprovalsCaption() {
+      return t("windows.settings.sessions.batchApprovalsCaption");
+    },
+    get batchApprovalsEmpty() {
+      return t("windows.settings.sessions.batchApprovalsEmpty");
+    },
+    get batchApprovalsClear() {
+      return t("windows.settings.sessions.batchApprovalsClear");
+    },
+    batchApprovalsCount: (n: number) => tf("windows.settings.sessions.batchApprovalsCount", n),
   },
   calendar: {
     get permission() {
