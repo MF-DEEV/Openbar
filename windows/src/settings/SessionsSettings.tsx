@@ -32,6 +32,7 @@ import { T } from "./strings";
 import { SessionSounds } from "./SessionSounds";
 import { SessionReminders } from "./SessionReminders";
 import { SessionAutoMode } from "./SessionAutoMode";
+import { BatchApprovals } from "./BatchApprovals";
 import { DiagnosticsSubRow } from "./DiagnosticsDialog";
 
 /** Accounts for designing the page in a plain browser. */
@@ -845,6 +846,7 @@ export function SessionsOptions() {
       <SessionSounds prefs={prefs} set={set} />
       <SessionReminders prefs={prefs} set={set} />
       <SessionAutoMode prefs={prefs} set={set} />
+      <BatchApprovals />
       <SubRow title={T.sessions.previews} caption={T.sessions.previewsCaption}>
         <Toggle label={T.sessions.previews} checked={prefs.previews} onChange={(on) => set("previews", on)} />
       </SubRow>

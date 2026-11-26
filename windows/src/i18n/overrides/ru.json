@@ -991,5 +991,10 @@
   "windows.hooks.open": "Открыть хуки",
   "windows.sessions.agentInEditor": "%@ в %@",
   "windows.sessions.effortPicker": "Усилие",
-  "windows.sessions.defaultEffort": "По умолчанию"
+  "windows.sessions.defaultEffort": "По умолчанию",
+  "windows.settings.sessions.batchApprovals": "Недавние пакетные разрешения",
+  "windows.settings.sessions.batchApprovalsCaption": "Каждый запрос, который «Разрешить все» пропустила в очереди, от новых к старым, с полной командой или путями файлов. Запросы, разрешённые по одному, сюда не попадают. Последние 500 хранятся на этом компьютере.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Через «Разрешить все» пока ничего не проходило.",
+  "windows.settings.sessions.batchApprovalsClear": "Очистить",
+  "windows.settings.sessions.batchApprovalsCount": "Разрешено: %d"
 }

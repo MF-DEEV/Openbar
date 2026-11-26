@@ -991,5 +991,10 @@
   "windows.hooks.open": "フックを開く",
   "windows.sessions.agentInEditor": "%@（%@ 内）",
   "windows.sessions.effortPicker": "推論レベル",
-  "windows.sessions.defaultEffort": "デフォルト"
+  "windows.sessions.defaultEffort": "デフォルト",
+  "windows.settings.sessions.batchApprovals": "最近の一括許可",
+  "windows.settings.sessions.batchApprovalsCaption": "キューで「すべて許可」が通したリクエストを、新しい順に、コマンド全体またはファイルパスとともに表示します。1件ずつ許可したものは含まれません。直近500件がこのコンピューターに保存されます。",
+  "windows.settings.sessions.batchApprovalsEmpty": "「すべて許可」で通したものはまだありません。",
+  "windows.settings.sessions.batchApprovalsClear": "消去",
+  "windows.settings.sessions.batchApprovalsCount": "%d件を許可"
 }

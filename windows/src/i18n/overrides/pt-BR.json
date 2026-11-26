@@ -991,5 +991,10 @@
   "windows.hooks.open": "Abrir Hooks",
   "windows.sessions.agentInEditor": "%@ no %@",
   "windows.sessions.effortPicker": "Esforço",
-  "windows.sessions.defaultEffort": "Padrão"
+  "windows.sessions.defaultEffort": "Padrão",
+  "windows.settings.sessions.batchApprovals": "Aprovações em lote recentes",
+  "windows.settings.sessions.batchApprovalsCaption": "Cada pedido que o Permitir todos liberou na fila, do mais recente ao mais antigo, com o comando completo ou os caminhos dos arquivos. Pedidos que você permitiu um a um não aparecem. Os últimos 500 ficam neste computador.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Nada passou pelo Permitir todos ainda.",
+  "windows.settings.sessions.batchApprovalsClear": "Limpar",
+  "windows.settings.sessions.batchApprovalsCount": "%d permitidos"
 }

@@ -991,5 +991,10 @@
   "windows.hooks.open": "Hook’ları aç",
   "windows.sessions.agentInEditor": "%@ · %@",
   "windows.sessions.effortPicker": "Efor",
-  "windows.sessions.defaultEffort": "Varsayılan"
+  "windows.sessions.defaultEffort": "Varsayılan",
+  "windows.settings.sessions.batchApprovals": "Son toplu onaylar",
+  "windows.settings.sessions.batchApprovalsCaption": "Kuyrukta Tümüne izin ver ile geçen her istek, en yenisi önce, komutun tamamı veya dosya yollarıyla. Tek tek izin verdiğin istekler listelenmez. Son 500 tanesi bu bilgisayarda kalır.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Henüz Tümüne izin ver ile geçen bir şey yok.",
+  "windows.settings.sessions.batchApprovalsClear": "Temizle",
+  "windows.settings.sessions.batchApprovalsCount": "%d izin verildi"
 }

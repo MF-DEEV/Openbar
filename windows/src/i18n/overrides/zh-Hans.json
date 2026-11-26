@@ -991,5 +991,10 @@
   "windows.hooks.open": "打开钩子",
   "windows.sessions.agentInEditor": "%@（位于 %@）",
   "windows.sessions.effortPicker": "推理强度",
-  "windows.sessions.defaultEffort": "默认"
+  "windows.sessions.defaultEffort": "默认",
+  "windows.settings.sessions.batchApprovals": "最近的批量允许",
+  "windows.settings.sessions.batchApprovalsCaption": "队列中经“全部允许”放行的每个请求，按时间从新到旧，附完整命令或文件路径。逐个允许的请求不会列出。最近 500 条保存在这台电脑上。",
+  "windows.settings.sessions.batchApprovalsEmpty": "还没有请求经“全部允许”放行。",
+  "windows.settings.sessions.batchApprovalsClear": "清除",
+  "windows.settings.sessions.batchApprovalsCount": "已允许 %d 个"
 }

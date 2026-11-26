@@ -991,5 +991,10 @@
   "windows.hooks.open": "후크 열기",
   "windows.sessions.agentInEditor": "%@ · %@",
   "windows.sessions.effortPicker": "추론 수준",
-  "windows.sessions.defaultEffort": "기본값"
+  "windows.sessions.defaultEffort": "기본값",
+  "windows.settings.sessions.batchApprovals": "최근 일괄 허용",
+  "windows.settings.sessions.batchApprovalsCaption": "대기열에서 모두 허용으로 통과한 모든 요청을 최신순으로, 전체 명령이나 파일 경로와 함께 보여 줍니다. 하나씩 허용한 요청은 여기에 없습니다. 최근 500개가 이 컴퓨터에 보관됩니다.",
+  "windows.settings.sessions.batchApprovalsEmpty": "아직 모두 허용으로 통과한 요청이 없습니다.",
+  "windows.settings.sessions.batchApprovalsClear": "지우기",
+  "windows.settings.sessions.batchApprovalsCount": "%d개 허용됨"
 }

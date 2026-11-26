@@ -991,5 +991,10 @@
   "windows.hooks.open": "Відкрити хуки",
   "windows.sessions.agentInEditor": "%@ у %@",
   "windows.sessions.effortPicker": "Зусилля",
-  "windows.sessions.defaultEffort": "Типове"
+  "windows.sessions.defaultEffort": "Типове",
+  "windows.settings.sessions.batchApprovals": "Нещодавні пакетні дозволи",
+  "windows.settings.sessions.batchApprovalsCaption": "Кожен запит, який «Дозволити всі» пропустила в черзі, від нових до старих, з повною командою або шляхами файлів. Запити, дозволені по одному, сюди не потрапляють. Останні 500 зберігаються на цьому комп’ютері.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Через «Дозволити всі» ще нічого не проходило.",
+  "windows.settings.sessions.batchApprovalsClear": "Очистити",
+  "windows.settings.sessions.batchApprovalsCount": "Дозволено: %d"
 }

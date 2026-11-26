@@ -991,5 +991,10 @@
   "windows.hooks.open": "Ouvrir Hooks",
   "windows.sessions.agentInEditor": "%@ dans %@",
   "windows.sessions.effortPicker": "Effort",
-  "windows.sessions.defaultEffort": "Par défaut"
+  "windows.sessions.defaultEffort": "Par défaut",
+  "windows.settings.sessions.batchApprovals": "Autorisations groupées récentes",
+  "windows.settings.sessions.batchApprovalsCaption": "Chaque demande que Tout autoriser a laissé passer dans la file, de la plus récente à la plus ancienne, avec la commande complète ou les chemins des fichiers. Les demandes autorisées une par une n’y figurent pas. Les 500 dernières restent sur cet ordinateur.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Rien n’est encore passé par Tout autoriser.",
+  "windows.settings.sessions.batchApprovalsClear": "Effacer",
+  "windows.settings.sessions.batchApprovalsCount": "%d autorisées"
 }

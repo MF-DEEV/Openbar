@@ -991,5 +991,10 @@
   "windows.hooks.open": "Abrir Hooks",
   "windows.sessions.agentInEditor": "%@ en %@",
   "windows.sessions.effortPicker": "Esfuerzo",
-  "windows.sessions.defaultEffort": "Predeterminado"
+  "windows.sessions.defaultEffort": "Predeterminado",
+  "windows.settings.sessions.batchApprovals": "Aprobaciones en lote recientes",
+  "windows.settings.sessions.batchApprovalsCaption": "Cada solicitud que Permitir todo dejó pasar en la cola, de la más reciente a la más antigua, con el comando completo o las rutas de archivo. Las que permitiste una a una no aparecen. Las últimas 500 se guardan en este equipo.",
+  "windows.settings.sessions.batchApprovalsEmpty": "Todavía no ha pasado nada por Permitir todo.",
+  "windows.settings.sessions.batchApprovalsClear": "Borrar",
+  "windows.settings.sessions.batchApprovalsCount": "%d permitidas"
 }
