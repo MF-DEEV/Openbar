@@ -142,12 +142,18 @@ fn the_session_is_its_terminal_ui() {
         (48917, "kiro-cli".to_owned()),
     ];
     assert_eq!(terminal_process(&chain, 48969), 48952);
+    // On Windows node sits under a kiro-cli with a hidden console, under bun.
     let windows = vec![
         (7, "cmd.exe".to_owned()),
-        (8, "node.exe".to_owned()),
-        (9, "bun.exe".to_owned()),
+        (5500, "node.exe".to_owned()),
+        (3068, "kiro-cli.exe".to_owned()),
+        (1956, "bun.exe".to_owned()),
+        (9852, "kiro-cli.exe".to_owned()),
+        (2528, "cmd.exe".to_owned()),
     ];
-    assert_eq!(terminal_process(&windows, 8), 9);
+    assert_eq!(terminal_process(&windows, 5500), 1956);
+    let no_bun = vec![(1, "node".to_owned()), (2, "kiro-cli".to_owned())];
+    assert_eq!(terminal_process(&no_bun, 1), 2);
     assert_eq!(
         terminal_process(&[(1, "node".to_owned()), (2, "zsh".to_owned())], 1),
         1

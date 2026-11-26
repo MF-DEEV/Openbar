@@ -123,23 +123,26 @@ pub fn cancelled(response: Option<&Value>) -> bool {
 // MARK: Process
 
 /// The process the session's terminal shows, from the hook's ancestors
-/// (nearest first): Kiro's hooks run in its agent server, a `node` its
-/// terminal UI (`bun`, under `kiro-cli`) starts without a terminal or a
-/// console of its own. Its parent lives as long as the session and is the
-/// one its terminal, tmux pane or console tab holds.
+/// (nearest first): Kiro's hooks run in its agent server, a `node` without a
+/// terminal or a console of its own. Its terminal UI, `bun`, is the one the
+/// session's terminal, tmux pane or console tab holds: right above `node` on
+/// the Mac and Linux, above a `kiro-cli` with a hidden console of its own on
+/// Windows. It lives as long as the session.
 pub fn terminal_process(chain: &[(u32, String)], agent: u32) -> u32 {
     let Some(at) = chain.iter().position(|(pid, _)| *pid == agent) else {
         return agent;
     };
-    chain[at + 1..]
-        .iter()
-        .take(2)
-        .find(|(_, name)| {
-            let name = name.to_ascii_lowercase();
-            let name = name.strip_suffix(".exe").unwrap_or(&name);
-            name == "bun" || name == "kiro-cli" || name == "kiro-cli-chat"
-        })
-        .map_or(agent, |(pid, _)| *pid)
+    let above = &chain[at + 1..chain.len().min(at + 4)];
+    let named = |want: &str| {
+        above
+            .iter()
+            .find(|(_, name)| {
+                let name = name.to_ascii_lowercase();
+                name.strip_suffix(".exe").unwrap_or(&name) == want
+            })
+            .map(|(pid, _)| *pid)
+    };
+    named("bun").or_else(|| named("kiro-cli")).unwrap_or(agent)
 }
 
 // MARK: Log

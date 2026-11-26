@@ -35,6 +35,14 @@ pub(crate) fn agent_executable(name: &str) -> Option<std::path::PathBuf> {
         ];
         candidates.extend(cli::in_dirs(&dirs, name, &exts));
     }
+    // Kiro CLI's installer for Windows puts its command in its own folder,
+    // which a session started before it can't find on its PATH (#238).
+    if cfg!(windows)
+        && let Some(local) = std::env::var_os("LOCALAPPDATA")
+    {
+        let dirs = [std::path::PathBuf::from(local).join("Kiro-Cli")];
+        candidates.extend(cli::in_dirs(&dirs, name, &exts));
+    }
     cli::first_file(candidates, &[])
 }
 mod codex;
