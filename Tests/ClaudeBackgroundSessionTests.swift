@@ -317,13 +317,13 @@ enum ClaudeBackgroundSessionTests {
                      "without the catalog nothing is offered")
 
         // What the settings start a model at
-        let settings = NewSessionModels.claudeEffortSetting(json(#"{"effortLevel":"low","modelSettings":{"claude-opus-5-5":{"effortLevel":"xhigh"},"claude-opus-4-6":{"effortLevel":"xhigh"},"x":{"effortLevel":"a b"}}}"#))
-        suite.expect(settings.all == "low" && settings.perModel["claude-opus-5-5"] == "xhigh" && settings.perModel["x"] == nil,
-                     "one per model and one for all")
+        // As Claude Code 2.1.318 reads them: only per model, max never, nothing from a top-level effortLevel.
+        let settings = NewSessionModels.claudeEffortSetting(json(#"{"effortLevel":"low","modelSettings":{"claude-opus-5-5":{"effortLevel":"xhigh"},"claude-opus-4-6":{"effortLevel":"xhigh"},"claude-sonnet-5-5":{"effortLevel":"max"},"x":{"effortLevel":"a b"}}}"#))
+        suite.expect(settings.perModel == ["claude-opus-5-5": "xhigh", "claude-opus-4-6": "xhigh"], "one per model, low to xhigh")
         let set = NewSessionModels.claude(defaultName: "Default", catalog: catalog, effortSettings: settings)
         let setByID = Dictionary(uniqueKeysWithValues: set.map { ($0.key, $0) })
         suite.expect(setByID["opus"]?.defaultEffort == "xhigh", "the model's own setting first")
-        suite.expect(setByID["fable"]?.defaultEffort == "low", "a level the model lacks falls to the one for all")
+        suite.expect(setByID["fable"]?.defaultEffort == "high", "a level the model lacks leaves the model's default")
         suite.expect(NewSessionModels.claudeEffortSetting(json("not json")) == NewSessionModels.ClaudeEffortSettings(), "a broken file says nothing")
 
         // Codex's levels, shaped as 0.172 writes models_cache.json

@@ -712,12 +712,14 @@ enum NewSessionModels {
         var defaultEfforts: [String: String] = [:]
     }
 
-    /// The effort Claude Code's settings start a model at: one per model
-    /// (`modelSettings.<id>.effortLevel`, what `/effort` saves) or one for all
-    /// (`effortLevel`).
+    /// The effort Claude Code's settings start each model at:
+    /// `modelSettings.<id>.effortLevel`, what `/effort` saves. Claude Code
+    /// 2.1.318 takes low to xhigh there (max is for one session only) and
+    /// starts no model at a top-level `effortLevel` in these settings.
     struct ClaudeEffortSettings: Equatable {
         var perModel: [String: String] = [:]
-        var all: String?
+
+        static let saved: Set<String> = ["low", "medium", "high", "xhigh"]
     }
 
     /// The freshest of the cached catalogs, one per account Claude Code
@@ -777,7 +779,7 @@ enum NewSessionModels {
             var model = model
             let id = claudeID(name, catalog: catalog)
             model.efforts = catalog.efforts[id] ?? []
-            let set = [effortSettings?.perModel[id], effortSettings?.all, catalog.defaultEfforts[id]]
+            let set = [effortSettings?.perModel[id], catalog.defaultEfforts[id]]
             model.defaultEffort = set.compactMap { $0 }.first { level in model.efforts.contains { $0.id == level } }
             return model
         }
@@ -817,9 +819,8 @@ enum NewSessionModels {
     static func claudeEffortSetting(_ data: Data) -> ClaudeEffortSettings {
         guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return ClaudeEffortSettings() }
         var settings = ClaudeEffortSettings()
-        if let all = object["effortLevel"] as? String, NewSessionEffort.isValid(all) { settings.all = all }
         for (id, value) in object["modelSettings"] as? [String: Any] ?? [:] {
-            if let level = (value as? [String: Any])?["effortLevel"] as? String, NewSessionEffort.isValid(level) {
+            if let level = (value as? [String: Any])?["effortLevel"] as? String, ClaudeEffortSettings.saved.contains(level) {
                 settings.perModel[id] = level
             }
         }

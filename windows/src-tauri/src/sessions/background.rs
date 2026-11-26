@@ -1146,14 +1146,16 @@ pub struct ClaudeCatalog {
     pub default_efforts: HashMap<String, String>,
 }
 
-/// The effort Claude Code's settings start a model at: one per model
-/// (`modelSettings.<id>.effortLevel`, what `/effort` saves) or one for all
-/// (`effortLevel`).
+/// The effort Claude Code's settings start each model at:
+/// `modelSettings.<id>.effortLevel`, what `/effort` saves. Claude Code 2.1.318
+/// takes low to xhigh there (max is for one session only) and starts no model
+/// at a top-level `effortLevel` in these settings.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ClaudeEffortSettings {
     pub per_model: HashMap<String, String>,
-    pub all: Option<String>,
 }
+
+const SAVED_EFFORTS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 
 /// A model's effort options and the one marked Recommended.
 pub fn claude_efforts(thinking: &Value) -> (Vec<NewSessionEffort>, Option<String>) {
@@ -1201,14 +1203,7 @@ pub fn claude_effort_setting(data: &[u8]) -> ClaudeEffortSettings {
     let Ok(value) = serde_json::from_slice::<Value>(data) else {
         return ClaudeEffortSettings::default();
     };
-    let mut settings = ClaudeEffortSettings {
-        all: value
-            .get("effortLevel")
-            .and_then(Value::as_str)
-            .filter(|e| is_effort(e))
-            .map(str::to_owned),
-        ..Default::default()
-    };
+    let mut settings = ClaudeEffortSettings::default();
     for (id, model) in value
         .get("modelSettings")
         .and_then(Value::as_object)
@@ -1218,7 +1213,7 @@ pub fn claude_effort_setting(data: &[u8]) -> ClaudeEffortSettings {
         if let Some(level) = model
             .get("effortLevel")
             .and_then(Value::as_str)
-            .filter(|e| is_effort(e))
+            .filter(|e| SAVED_EFFORTS.contains(e))
         {
             settings.per_model.insert(id.clone(), level.to_owned());
         }
@@ -1331,7 +1326,6 @@ pub fn claude_models(
         model.efforts = catalog.efforts.get(&id).cloned().unwrap_or_default();
         model.default_effort = [
             settings.and_then(|s| s.per_model.get(&id).cloned()),
-            settings.and_then(|s| s.all.clone()),
             catalog.default_efforts.get(&id).cloned(),
         ]
         .into_iter()
@@ -1902,12 +1896,14 @@ mod tests {
         );
 
         // What the settings start a model at.
+        // As Claude Code 2.1.318 reads them: only per model, max never,
+        // nothing from a top-level effortLevel.
         let settings = claude_effort_setting(
-            br#"{"effortLevel":"low","modelSettings":{"claude-opus-5-5":{"effortLevel":"xhigh"},"claude-opus-4-6":{"effortLevel":"xhigh"},"x":{"effortLevel":"a b"}}}"#,
+            br#"{"effortLevel":"low","modelSettings":{"claude-opus-5-5":{"effortLevel":"xhigh"},"claude-opus-4-6":{"effortLevel":"xhigh"},"claude-sonnet-5-5":{"effortLevel":"max"},"x":{"effortLevel":"a b"}}}"#,
         );
-        assert_eq!(settings.all.as_deref(), Some("low"));
+        assert_eq!(settings.per_model.len(), 2);
         assert_eq!(settings.per_model["claude-opus-5-5"], "xhigh");
-        assert!(!settings.per_model.contains_key("x"));
+        assert!(!settings.per_model.contains_key("claude-sonnet-5-5"));
         let set = claude_models(None, Some(&catalog), Some(&settings));
         let set_by = |key: &str| {
             set.iter()
@@ -1917,8 +1913,8 @@ mod tests {
                 .clone()
         };
         assert_eq!(set_by("opus").as_deref(), Some("xhigh"));
-        // A level the model lacks falls to the one for all.
-        assert_eq!(set_by("fable").as_deref(), Some("low"));
+        // A level the model lacks leaves the model's default.
+        assert_eq!(set_by("fable").as_deref(), Some("high"));
         assert_eq!(
             claude_effort_setting(b"not json"),
             ClaudeEffortSettings::default()
