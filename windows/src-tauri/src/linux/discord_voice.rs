@@ -118,17 +118,18 @@ fn x11_window() -> Option<Found> {
 
 fn wayland_window() -> Option<Found> {
     let stand_in = class_override();
-    crate::linux::wm::toplevels()?
-        .into_iter()
-        .find_map(|t| {
-            let id = t.app_id.to_ascii_lowercase();
-            let id = id.strip_prefix("com.discordapp.").unwrap_or(&id).to_string();
-            Some(Found {
-                pid: t.pid,
-                client: client_of(&id, stand_in.as_deref())?,
-                shown: true,
-            })
+    crate::linux::wm::toplevels()?.into_iter().find_map(|t| {
+        let id = t.app_id.to_ascii_lowercase();
+        let id = id
+            .strip_prefix("com.discordapp.")
+            .unwrap_or(&id)
+            .to_string();
+        Some(Found {
+            pid: t.pid,
+            client: client_of(&id, stand_in.as_deref())?,
+            shown: true,
         })
+    })
 }
 
 fn discord_window() -> Option<Found> {
@@ -281,9 +282,15 @@ mod tests {
     #[test]
     fn each_client_is_known_by_its_window_class() {
         assert_eq!(client_of("discord\0discord\0", None), Some("discord"));
-        assert_eq!(client_of("discordcanary\0DiscordCanary\0", None), Some("discordcanary"));
+        assert_eq!(
+            client_of("discordcanary\0DiscordCanary\0", None),
+            Some("discordcanary")
+        );
         assert_eq!(client_of("kitty\0kitty\0", None), None);
-        assert_eq!(client_of("standin\0Standin\0", Some("standin")), Some("discord"));
+        assert_eq!(
+            client_of("standin\0Standin\0", Some("standin")),
+            Some("discord")
+        );
     }
 
     #[test]

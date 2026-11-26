@@ -98,9 +98,10 @@ fn socket(msg: &[u8], out: &mut Counts) {
         }
         if kind == INET_DIAG_INFO {
             let info = &msg[at + 4..at + len];
-            if let (Some(up), Some(down)) =
-                (u64_at(info, BYTES_ACKED_AT), u64_at(info, BYTES_RECEIVED_AT))
-            {
+            if let (Some(up), Some(down)) = (
+                u64_at(info, BYTES_ACKED_AT),
+                u64_at(info, BYTES_RECEIVED_AT),
+            ) {
                 out.insert(u64::from(inode), (down, up));
             }
             return;
@@ -183,7 +184,10 @@ pub fn socket_owners(proc: &Path) -> HashMap<u64, u32> {
 }
 
 fn socket_inode(link: &str) -> Option<u64> {
-    link.strip_prefix("socket:[")?.strip_suffix(']')?.parse().ok()
+    link.strip_prefix("socket:[")?
+        .strip_suffix(']')?
+        .parse()
+        .ok()
 }
 
 /// A reading of the traffic by process.
@@ -323,6 +327,9 @@ mod tests {
         let counts = tcp_counts().expect("sock_diag");
         let owners = socket_owners(Path::new("/proc"));
         let mine = counts.keys().filter(|i| owners.contains_key(i)).count();
-        println!("{} connections, {mine} of this user's processes", counts.len());
+        println!(
+            "{} connections, {mine} of this user's processes",
+            counts.len()
+        );
     }
 }

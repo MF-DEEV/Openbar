@@ -173,7 +173,11 @@ mod tests {
         assert_eq!(first("XFCE"), "pavucontrol");
         assert_eq!(first(""), "pavucontrol");
         // The volume control stays the last resort everywhere.
-        assert!(sound_settings("GNOME").iter().any(|(p, _)| *p == "pavucontrol"));
+        assert!(
+            sound_settings("GNOME")
+                .iter()
+                .any(|(p, _)| *p == "pavucontrol")
+        );
     }
 
     #[test]

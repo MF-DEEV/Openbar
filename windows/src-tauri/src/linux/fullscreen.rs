@@ -297,14 +297,29 @@ mod tests {
         let at = |ms: u64| start + Duration::from_millis(ms);
         let mut since = None;
         assert_eq!(attention(Front::Desktop, &mut since, at(0)), (false, false));
-        assert_eq!(attention(Front::Desktop, &mut since, at(500)), (false, false));
-        assert_eq!(attention(Front::Desktop, &mut since, at(750)), (true, false));
+        assert_eq!(
+            attention(Front::Desktop, &mut since, at(500)),
+            (false, false)
+        );
+        assert_eq!(
+            attention(Front::Desktop, &mut since, at(750)),
+            (true, false)
+        );
         // An app in front: busy, and the wait starts over.
         assert_eq!(attention(Front::App, &mut since, at(800)), (false, true));
-        assert_eq!(attention(Front::Desktop, &mut since, at(900)), (false, false));
-        assert_eq!(attention(Front::Desktop, &mut since, at(1_700)), (true, false));
+        assert_eq!(
+            attention(Front::Desktop, &mut since, at(900)),
+            (false, false)
+        );
+        assert_eq!(
+            attention(Front::Desktop, &mut since, at(1_700)),
+            (true, false)
+        );
         // Nobody to ask: as before, never busy.
-        assert_eq!(attention(Front::Unknown, &mut since, at(1_800)), (true, false));
+        assert_eq!(
+            attention(Front::Unknown, &mut since, at(1_800)),
+            (true, false)
+        );
         assert_eq!(since, None);
     }
 }

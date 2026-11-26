@@ -69,7 +69,8 @@ impl Notifier {
 
 /// Whether a report is news: not the same change heard moments ago.
 fn news(last: &mut Option<(bool, Instant)>, locked: bool, at: Instant) -> bool {
-    if last.is_some_and(|(was, then)| was == locked && at.saturating_duration_since(then) < ONE_CHANGE)
+    if last
+        .is_some_and(|(was, then)| was == locked && at.saturating_duration_since(then) < ONE_CHANGE)
     {
         return false;
     }
@@ -618,14 +619,19 @@ mod tests {
         hint(false);
         assert_eq!(rx.recv_timeout(Duration::from_secs(2)), Ok(false));
         // Another property changing says nothing.
-        let other = std::collections::HashMap::from([("Active", zbus::zvariant::Value::from(true))]);
+        let other =
+            std::collections::HashMap::from([("Active", zbus::zvariant::Value::from(true))]);
         logind
             .emit_signal(
                 None::<&str>,
                 path.as_str(),
                 "org.freedesktop.DBus.Properties",
                 "PropertiesChanged",
-                &("org.freedesktop.login1.Session", other, Vec::<String>::new()),
+                &(
+                    "org.freedesktop.login1.Session",
+                    other,
+                    Vec::<String>::new(),
+                ),
             )
             .unwrap();
         assert!(rx.recv_timeout(Duration::from_millis(400)).is_err());

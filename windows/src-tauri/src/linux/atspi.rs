@@ -46,7 +46,13 @@ impl Accessibility {
         Some(Self { bus })
     }
 
-    pub fn call<B>(&self, node: &Node, interface: &str, method: &str, body: &B) -> Option<zbus::Message>
+    pub fn call<B>(
+        &self,
+        node: &Node,
+        interface: &str,
+        method: &str,
+        body: &B,
+    ) -> Option<zbus::Message>
     where
         B: serde::Serialize + zbus::zvariant::DynamicType,
     {

@@ -243,8 +243,8 @@ fn open_target(roots: &Roots, cache: &mut Cache, uid: Option<&str>) -> OpenTarge
 /// app; false when there is none. A calendar file is never handed to the app:
 /// GNOME Calendar and Thunderbird would import it as new events.
 pub fn open(local_id: Option<String>) -> bool {
-    use gtk::gio::{self, prelude::*};
     use crate::linux::command::spawn;
+    use gtk::gio::{self, prelude::*};
     let target = open_target(
         &Roots::of_user(),
         &mut Cache::default(),
@@ -481,7 +481,10 @@ mod tests {
         };
         let one = calendar(&[event("e1", "A", "20260105T090000Z", "20260105T100000Z")]);
         let two = calendar(&[event("f1", "B", "20260105T090000Z", "20260105T100000Z")]);
-        write(&home.join("data/evolution/calendar/system/calendar.ics"), &one);
+        write(
+            &home.join("data/evolution/calendar/system/calendar.ics"),
+            &one,
+        );
         write(&home.join("data/openbar/calendars/Work.ics"), &two);
         let mut cache = Cache::default();
         assert_eq!(
@@ -492,7 +495,10 @@ mod tests {
             }
         );
         assert_eq!(open_target(&roots, &mut cache, Some("f1")), OpenTarget::App);
-        assert_eq!(open_target(&roots, &mut cache, Some("gone")), OpenTarget::App);
+        assert_eq!(
+            open_target(&roots, &mut cache, Some("gone")),
+            OpenTarget::App
+        );
         assert_eq!(open_target(&roots, &mut cache, Some("")), OpenTarget::App);
         assert_eq!(open_target(&roots, &mut cache, None), OpenTarget::App);
         let _ = std::fs::remove_dir_all(&home);

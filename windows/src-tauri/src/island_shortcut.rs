@@ -172,7 +172,9 @@ impl<R: Runtime> Registry for Plugin<'_, R> {
             return Err("This shortcut is already used by another Openbar feature.".into());
         }
         plugin.register(key).map_err(|e| {
-            format!("{SYSTEM_CAPITAL} couldn't register this shortcut. Another app may be using it. {e}")
+            format!(
+                "{SYSTEM_CAPITAL} couldn't register this shortcut. Another app may be using it. {e}"
+            )
         })
     }
     fn unregister(&self, key: Shortcut) -> Result<(), String> {
