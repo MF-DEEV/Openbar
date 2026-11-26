@@ -4,19 +4,26 @@
 //! The default microphone in shared mode, converted by WASAPI to 16 kHz
 //! mono floats. Shared mode leaves the device and other apps alone: a call
 //! or Discord keeps its microphone, and the input device never changes.
-//! The audio stays in memory and is dropped with the recording.
+//! On Linux `parec` reads the sound server's default input the same way
+//! (`linux/voice.rs`). The audio stays in memory and is dropped with the
+//! recording.
 
 use super::{HARD_CAP_SECONDS, Problem, SAMPLE_RATE, SPEECH_RMS, level, read_wav, rms};
+#[cfg(windows)]
 use crate::com::Apartment;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+#[cfg(windows)]
 use windows::Win32::Foundation::{E_ACCESSDENIED, ERROR_NOT_FOUND};
+#[cfg(windows)]
 use windows::Win32::Media::Audio::*;
+#[cfg(windows)]
 use windows::Win32::System::Com::{CLSCTX_ALL, CoCreateInstance};
 
+#[cfg(windows)]
 const FLOAT_TAG: u16 = 3;
 /// One meter reading per 100 ms of audio.
 const WINDOW: usize = SAMPLE_RATE as usize / 10;
@@ -131,6 +138,7 @@ impl<F: Fn(f32)> Sink<F> {
     }
 }
 
+#[cfg(windows)]
 fn format() -> WAVEFORMATEX {
     WAVEFORMATEX {
         wFormatTag: FLOAT_TAG,
@@ -143,6 +151,7 @@ fn format() -> WAVEFORMATEX {
     }
 }
 
+#[cfg(windows)]
 fn problem(error: &windows::core::Error) -> Problem {
     match error.code() {
         code if code == E_ACCESSDENIED => Problem::MicrophoneDenied,
@@ -154,6 +163,7 @@ fn problem(error: &windows::core::Error) -> Problem {
     }
 }
 
+#[cfg(windows)]
 fn open() -> windows::core::Result<(IAudioClient, IAudioCaptureClient)> {
     unsafe {
         let enumerator: IMMDeviceEnumerator =
@@ -177,6 +187,7 @@ fn open() -> windows::core::Result<(IAudioClient, IAudioCaptureClient)> {
     }
 }
 
+#[cfg(windows)]
 fn microphone<F: Fn(f32)>(
     sink: &mut Sink<F>,
     stop: &AtomicBool,
@@ -205,6 +216,7 @@ fn microphone<F: Fn(f32)>(
     }
 }
 
+#[cfg(windows)]
 fn drain<F: Fn(f32)>(
     reader: &IAudioCaptureClient,
     sink: &mut Sink<F>,
@@ -223,6 +235,35 @@ fn drain<F: Fn(f32)>(
         }
     }
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn microphone<F: Fn(f32)>(
+    sink: &mut Sink<F>,
+    stop: &AtomicBool,
+    opened: std::sync::mpsc::Sender<Result<(), Problem>>,
+) {
+    let mut input = match crate::linux::voice::Microphone::open() {
+        Ok(input) => input,
+        Err(problem) => {
+            let _ = opened.send(Err(problem));
+            return;
+        }
+    };
+    let mut chunk = Vec::new();
+    // The first read tells whether there is an input at all: `parec` ends at once without one.
+    if !input.read(&mut chunk) {
+        let _ = opened.send(Err(Problem::NoMicrophone));
+        return;
+    }
+    let _ = opened.send(Ok(()));
+    loop {
+        sink.push(&chunk);
+        chunk.clear();
+        if stop.load(Ordering::SeqCst) || sink.full() || !input.read(&mut chunk) {
+            break;
+        }
+    }
 }
 
 fn file<F: Fn(f32)>(

@@ -11,16 +11,16 @@
 //! This side only listens and transcribes. When to stop (silence, the cap,
 //! Escape, the session going away) is the island's: sessions/voice.ts.
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 mod capture;
 pub mod model;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 mod whisper;
 
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 use tauri::Emitter;
 use tauri::{AppHandle, Manager, Runtime};
 
@@ -41,6 +41,7 @@ pub enum Problem {
     /// No input device at all.
     NoMicrophone,
     /// Settings → Privacy & security → Microphone keeps desktop apps out.
+    #[cfg_attr(target_os = "linux", allow(dead_code))]
     MicrophoneDenied,
     /// The speech model is not on this PC yet.
     ModelMissing,
@@ -166,7 +167,7 @@ fn finished<R: Runtime>(app: &AppHandle<R>, id: u64) {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn start<R: Runtime>(
     app: AppHandle<R>,
     id: u64,
@@ -206,7 +207,7 @@ fn start<R: Runtime>(
     Ok(())
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn start<R: Runtime>(
     app: AppHandle<R>,
     id: u64,
@@ -221,7 +222,7 @@ fn start<R: Runtime>(
 
 /// `--voice-reply-file <wav>` plays a recording in place of the microphone,
 /// through the same recognizer, for end-to-end runs in a VM without one.
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
 fn replay_file() -> Option<std::path::PathBuf> {
     let args: Vec<String> = std::env::args().collect();
     let at = args.iter().position(|a| a == "--voice-reply-file")?;
@@ -349,7 +350,7 @@ pub fn probe_main(wav: &str, out: &str, language: &str) -> ! {
     std::process::exit(0)
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn probe(wav: &str, language: &str) -> String {
     let Some(path) = model::default_path().filter(|p| model::is_ready(p)) else {
         return "model missing".into();
@@ -373,9 +374,9 @@ fn probe(wav: &str, language: &str) -> String {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn probe(_wav: &str, _language: &str) -> String {
-    "voice replies run on Windows".into()
+    "voice replies run on Windows and Linux".into()
 }
 
 #[cfg(test)]
