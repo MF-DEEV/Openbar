@@ -16,6 +16,7 @@ enum ClaudeBackgroundSessionTests {
         suite.run("recent folders") { folders(suite) }
         suite.run("hidden attach keystrokes") { keys(suite) }
         suite.run("new session agents and models") { models(suite) }
+        suite.run("new session efforts") { efforts(suite) }
     }
 
     private static func json(_ text: String) -> Data { Data(text.utf8) }
@@ -279,5 +280,90 @@ enum ClaudeBackgroundSessionTests {
         suite.expect(params["cwd"] as? String == "/t" && params["model"] as? String == "gpt-a" && params.count == 2,
                      "a thread gets its folder and model, nothing that overrides the person's settings")
         suite.expect(CodexSessionClient.threadStart(cwd: "/t", model: nil).count == 1, "the default model sends none")
+    }
+    static func efforts(_ suite: TestSuite) {
+        // Claude Code's catalog, shaped as 2.1.318 caches it
+        let file = json(#"""
+        {"fetchedAt":3,"catalog":{"config":{"models":[
+          {"id":"claude-opus-5-5","name":"Opus 5.5","thinking":{"type":"effort","effort_options":[{"id":"low","name":"Low"},{"id":"medium","name":"Medium","badge":{"message":"Recommended","variant":"neutral"}},{"id":"high","name":"High"},{"id":"xhigh","name":"Extra"},{"id":"max","name":"Max","badge":{"message":"3.5× or more usage","variant":"warning"}}]},"runtime":{"default_effort":"medium"}},
+          {"id":"claude-opus-4-6","name":"Opus 4.6","thinking":{"type":"effort","effort_options":[{"id":"low"},{"id":"high","name":"High","badge":{"message":"Recommended"}},{"id":"max","name":"Max"},{"id":"bad id; rm"},{"id":"low","name":"Again"}]}},
+          {"id":"claude-haiku-4-5-20251001","name":"Haiku 4.5","thinking":{"type":"none"}},
+          {"id":"claude-sonnet-5-5","name":"Sonnet 5.5"}],
+          "provider_alias_targets":{"opus":{"default":"claude-opus-5-5"},"sonnet":{"default":"claude-sonnet-5-5"},"haiku":{"default":"claude-haiku-4-5-20251001"},"fable":{"default":"claude-opus-4-6"}}},
+          "state":{"model":"claude-opus-4-6[1m]"}}}
+        """#)
+        let catalog = NewSessionModels.claudeCatalog([file])
+        let opus = catalog?.efforts["claude-opus-5-5"] ?? []
+        suite.expect(opus.map(\.id) == ["low", "medium", "high", "xhigh", "max"], "a model's levels in Claude Code's order")
+        suite.expect(opus.map(\.name) == ["Low", "Medium", "High", "Extra", "Max"], "under Claude Code's names")
+        suite.expect(opus[1].detail == "Recommended" && opus[4].detail == "3.5× or more usage" && opus[0].detail == nil,
+                     "with Claude Code's own marks")
+        suite.expect(catalog?.efforts["claude-opus-4-6"]?.map(\.id) == ["low", "high", "max"],
+                     "only the levels the model takes, once each, nothing that isn't a plain word")
+        suite.expect(catalog?.efforts["claude-opus-4-6"]?.first?.name == "Low", "a level with no name reads from its id")
+        suite.expect(catalog?.efforts["claude-haiku-4-5-20251001"] == [], "a model that takes no effort has none")
+        suite.expect(catalog?.efforts["claude-sonnet-5-5"] == nil, "a model the catalog says nothing about has none")
+        suite.expect(catalog?.defaultEfforts["claude-opus-5-5"] == "medium" && catalog?.defaultEfforts["claude-opus-4-6"] == "high",
+                     "the runtime default, else the Recommended one")
+
+        let models = NewSessionModels.claude(defaultName: "Default", catalog: catalog)
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.key, $0) })
+        suite.expect(byID["opus"]?.efforts.count == 5 && byID["opus"]?.defaultEffort == "medium", "an alias gets its model's levels")
+        suite.expect(byID["haiku"]?.efforts.isEmpty == true && byID["haiku"]?.defaultEffort == nil, "no levels, no Effort")
+        suite.expect(byID["sonnet"]?.efforts.isEmpty == true, "nothing known, no Effort")
+        suite.expect(byID[""]?.efforts.map(\.id) == ["low", "high", "max"] && byID[""]?.defaultEffort == "high",
+                     "the default model, a full name with its context, gets that model's levels")
+        suite.expect(NewSessionModels.claude(defaultName: "Default").allSatisfy { $0.efforts.isEmpty },
+                     "without the catalog nothing is offered")
+
+        // What the settings start a model at
+        let settings = NewSessionModels.claudeEffortSetting(json(#"{"effortLevel":"low","modelSettings":{"claude-opus-5-5":{"effortLevel":"xhigh"},"claude-opus-4-6":{"effortLevel":"xhigh"},"x":{"effortLevel":"a b"}}}"#))
+        suite.expect(settings.all == "low" && settings.perModel["claude-opus-5-5"] == "xhigh" && settings.perModel["x"] == nil,
+                     "one per model and one for all")
+        let set = NewSessionModels.claude(defaultName: "Default", catalog: catalog, effortSettings: settings)
+        let setByID = Dictionary(uniqueKeysWithValues: set.map { ($0.key, $0) })
+        suite.expect(setByID["opus"]?.defaultEffort == "xhigh", "the model's own setting first")
+        suite.expect(setByID["fable"]?.defaultEffort == "low", "a level the model lacks falls to the one for all")
+        suite.expect(NewSessionModels.claudeEffortSetting(json("not json")) == NewSessionModels.ClaudeEffortSettings(), "a broken file says nothing")
+
+        // Codex's levels, shaped as 0.172 writes models_cache.json
+        let cache = json(#"{"models":[{"slug":"gpt-a","display_name":"GPT A","visibility":"list","priority":1,"default_reasoning_level":"low","supported_reasoning_levels":[{"effort":"low","description":"Fast"},{"effort":"medium","description":"x"},{"effort":"xhigh","description":"Extra high reasoning"},{"effort":"ultra","description":"y"},{"effort":""}]},{"slug":"gpt-b","display_name":"GPT B","visibility":"list","priority":2,"default_reasoning_level":"medium","supported_reasoning_levels":["low","medium"]},{"slug":"gpt-c","visibility":"list","priority":3}]}"#)
+        let codex = NewSessionModels.codex(cache: cache, config: nil, defaultName: "Default")
+        let a = codex[1]
+        suite.expect(a.efforts.map(\.id) == ["low", "medium", "xhigh", "ultra"], "Codex's levels for the model")
+        suite.expect(a.efforts.map(\.name) == ["Low", "Medium", "Extra high", "Ultra"], "named as Codex's picker names them")
+        suite.expect(a.efforts.first?.detail == "default" && a.defaultEffort == "low", "its default marked")
+        suite.expect(codex[2].efforts.map(\.id) == ["low", "medium"] && codex[2].defaultEffort == "medium", "plain strings too")
+        suite.expect(codex[3].efforts.isEmpty, "a model with no levels has none")
+        suite.expect(codex[0].efforts == a.efforts && codex[0].defaultEffort == "low", "the default model is Codex's first")
+        let configured = NewSessionModels.codex(cache: cache, config: "model = \"gpt-b\"\nmodel_reasoning_effort = \"low\"\n", defaultName: "Default")
+        suite.expect(configured[0].efforts.map(\.id) == ["low", "medium"] && configured[0].defaultEffort == "low",
+                     "the configured model and effort")
+        let lacking = NewSessionModels.codex(cache: cache, config: "model_reasoning_effort = \"ultra\"", defaultName: "Default")
+        suite.expect(lacking[1].defaultEffort == "ultra" && lacking[2].defaultEffort == "medium",
+                     "a configured level the model lacks leaves the model's own")
+        suite.expect(NewSessionModels.codexSetting("model_reasoning_effort = \"high\"\nmodel = \"m\"", key: "model_reasoning_effort") == "high",
+                     "the configured effort")
+        suite.expect(NewSessionModels.codexSetting("[profiles.x]\nmodel_reasoning_effort = \"high\"", key: "model_reasoning_effort") == nil,
+                     "a profile's effort isn't the default")
+
+        // How each agent takes it
+        suite.expect(ClaudeCLI.startArguments(prompt: "go", background: true, model: "opus", effort: "high", worktree: "w",
+                                              allowed: ["Bash(ls:*)"])
+                     == ["--bg", "--model", "opus", "--effort", "high", "--worktree", "w", "--allowedTools", "Bash(ls:*)", "--", "go"],
+                     "Claude Code's effort before the options that take several values")
+        suite.expect(ClaudeCLI.startArguments(prompt: "go", background: false, effort: nil) == ["--", "go"], "the default adds nothing")
+        suite.expect(ClaudeCLI.startArguments(prompt: nil, background: false, effort: "x; rm") == [], "nothing that isn't a level")
+        suite.expect(CodexCLI.startArguments(prompt: "go", model: "gpt-a", effort: "xhigh")
+                     == ["-m", "gpt-a", "-c", "model_reasoning_effort=\"xhigh\"", "--", "go"], "Codex's effort as a setting for the run")
+        suite.expect(CodexCLI.startArguments(prompt: "go", model: nil, effort: "") == ["--", "go"], "Codex's default adds nothing")
+        let input: [[String: Any]] = [["type": "text", "text": "go"]]
+        let first = CodexSessionClient.firstTurn(thread: "t1", input: input, effort: "ultra")
+        suite.expect(first["threadId"] as? String == "t1" && first["effort"] as? String == "ultra" && first.count == 3,
+                     "a background thread's first turn carries the effort")
+        suite.expect(CodexSessionClient.firstTurn(thread: "t1", input: input, effort: nil).count == 2, "the default sends none")
+        suite.expect(CodexSessionClient.firstTurn(thread: "t1", input: input, effort: "a b").count == 2, "nor anything that isn't a level")
+
+        suite.expect(NewSessionChoices.effortKey(agent: "claude", model: "") == "claude|", "the default model keeps its own")
     }
 }

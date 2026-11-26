@@ -50,8 +50,9 @@ final class CodexSessionClient {
         case initialize, loadedList, other
         case read(Int)
         case resume(Int)
-        /// A thread the island asked for, and the first prompt for it.
-        case started(input: [[String: Any]], safe: [String], done: (String?) -> Void)
+        /// A thread the island asked for, the first prompt for it and the
+        /// effort it starts at.
+        case started(input: [[String: Any]], safe: [String], effort: String?, done: (String?) -> Void)
     }
 
     /// The daemon's socket: Codex's own, or one `ssh` forwards from a host.
@@ -280,14 +281,22 @@ final class CodexSessionClient {
     /// Starts a thread in a folder with no terminal, and its first turn.
     /// `done` gets nil once Codex has the thread, or Codex's error; it runs on
     /// the client's thread. False when not connected or there is no prompt.
-    func startThread(cwd: String, model: String?, prompt: String, safeCommands: [String] = [],
+    func startThread(cwd: String, model: String?, effort: String? = nil, prompt: String, safeCommands: [String] = [],
                      done: @escaping (String?) -> Void) -> Bool {
         lock.withLock {
             guard isConnected, let input = Self.input(text: prompt, images: []) else { return false }
             call("thread/start", Self.threadStart(cwd: cwd, model: model),
-                 .started(input: input, safe: safeCommands, done: done))
+                 .started(input: input, safe: safeCommands, effort: effort, done: done))
             return true
         }
+    }
+
+    /// A new thread's first turn. `thread/start` takes no effort, so it goes
+    /// here, where Codex keeps it for the turns after too (#289).
+    static func firstTurn(thread: String, input: [[String: Any]], effort: String?) -> [String: Any] {
+        var params: [String: Any] = ["threadId": thread, "input": input]
+        if let effort, NewSessionEffort.isValid(effort) { params["effort"] = effort }
+        return params
     }
 
     /// No approval or sandbox overrides: the thread runs as the person's
@@ -396,14 +405,14 @@ final class CodexSessionClient {
             case (nil, let id?):
                 guard case .number(let number) = id, let kind = waiting.removeValue(forKey: number) else { return false }
                 let result = message["result"] as? [String: Any] ?? [:]
-                if case .started(let input, let safe, let done) = kind {
+                if case .started(let input, let safe, let effort, let done) = kind {
                     guard let thread = (result["thread"] as? [String: Any])?["id"] as? String else {
                         let error = (message["error"] as? [String: Any])?["message"] as? String
                         done(error ?? "")
                         return false
                     }
                     grants.grant(thread, safe)
-                    call("turn/start", ["threadId": thread, "input": input], .other)
+                    call("turn/start", Self.firstTurn(thread: thread, input: input, effort: effort), .other)
                     done(nil)
                     return false
                 }
@@ -452,7 +461,7 @@ final class CodexSessionClient {
                 try? session(path: socket, changed: changed)
                 let unanswered = lock.withLock { () -> [(String?) -> Void] in
                     let starts = waiting.values.compactMap { kind -> ((String?) -> Void)? in
-                        if case .started(_, _, let done) = kind { return done }
+                        if case .started(_, _, _, let done) = kind { return done }
                         return nil
                     }
                     isConnected = false

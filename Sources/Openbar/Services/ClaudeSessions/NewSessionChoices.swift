@@ -4,14 +4,17 @@
 import Foundation
 
 /// What New session last started with in one project (#270): its agent,
-/// account, model, worktree, safe commands and where it ran. Every field is
-/// optional, so a later field reads as unset in an older entry.
+/// account, model, effort, worktree, safe commands and where it ran. Every
+/// field is optional, so a later field reads as unset in an older entry.
 struct NewSessionChoices: Codable, Equatable {
     var agent: String?
     /// The Claude account's config folder.
     var account: String?
     /// The model key per agent (its raw value).
     var models: [String: String]?
+    /// The effort per agent and model (#289), by `effortKey`; "" is the
+    /// model's default.
+    var efforts: [String: String]?
     var worktree: Bool?
     var background: Bool?
     var safe: Bool?
@@ -20,6 +23,10 @@ struct NewSessionChoices: Codable, Equatable {
     /// Commands the person added, kept on until removed.
     var safeCustom: [String]?
     var used: Date?
+
+    /// Where an effort is kept: the agent's raw value and the model's key
+    /// ("" for the agent's default model).
+    static func effortKey(agent: String, model: String) -> String { "\(agent)|\(model)" }
 }
 
 /// The choices of each project, kept by its path in one defaults entry.
@@ -49,5 +56,17 @@ enum NewSessionChoiceStore {
         if let data = try? JSONEncoder().encode(entries) {
             defaults.set(data, forKey: DefaultsKey.notchNewSessionByProject)
         }
+    }
+
+    /// The efforts all projects last started with, for a project with none
+    /// of its own.
+    static func lastEfforts(_ defaults: UserDefaults = .standard) -> [String: String] {
+        defaults.dictionary(forKey: DefaultsKey.notchNewSessionEfforts) as? [String: String] ?? [:]
+    }
+
+    static func rememberEffort(_ effort: String, for key: String, _ defaults: UserDefaults = .standard) {
+        var efforts = lastEfforts(defaults)
+        efforts[key] = effort
+        defaults.set(efforts, forKey: DefaultsKey.notchNewSessionEfforts)
     }
 }

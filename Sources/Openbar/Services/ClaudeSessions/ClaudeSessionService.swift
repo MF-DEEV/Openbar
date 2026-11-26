@@ -1103,12 +1103,13 @@ final class ClaudeSessionService: ObservableObject {
 
     /// Starts Claude Code, Codex or another agent in a folder, in the
     /// background or in the person's terminal, with a model or the agent's
-    /// default. With `worktree`, a folder in a git repository gets the
+    /// default, and an effort or the model's default (Claude Code and Codex
+    /// only). With `worktree`, a folder in a git repository gets the
     /// session its own worktree: Claude Code makes it with `--worktree`, the
     /// island makes it for the rest. Calls back on the main thread with what
     /// went wrong.
     func startSession(in folder: String, configHome: String?, prompt: String, background: Bool,
-                      provider: ClaudeSessionProvider = .claude, model: String? = nil,
+                      provider: ClaudeSessionProvider = .claude, model: String? = nil, effort: String? = nil,
                       worktree: Bool = false, worktreeName: String? = nil, safeCommands: [String] = [],
                       completion: @escaping (String?) -> Void) {
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
@@ -1154,17 +1155,18 @@ final class ClaudeSessionService: ObservableObject {
             }
             if provider == .codex {
                 if background {
-                    return startCodexThread(in: folder, prompt: trimmed, model: model, safeCommands: safeCommands,
-                                            text: text, completion: completion)
+                    return startCodexThread(in: folder, prompt: trimmed, model: model, effort: effort,
+                                            safeCommands: safeCommands, text: text, completion: completion)
                 }
                 guard let executable = CodexCLI.executable() else { return finish(text.codexFailed) }
                 // The terminal's thread is named only once it starts, in this folder.
                 if !safeCommands.isEmpty { queue.sync { codex }?.expectSafeCommands(cwd: folder, commands: safeCommands) }
                 let line = CodexCLI.line(executable: executable,
-                                         arguments: CodexCLI.startArguments(prompt: trimmed, model: model), folder: folder)
+                                         arguments: CodexCLI.startArguments(prompt: trimmed, model: model, effort: effort),
+                                         folder: folder)
                 return finish(ClaudeTerminalLauncher.open(line, terminal: terminal) ? nil : text.codexFailed)
             }
-            let arguments = ClaudeCLI.startArguments(prompt: trimmed, background: background, model: model,
+            let arguments = ClaudeCLI.startArguments(prompt: trimmed, background: background, model: model, effort: effort,
                                                      worktree: claudeWorktree, allowed: SafeCommands.claudeRules(safeCommands))
             var problem: String?
             if background {
@@ -1194,7 +1196,8 @@ final class ClaudeSessionService: ObservableObject {
 
     /// A Codex thread with no terminal, run by Codex's shared app-server,
     /// which is started first when it isn't running. On `commands`.
-    private func startCodexThread(in folder: String, prompt: String, model: String?, safeCommands: [String] = [],
+    private func startCodexThread(in folder: String, prompt: String, model: String?, effort: String?,
+                                  safeCommands: [String] = [],
                                   text: NotchClaudeSessionStrings,
                                   completion: @escaping (String?) -> Void) {
         let finish: (String?) -> Void = { problem in DispatchQueue.main.async { completion(problem) } }
@@ -1206,7 +1209,8 @@ final class ClaudeSessionService: ObservableObject {
             let deadline = Date().addingTimeInterval(CodexSessionClient.retry * 3)
             while !client.connected, Date() < deadline { Thread.sleep(forTimeInterval: 0.2) }
         }
-        let asked = client.startThread(cwd: folder, model: model, prompt: prompt, safeCommands: safeCommands) { error in
+        let asked = client.startThread(cwd: folder, model: model, effort: effort, prompt: prompt,
+                                       safeCommands: safeCommands) { error in
             finish(error.map { $0.isEmpty ? text.codexFailed : $0 })
         }
         if !asked { finish(text.codexNotStarted) }

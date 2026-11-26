@@ -29,7 +29,7 @@ enum NotchSessionProgress {
         case "minimal", "low": return 1
         case "medium": return 2
         case "high": return 3
-        case "xhigh", "max": return 4
+        case "xhigh", "max", "ultra": return 4
         default: return 0
         }
     }
