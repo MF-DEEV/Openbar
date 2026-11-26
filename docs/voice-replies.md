@@ -6,7 +6,7 @@ Speech is recognized on the device, on both platforms. There is no cloud fallbac
 
 ## How it behaves
 
-- Click the microphone, or hold the shortcut, and speak. Five bars show the level; with Reduce Motion (Mac) or `prefers-reduced-motion` (Windows) they light up instead of moving.
+- Click the microphone, or hold the shortcut, and speak. Five bars show the level; with Reduce Motion (Mac) or `prefers-reduced-motion` (Windows and Linux) they light up instead of moving.
 - Recording stops on a second click, when the shortcut is let go, after 1.5 s of quiet *following* speech (quiet before you start talking never ends it), or at 60 s.
 - The words stay in the field so they can be corrected, and ⌘↩ / Ctrl+Enter sends them. With **Send when I stop talking** on, a click or shortcut stop and silence send at once; the 60 s cap never sends.
 - Escape cancels and gives the field back what it held before.
@@ -15,7 +15,7 @@ Speech is recognized on the device, on both platforms. There is no cloud fallbac
 
 The rules are one state machine per platform, `VoiceReplyMachine` (Mac, `Sources/Openbar/Services/ClaudeSessions/VoiceReplySupport.swift`) and `windows/src/sessions/voice.ts`, with the same tests (`Tests/VoiceReplyTests.swift`, `voice.test.ts`).
 
-Settings → Dynamic Island → Content → Sessions → **Voice replies**: on/off (on by default; nothing is recorded until the microphone is pressed), language (follows the app's), hold-to-talk shortcut (off by default; ⌃⌥⌘A on the Mac, Ctrl+Alt+V on Windows once turned on), and Send when I stop talking (off by default).
+Settings → Dynamic Island → Content → Sessions → **Voice replies**: on/off (on by default; nothing is recorded until the microphone is pressed), language (follows the app's), hold-to-talk shortcut (off by default; ⌃⌥⌘A on the Mac, Ctrl+Alt+V on Windows and Linux once turned on; on Linux it needs X11, a Wayland compositor does not report the key's release), and Send when I stop talking (off by default).
 
 ## Mac: Apple's on-device recognizer
 
