@@ -1,5 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="840" height="312" viewBox="0 0 840 312" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="377" viewBox="0 0 840 377" role="img">
   <title>Works with Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Cursor, Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode, Hermes, Qwen Code, Factory Droid, Cline, Kimi Code and Kiro CLI</title>
+<g id="section-label">
+  <line x1="40" y1="36" x2="358.1" y2="36" stroke="#3D444D"/>
+  <text x="420" y="42" text-anchor="middle" fill="#9198A1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" font-size="18" font-weight="600">18 agents</text>
+  <line x1="481.9" y1="36" x2="800" y2="36" stroke="#3D444D"/>
+</g>
+<g id="section-body" transform="translate(0 65)">
   <defs>
     <linearGradient id="codex" gradientUnits="userSpaceOnUse" x1="12" x2="12" y1="0" y2="24">
       <stop stop-color="#B1A7FF"/><stop offset=".5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/>
@@ -94,4 +100,5 @@
     <path fill-rule="evenodd" d="M6.28 18.22C3.94 23.39 8.92 24.69 12.59 21.66C13.67 25.05 17.71 22.52 19.16 19.89C22.36 14.09 21.07 8.18 20.74 6.96C18.46 -1.36 7.11 -1.38 5.15 7C4.69 8.47 4.69 10.13 4.43 11.86C4.3 12.73 4.21 13.29 3.87 14.21C3.68 14.74 3.42 15.2 2.99 15.99C2.34 17.22 2.62 19.58 5.98 18.36L6.29 18.22H6.28ZM13.03 10.56C12.09 10.56 11.95 9.45 11.95 8.78C11.95 8.18 12.06 7.71 12.26 7.41C12.44 7.14 12.7 7.01 13.03 7.01C13.35 7.01 13.63 7.14 13.83 7.42C14.06 7.73 14.18 8.2 14.18 8.78C14.18 9.9 13.75 10.56 13.03 10.56H13.03ZM16.86 10.56C15.93 10.56 15.79 9.45 15.79 8.78C15.79 8.18 15.9 7.71 16.1 7.41C16.28 7.14 16.54 7.01 16.86 7.01C17.19 7.01 17.47 7.14 17.67 7.42C17.89 7.73 18.01 8.2 18.01 8.78C18.01 9.9 17.58 10.56 16.87 10.56H16.86Z" fill="#9046FF"/>
   </g>
   <text x="770" y="286" text-anchor="middle" fill="#D1D9E0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" font-size="16" font-weight="500">Kiro CLI</text>
+</g><!-- section-body -->
 </svg>

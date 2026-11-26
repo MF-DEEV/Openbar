@@ -8,3 +8,5 @@
 - VS Code: `vscode.svg` from the icons on [code.visualstudio.com/brand](https://code.visualstudio.com/brand).
 
 The marks belong to their owners and stand here only to name the terminals Openbar reaches.
+
+The label above this row and above the agents row ("18 agents", "10 terminals and editors") comes from `docs/assets/readme/section-label.py`. Run it again after regenerating either row; it recounts the marks.
