@@ -8,6 +8,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Grip, Move, Pin, QrCode, Save, Share2, TextSelect, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { inTauri } from "../shared/bridge";
+import { onLinux } from "../shared/platform";
 import { usePageLayer } from "../island/pageLayer";
 import { useIsland } from "../island/store";
 import { PreviewCountdown } from "./countdown";
@@ -320,14 +321,17 @@ export function Preview({
         >
           <Copy size={17} />
         </button>
-        <button
-          title={t("windows.screenshot-preview.windowsSharePinsPreview")}
-          aria-label={t("s.shelfActionShare")}
-          disabled={busy || !ready}
-          onClick={() => void action("share")}
-        >
-          <Share2 size={17} />
-        </button>
+        {/* Linux has no Share sheet. */}
+        {onLinux() ? null : (
+          <button
+            title={t("windows.screenshot-preview.windowsSharePinsPreview")}
+            aria-label={t("s.shelfActionShare")}
+            disabled={busy || !ready}
+            onClick={() => void action("share")}
+          >
+            <Share2 size={17} />
+          </button>
+        )}
         <button
           title={!embedded && pinned ? t("s.shelfActionUnpin") : t("windows.screenshot-preview.pinOnScreen")}
           aria-label={!embedded && pinned ? t("s.shelfActionUnpin") : t("windows.screenshot-preview.pinOnScreen")}

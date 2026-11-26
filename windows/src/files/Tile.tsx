@@ -28,6 +28,7 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { bridge } from "../shared/bridge";
+import { onLinux } from "../shared/platform";
 import { type MenuEntry, useMenu } from "../shared/ui/Menu";
 import { dragOut } from "./actions";
 import { findItem, holdsFile, isImage, leafCount, tileTargets, tooltipText } from "./model";
@@ -155,7 +156,8 @@ export function Tile({ item }: { item: ShelfItem }) {
               disabled: apps !== null && apps.length === 0,
               submenu: apps === null ? [{ label: "…", disabled: true }] : apps.length ? apps : undefined,
             },
-            { label: S.share, icon: Share, onSelect: () => void bridge.files.share(ids) },
+            // Linux has no Share sheet.
+            ...(onLinux() ? [] : [{ label: S.share, icon: Share, onSelect: () => void bridge.files.share(ids) }]),
             { kind: "separator" },
             { label: S.showInExplorer, icon: FolderOpen, onSelect: () => void bridge.files.reveal(ids) },
           ] satisfies MenuEntry[])

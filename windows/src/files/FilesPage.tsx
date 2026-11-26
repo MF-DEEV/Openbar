@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { usePageLayer } from "../island/pageLayer";
 import { EmptyState, IconButton } from "../island/views/Controls";
 import { bridge } from "../shared/bridge";
+import { onLinux } from "../shared/platform";
 import { MenuButton } from "../shared/ui/Menu";
 import { createZip } from "./actions";
 import { bandTargets, holdsFile, visibleItems } from "./model";
@@ -169,7 +170,10 @@ export function FilesTrailing() {
         />
       </span>
       {wand ? <ZipPopover anchor={wand} onClose={() => setWand(null)} onZip={() => void createZip(targets())} /> : null}
-      <IconButton icon={Share} label={S.share} disabled={!files} onClick={() => void bridge.files.share(targets())} />
+      {/* Linux has no Share sheet. */}
+      {onLinux() ? null : (
+        <IconButton icon={Share} label={S.share} disabled={!files} onClick={() => void bridge.files.share(targets())} />
+      )}
       {selection.size === 0 ? (
         <MenuButton
           className="n-icon-button"
