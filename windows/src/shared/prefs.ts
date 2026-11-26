@@ -68,6 +68,8 @@ export interface SessionPrefs extends SessionSoundPrefs {
   agentCline: boolean;
   /** Kimi Code's sessions (#240). */
   agentKimi: boolean;
+  /** Kiro CLI's sessions (#238). */
+  agentKiro: boolean;
   /** The Claude app's Code tab sessions in the list (#246). */
   claudeDesktop: boolean;
   /** Cowork's sessions, read from the Claude app's files; off until turned on (#246). */
@@ -156,6 +158,7 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   agentDroid: true,
   agentCline: true,
   agentKimi: true,
+  agentKiro: true,
   claudeDesktop: true,
   claudeCowork: false,
   voiceReplies: true,

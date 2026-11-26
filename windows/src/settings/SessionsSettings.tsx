@@ -299,6 +299,7 @@ const AGENT_PREF = {
   droid: "agentDroid",
   cline: "agentCline",
   kimi: "agentKimi",
+  kiro: "agentKiro",
 } as const satisfies Record<HookAgent, keyof SessionPrefs>;
 
 /** Gemini CLI, Copilot CLI, OpenCode, Cursor, Pi, Mistral Vibe, Devin CLI,

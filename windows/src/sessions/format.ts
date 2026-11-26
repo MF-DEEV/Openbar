@@ -49,6 +49,8 @@ export const DROID_TINT = "#FF6B21";
 export const CLINE_TINT = "#40D6BD";
 /** Kimi Code's pale blue, the one its mark's head fades to: lighter than Antigravity's, less green than Gemini's sky. */
 export const KIMI_TINT = "#78B5FF";
+/** Kiro CLI's violet, the one of its ghost's ground: deeper than Devin's orchid, redder than Qwen's indigo. */
+export const KIRO_TINT = "#9A5CFF";
 
 const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   claude: CLAUDE_TINT,
@@ -68,6 +70,7 @@ const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   droid: DROID_TINT,
   cline: CLINE_TINT,
   kimi: KIMI_TINT,
+  kiro: KIRO_TINT,
   // A tool added by hand has no color of its own (#236).
   custom: CURSOR_TINT,
 };

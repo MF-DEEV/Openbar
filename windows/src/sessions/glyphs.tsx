@@ -357,6 +357,12 @@ export const KimiMark = layeredMark([
   [KIMI_BAR_PATH, "#FAFAFA"],
 ]);
 
+/** Kiro CLI's ghost, drawn for the island (not its logo's file): a round top,
+ * a wavy hem and two eyes cut out, white as Kiro shows it on dark. */
+export const KIRO_PATH =
+  "M12 2C7.6 2 4 5.6 4 10V20.5C4 21.4 5 21.9 5.7 21.3L7.2 20L8.9 21.5C9.5 22 10.3 22 10.9 21.5L12 20.6L13.1 21.5C13.7 22 14.5 22 15.1 21.5L16.8 20L18.3 21.3C19 21.9 20 21.4 20 20.5V10C20 5.6 16.4 2 12 2ZM8.6 8.2H9.8V11.4H8.6ZM14.2 8.2H15.4V11.4H14.2Z";
+export const KiroMark = layeredMark([[KIRO_PATH, "#FAFAFA"]]);
+
 /** How much larger than a symbol each mark draws to look the same size: the
  * spark's thin rays need more of the box than the cloud (AgentProvider.markScale). */
 export const MARK_SCALE: Readonly<Record<Provider, number>> = {
@@ -377,6 +383,7 @@ export const MARK_SCALE: Readonly<Record<Provider, number>> = {
   droid: 1.05,
   cline: 1.1,
   kimi: 1.1,
+  kiro: 1.1,
   custom: 1.15,
 };
 
@@ -398,6 +405,7 @@ const MARKS: Readonly<Record<Provider, (props: MarkProps) => ReturnType<typeof C
   droid: DroidMark,
   cline: ClineMark,
   kimi: KimiMark,
+  kiro: KiroMark,
   custom: CustomMark,
 };
 
