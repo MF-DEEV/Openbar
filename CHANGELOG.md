@@ -6,11 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-11-26
+
+Released together with Openbar for Windows 1.3.0 and Openbar for Linux 1.1.0.
+
 ### Added
 
 - New session: pick how hard the model thinks (#289). Next to Model, an Effort menu lists the levels the picked Claude Code or Codex model takes, under the agent's own names and marks, and Default starts the agent as its settings say. Claude Code gets the level as `--effort`, a background Codex thread on its first turn and Codex in a terminal as `-c model_reasoning_effort`, so nothing is written to either agent's settings. The choice is kept per agent and model, on Mac, Windows and Linux.
 - Cline joins the Sessions list on Mac, Windows and Linux, its VS Code extension (in VS Code, Cursor, Windsurf or VSCodium) and its CLI alike, with its own mark, color, pixel figure and switch, and its mark joins the closed island's stack (#241). Nothing is added to Cline: the island reads the session store Cline keeps for itself. The CLI's approvals and questions are answered from the island by keys in its terminal, or through Cline's hub where keys can't reach, and replies go through the hub. The extension's rows name the editor, show when Cline waits on you, and open the right editor window.
 - Factory Droid (`droid`) joins the Sessions list on Mac, Windows and Linux, with its own mark, color, pixel figure and switch, and its mark joins the closed island's stack (#242). Its hooks go into `~/.factory` next to your own, each where Droid reads its event. Allow and Deny answer its permission prompts from the island, and its questions (several tabs, multiple choices) and specs too, by keys in its terminal. Replies are typed into its terminal, and the model and last reply come from the session's own files.
+- Kimi Code (Moonshot AI's `kimi`, `kimi web` and the Kimi Code app) joins the Sessions list on Mac, Windows and Linux, with its own mark, color, pixel figure and switch, and its mark joins the closed island's stack (#240). Its hooks go at the end of `~/.kimi-code/config.toml`, between the island's markers. Its permission requests, questions and plans are answered on the island: by keys in its terminal, and through Kimi's own server for `kimi web` and the app. Replies from the island are typed into its terminal or sent through that server. Kimi Code for VS Code's sessions show too, answered in its panel.
+- Kiro CLI (Amazon's `kiro-cli`) joins the Sessions list on Mac, Windows and Linux, with its own mark, color, pixel figure and switch, and its mark joins the closed island's stack (#238). Its hooks go into a file of their own in `~/.kiro/hooks`. Allow and Deny answer its permission requests from the island: its hook holds the request until you answer, and once Open lets it go, the island answers Kiro CLI's own dialog with keys. Replies are typed into its terminal, and the model, title and last reply come from the session's own files.
 - Linux: voice replies, as on Windows. The microphone sits next to Reply, hold-to-talk works on X11, and whisper.cpp turns speech into words on this PC with the 60 MB model downloaded from Settings → Dynamic Island → Content → Sessions → Voice replies. The microphone is read through `parec`; no audio leaves the PC. Voice replies now work on Mac, Windows and Linux.
 
 ### Fixed
