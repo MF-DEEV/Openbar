@@ -647,6 +647,14 @@ function ChoiceMenu({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+
+  // A page shorter than the list (New session's steps) scrolls to show all of it.
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => list.current?.scrollIntoView({ block: "nearest" }));
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -715,7 +723,13 @@ function ChoiceMenu({
         </span>
         <ChevronsUpDown size={10} className="s-model-chevron" />
       </button>
-      <div className={`s-model-list${open ? " is-open" : ""}`} role="listbox" aria-label={name} hidden={!open}>
+      <div
+        ref={list}
+        className={`s-model-list${open ? " is-open" : ""}`}
+        role="listbox"
+        aria-label={name}
+        hidden={!open}
+      >
         {items.map((item, index) => {
           const selected = item.key === value;
           return (

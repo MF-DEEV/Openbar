@@ -3436,6 +3436,7 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  container-type: size;
 }
 
 .s-step-page {
@@ -3582,7 +3583,9 @@
   font-size: 12.5px;
 }
 
-/* In the middle of the page the menus open downward, centred. */
+/* In the middle of the page the menus open downward, centred. The page
+   scrolls to show the list, which keeps clear of its faded edges and fits
+   the stage. */
 .s-new-menus .s-model-list {
   top: calc(100% + 6px);
   bottom: auto;
@@ -3590,6 +3593,8 @@
   right: auto;
   translate: -50% 0;
   transform-origin: top center;
+  max-height: min(224px, calc(100cqh - 34px));
+  scroll-margin-block: 16px;
 }
 
 /* Step 3: each option a card with its mark, name and switch. */
