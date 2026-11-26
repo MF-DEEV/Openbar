@@ -653,8 +653,8 @@ pub fn beep() {
         return;
     }
     if let Ok((connection, _)) = RustConnection::connect(None) {
-        let _ = connection.bell(0);
-        let _ = connection.flush();
+        // Waited for, or the bell is lost with the connection (#190).
+        let _ = connection.bell(0).map(|cookie| cookie.check());
     }
 }
 
