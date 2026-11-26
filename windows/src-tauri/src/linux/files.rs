@@ -147,6 +147,13 @@ pub fn recycle(path: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// By hand: OPENBAR_OPEN_FOLDER=/some/dir cargo test live_open_folder -- --ignored
+    #[test]
+    #[ignore = "starts the desktop's file manager"]
+    fn live_open_folder() {
+        assert!(open_folder(&std::env::var("OPENBAR_OPEN_FOLDER").unwrap()));
+    }
     use crate::linux::testbus::PrivateBus;
     use std::sync::{Arc, Mutex};
 
