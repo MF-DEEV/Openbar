@@ -357,10 +357,10 @@ export const KimiMark = layeredMark([
   [KIMI_BAR_PATH, "#FAFAFA"],
 ]);
 
-/** Kiro CLI's ghost, drawn for the island (not its logo's file): a round top,
- * a wavy hem and two eyes cut out, white as Kiro shows it on dark. */
+/** Kiro CLI's ghost, from its site's icon (kiro.dev/icon.svg), its eyes cut
+ * out: white, as Kiro draws it on its violet. */
 export const KIRO_PATH =
-  "M12 2C7.6 2 4 5.6 4 10V20.5C4 21.4 5 21.9 5.7 21.3L7.2 20L8.9 21.5C9.5 22 10.3 22 10.9 21.5L12 20.6L13.1 21.5C13.7 22 14.5 22 15.1 21.5L16.8 20L18.3 21.3C19 21.9 20 21.4 20 20.5V10C20 5.6 16.4 2 12 2ZM8.6 8.2H9.8V11.4H8.6ZM14.2 8.2H15.4V11.4H14.2Z";
+  "M6.28 18.22C3.94 23.39 8.92 24.69 12.59 21.66C13.67 25.05 17.71 22.52 19.16 19.89C22.36 14.09 21.07 8.18 20.74 6.96C18.46 -1.36 7.11 -1.38 5.15 7C4.69 8.47 4.69 10.13 4.43 11.86C4.3 12.73 4.21 13.29 3.87 14.21C3.68 14.74 3.42 15.2 2.99 15.99C2.34 17.22 2.62 19.58 5.98 18.36L6.29 18.22H6.28ZM13.03 10.56C12.09 10.56 11.95 9.45 11.95 8.78C11.95 8.18 12.06 7.71 12.26 7.41C12.44 7.14 12.7 7.01 13.03 7.01C13.35 7.01 13.63 7.14 13.83 7.42C14.06 7.73 14.18 8.2 14.18 8.78C14.18 9.9 13.75 10.56 13.03 10.56H13.03ZM16.86 10.56C15.93 10.56 15.79 9.45 15.79 8.78C15.79 8.18 15.9 7.71 16.1 7.41C16.28 7.14 16.54 7.01 16.86 7.01C17.19 7.01 17.47 7.14 17.67 7.42C17.89 7.73 18.01 8.2 18.01 8.78C18.01 9.9 17.58 10.56 16.87 10.56H16.86Z";
 export const KiroMark = layeredMark([[KIRO_PATH, "#FAFAFA"]]);
 
 /** How much larger than a symbol each mark draws to look the same size: the
