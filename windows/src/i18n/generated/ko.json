@@ -595,6 +595,9 @@
     "saving": "저장 중…",
     "settingsCaption": "버전, 훅 상태, 로그를 파일 하나로 저장해 버그 보고에 첨부합니다.",
     "settingsTitle": "진단",
+    "statsCaption": "하루에 한 번 무작위 ID, 앱과 시스템 버전, 사용한 세션·터미널·섹션 수를 보냅니다. 프롬프트, 파일, 이름은 보내지 않습니다.",
+    "statsDetails": "보내는 정보",
+    "statsTitle": "익명 사용 통계 공유",
     "systemCaption": "Openbar 버전, 업데이트 채널, 시스템 버전, CPU 종류와 디스플레이",
     "systemTitle": "앱과 시스템",
     "windowTitle": "진단 정보 내보내기"
@@ -1912,6 +1915,8 @@
     "voiceBody": "답장을 입력하는 대신 말로 할 수 있습니다.",
     "voiceTitle": "음성 답장",
     "welcomeBody": "터미널로 전환하지 않고 Claude Code, Codex 등에 허용하고, 답하고, 답장하세요.",
+    "welcomeStats": "Openbar는 하루에 한 번 익명 사용 통계를 보냅니다.",
+    "welcomeStatsLink": "설정에서 끄기",
     "welcomeTitle": "노치 안의 에이전트",
     "welcomeToolkit": "원하면 메뉴 막대 도구 모음도 있습니다."
   },

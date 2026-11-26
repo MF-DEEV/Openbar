@@ -183,7 +183,8 @@ export const bridge = {
     if (!inTauri) return Promise.resolve(() => {});
     return listen("island://display-changed", () => handler());
   },
-  openSettings: () => call("open_settings"),
+  /** Opens Settings, on `page` when given ("about"). */
+  openSettings: (page?: string) => call("open_settings", { page }),
   /** Lets the window take the keyboard (and takes it now when `take`), or gives it back. */
   setFocusable: (focusable: boolean, take: boolean) => call("island_set_focusable", { focusable, take }),
   sessions: {

@@ -2655,7 +2655,10 @@ final class ClaudeSessionService: ObservableObject {
             .filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) } + sampleEvents
         sampleEvents = []
         let changed = shown != published || allowed != publishedAutoAllow
-        if changed { journalCodex(shown, now: now) }
+        if changed {
+            journalCodex(shown, now: now)
+            UsageStatsService.shared.note(sessions: shown)
+        }
         published = shown
         publishedAutoAllow = allowed
         guard changed || !events.isEmpty else { return }

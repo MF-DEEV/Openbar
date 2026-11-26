@@ -181,7 +181,7 @@ enum NotchPresentationRefreshContract {
         var captureClosesOnCollapse = false
         var routesCaptures = true
         var openedPages: [(module: NotchModule, takeFocus: Bool)] = []
-        func open(_ module: NotchModule, pinned: Bool, takeFocus: Bool, feedback: Bool) {
+        func open(_ module: NotchModule, pinned: Bool, takeFocus: Bool, feedback: Bool, automatic: Bool = false) {
             openedPages.append((module, takeFocus))
         }
         var pinned = false

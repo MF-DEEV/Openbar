@@ -595,6 +595,9 @@
     "saving": "正在儲存…",
     "settingsCaption": "把版本、掛鉤狀態與記錄存成一個檔案，附加到問題回報中。",
     "settingsTitle": "診斷",
+    "statsCaption": "每天一次，傳送一個隨機 ID、App 與系統版本，以及你使用的工作階段、終端機和區塊數量。絕不傳送提示、檔案或名稱。",
+    "statsDetails": "傳送的內容",
+    "statsTitle": "分享匿名使用統計",
     "systemCaption": "Openbar 版本、更新頻道、系統版本、CPU 類型與顯示器",
     "systemTitle": "App 與系統",
     "windowTitle": "匯出診斷資訊"
@@ -1912,6 +1915,8 @@
     "voiceBody": "可以說出回覆，不必打字。",
     "voiceTitle": "語音回覆",
     "welcomeBody": "不必切換到終端機，就能允許、回答及回覆 Claude Code、Codex 等代理程式。",
+    "welcomeStats": "Openbar 每天傳送一次匿名使用統計。",
+    "welcomeStatsLink": "在設定中關閉",
     "welcomeTitle": "你的代理程式，就在瀏海裡",
     "welcomeToolkit": "需要的話，選單列還有一套工具。"
   },

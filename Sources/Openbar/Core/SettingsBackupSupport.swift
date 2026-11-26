@@ -101,6 +101,10 @@ enum SettingsBackupSupport {
     /// out by construction (they are not preference keys), listed here only
     /// when they would otherwise slip in through the registered set.
     static let machineStateKeys: Set<String> = [
+        // The usage ping's id and counters belong to this install (#333): a
+        // second Mac restored from this file must not report as the first.
+        DefaultsKey.usageStatsInstallId,
+        DefaultsKey.usageStatsState,
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
         // Codex homes are folders on this Mac whose sign-in the cards use,

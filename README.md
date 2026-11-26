@@ -56,7 +56,7 @@
 - A reply you type or speak lands in the session's own terminal or editor.
 - Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Cursor, Pi, Mistral Vibe, Devin CLI, Google Antigravity, Grok CLI, ZCode, Hermes, Qwen Code, Factory Droid and Cline share one list.
 - Each session you start from the island gets its own git worktree.
-- Nothing leaves your machine ([privacy](docs/PRIVACY.md)).
+- Prompts, replies and files stay on your machine. Openbar sends one anonymous usage ping a day, which you can switch off ([privacy](docs/PRIVACY.md)).
 - A menu bar toolkit comes with it: a volume mixer, a system monitor, clipboard history and more.
 
 ## Install

@@ -595,6 +595,9 @@
     "saving": "Saving…",
     "settingsCaption": "Save one file with versions, hook states and logs to attach to a bug report.",
     "settingsTitle": "Diagnostics",
+    "statsCaption": "Sends a random ID, the app and system versions, and counts of the sessions, terminals and sections you used, once a day. Prompts, files and names are never sent.",
+    "statsDetails": "What’s sent",
+    "statsTitle": "Share anonymous usage stats",
     "systemCaption": "Openbar version, update channel, system version, CPU type and displays",
     "systemTitle": "App and system",
     "windowTitle": "Export diagnostics"
@@ -1912,6 +1915,8 @@
     "voiceBody": "Lets you say a reply instead of typing it.",
     "voiceTitle": "Voice replies",
     "welcomeBody": "Allow, answer and reply to Claude Code, Codex and others without switching to the terminal.",
+    "welcomeStats": "Openbar sends anonymous usage stats once a day.",
+    "welcomeStatsLink": "Turn it off in Settings",
     "welcomeTitle": "Your agents, in the notch",
     "welcomeToolkit": "There’s also a menu bar toolkit, if you want it."
   },

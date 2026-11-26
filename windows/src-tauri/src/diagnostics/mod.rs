@@ -296,7 +296,7 @@ fn registry(path: &str, name: &str) -> Option<String> {
 }
 
 #[cfg(windows)]
-fn os() -> report::Os {
+pub(crate) fn os() -> report::Os {
     const KEY: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion";
     let build = registry(KEY, "CurrentBuild");
     let release = registry(KEY, "DisplayVersion");
@@ -339,7 +339,7 @@ fn model() -> Option<String> {
 }
 
 #[cfg(not(windows))]
-fn os() -> report::Os {
+pub(crate) fn os() -> report::Os {
     let release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
     let field = |key: &str| {
         release.lines().find_map(|line| {

@@ -595,6 +595,9 @@
     "saving": "Salvataggio…",
     "settingsCaption": "Salva un file con versioni, stato degli hook e log da allegare a una segnalazione di bug.",
     "settingsTitle": "Diagnostica",
+    "statsCaption": "Una volta al giorno invia un ID casuale, le versioni dell’app e del sistema e quante sessioni, terminali e sezioni hai usato. Prompt, file e nomi non vengono mai inviati.",
+    "statsDetails": "Cosa viene inviato",
+    "statsTitle": "Condividi statistiche d’uso anonime",
     "systemCaption": "Versione di Openbar, canale di aggiornamento, versione del sistema, tipo di CPU e schermi",
     "systemTitle": "App e sistema",
     "windowTitle": "Esporta diagnostica"
@@ -1912,6 +1915,8 @@
     "voiceBody": "Così puoi dire una risposta invece di scriverla.",
     "voiceTitle": "Risposte a voce",
     "welcomeBody": "Consenti, rispondi e scrivi a Claude Code, Codex e agli altri senza passare al terminale.",
+    "welcomeStats": "Openbar invia statistiche d’uso anonime una volta al giorno.",
+    "welcomeStatsLink": "Disattiva nelle Impostazioni",
     "welcomeTitle": "I tuoi agenti, nel notch",
     "welcomeToolkit": "C’è anche una cassetta degli attrezzi nella barra dei menu, se ti serve."
   },

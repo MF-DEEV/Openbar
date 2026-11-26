@@ -209,6 +209,19 @@ function Welcome() {
       <h1>{O.welcomeTitle}</h1>
       <p className="ob-lead">{O.welcomeBody}</p>
       <p className="ob-quiet">{O.welcomeToolkit}</p>
+      {/* The usage ping is on by default; new installs hear it here (#333). */}
+      <p className="ob-quiet ob-stats">
+        {O.welcomeStats}{" "}
+        <button
+          type="button"
+          className="ob-text-link"
+          onClick={() => {
+            if (inTauri) void invoke("open_settings", { page: "about" });
+          }}
+        >
+          {O.welcomeStatsLink}
+        </button>
+      </p>
       <label className="ob-language">
         <Globe size={15} aria-hidden />
         <select

@@ -1240,6 +1240,8 @@ def main():
               .replace("NotchSupport.modules()", "NotchSupport.modules(in: ReviewDefaults.current)")
           + declaration(notch, "    func open(_ module:")
               .replace("NotchSupport.isEnabled()", "NotchSupport.isEnabled(in: ReviewDefaults.current)")
+              .replace("UsageStatsService.shared.noteOpened(destination)", "sectionVisits.append(destination)")
+          + "var sectionVisits: [NotchModule] = []\n"
           + "func removeHoverExitMonitors() {}\n"
           + "func scheduleSessionReminderCheck(after delay: TimeInterval) {}\n"
           + declaration(notch, "    func showScratchpad(")

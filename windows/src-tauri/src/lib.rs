@@ -63,6 +63,7 @@ mod toggles;
 mod tray;
 mod update_window;
 mod updater;
+mod usage_stats;
 mod voice;
 mod watch;
 
@@ -524,6 +525,7 @@ pub fn run() {
             watch::watch_set_rule,
             watch::watch_pin_line,
             watch::watch_page_visible,
+            usage_stats::stats_section_opened,
             watch::watch_notify,
         ])
         .setup(|app| {
@@ -586,6 +588,7 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<agent_usage::State>().inner().clone(),
             );
+            usage_stats::start(app.handle());
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;

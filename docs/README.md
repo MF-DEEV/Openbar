@@ -136,13 +136,13 @@ Then turn on Sessions as the [README](../README.md#install) describes.
 ## Private by default
 
 > [!IMPORTANT]
-> Nothing leaves your machine. Prompts, replies and commands stay hidden until you turn on **Show previews**, and even then they're kept in memory only. With the app closed, your agents ask in the terminal as usual. See [everything the app reads and writes](PRIVACY.md).
+> Prompts, replies and commands never leave your machine. They stay hidden until you turn on **Show previews**, and even then they're kept in memory only. Openbar sends one anonymous usage ping a day, which you can switch off. With the app closed, your agents ask in the terminal as usual. See [everything the app reads and writes](PRIVACY.md).
 
 ## Guides
 
 | Guide | What it covers |
 |---|---|
-| [Privacy](PRIVACY.md) | What is read, what is kept, what never leaves |
+| [Privacy](PRIVACY.md) | What is read, what is kept, what the daily ping sends |
 | [Permissions](PERMISSIONS.md) | Every macOS permission, in plain words |
 | [Troubleshooting](TROUBLESHOOTING.md) | The common fixes |
 | [Claude Code sessions](claude-sessions-spike.md) | What Claude Code exposes and how the island uses it |

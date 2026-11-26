@@ -657,6 +657,8 @@ if (( TEST )); then
         Sources/Openbar/Services/Uninstall/UninstallerSupport.swift
         Sources/Openbar/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
         Sources/Openbar/Core/SecureInputSupport.swift
+        Sources/Openbar/Services/UsageStats/UsageStatsSupport.swift
+        Sources/Openbar/Services/UsageStats/UsageStatsStore.swift
         Tests/*.swift
         build/generated-tests/*.swift
     )

@@ -122,6 +122,7 @@ struct MetricsTests {
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite) }),
             ("diagnostics", { DiagnosticsTests.run(suite) }),
+            ("usage-stats", { UsageStatsTests.run(suite) }),
             ("sessions", {
                 ClaudeSessionEngineTests.run(suite)
                 OnboardingAgentTests.run(suite)

@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Anonymous usage stats (#333). Once a day Openbar sends a random install ID, the app and system versions, and counts of sessions per agent, terminals and island sections, so we can see how many people use it and which parts. Prompts, paths, names and accounts are never sent. It's on by default: Share anonymous usage stats under General on a Mac, or About on Windows and Linux, turns it off and deletes the ID. `DO_NOT_TRACK=1` and Developer builds send nothing. New installs see one line about it on the first onboarding screen. Every field is listed in [docs/PRIVACY.md](docs/PRIVACY.md#network-connections).
 - Linux: Discord's own mute and deafen show in the microphone indicator, as on Windows. They are read from the Mute and Deafen buttons in Discord's window, through the desktop's accessibility bus, so Discord has to be started with accessibility on (as for answering it from a notification).
 - Linux: the System page's network list shows which apps use the network. It counts the TCP connections of your own apps, which needs no privileges. UDP (QUIC in a browser) and other users' apps are left out.
 - Linux: the "while you were away" card (#215). The island now hears the screen lock (logind, the desktop's screensaver or a locker such as i3lock) and the minutes without input (the X server, GNOME's idle monitor or logind).

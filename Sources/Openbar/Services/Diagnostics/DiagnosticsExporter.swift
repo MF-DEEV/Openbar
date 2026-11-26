@@ -135,7 +135,7 @@ enum DiagnosticsExporter {
         if sysctlbyname("sysctl.proc_translated", &translated, &size, nil, 0) == 0, translated == 1 { cpu += ", Rosetta" }
         return DiagnosticsSystem(
             app: .init(name: AppInfo.name, version: AppInfo.version,
-                       build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
+                       build: AppInfo.build,
                        commit: AppInfo.buildCommit, channel: snapshot.channel, developerBuild: AppInfo.isDeveloperBuild),
             os: .init(name: "macOS", version: "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",
                       build: sysctl("kern.osversion"), kernel: sysctl("kern.osrelease")),

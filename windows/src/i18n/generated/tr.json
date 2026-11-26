@@ -595,6 +595,9 @@
     "saving": "Kaydediliyor…",
     "settingsCaption": "Hata bildirimine eklemek için sürümleri, hook durumlarını ve günlükleri tek dosyaya kaydedin.",
     "settingsTitle": "Tanılama",
+    "statsCaption": "Günde bir kez rastgele bir kimlik, uygulama ve sistem sürümleri ile kullandığınız oturum, terminal ve bölüm sayılarını gönderir. İstemler, dosyalar ve adlar asla gönderilmez.",
+    "statsDetails": "Neler gönderilir",
+    "statsTitle": "Anonim kullanım istatistiklerini paylaş",
     "systemCaption": "Openbar sürümü, güncelleme kanalı, sistem sürümü, işlemci türü ve ekranlar",
     "systemTitle": "Uygulama ve sistem",
     "windowTitle": "Tanılamayı dışa aktar"
@@ -1912,6 +1915,8 @@
     "voiceBody": "Yanıtı yazmak yerine söyleyebilmen için.",
     "voiceTitle": "Sesli yanıtlar",
     "welcomeBody": "Claude Code, Codex ve diğerlerine terminale geçmeden izin ver, yanıtla ve yaz.",
+    "welcomeStats": "Openbar günde bir kez anonim kullanım istatistikleri gönderir.",
+    "welcomeStatsLink": "Ayarlar’dan kapatın",
     "welcomeTitle": "Ajanların çentikte",
     "welcomeToolkit": "İstersen bir de menü çubuğu araç kiti var."
   },

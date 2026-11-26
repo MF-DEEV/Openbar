@@ -188,7 +188,7 @@ function presentSessionEvent(event: SessionEvent) {
   const name = displayName(session, sessions.names[session.id]);
   if (!shown("sessions")) return;
   if (event.kind !== "finished" && !island.expanded && sessions.prefs.autoExpand) {
-    island.open("sessions", { takeFocus: false });
+    island.open("sessions", { takeFocus: false, automatic: true });
     // More than one ask waiting opens on the queue, not on one of them (#269).
     sessions.focus(permissionQueue(presentedSnapshot(sessions).sessions).shows ? null : session.id);
     return;
@@ -330,7 +330,7 @@ async function presentReminder(waits: ReminderWait[]) {
     .catch(() => false);
   const one = waits.length === 1 ? waits[0].session : null;
   if (allowed && sessions.prefs.autoExpand && !island.expanded) {
-    island.open("sessions", { takeFocus: false });
+    island.open("sessions", { takeFocus: false, automatic: true });
     useSessions.getState().focus(one);
     return;
   }

@@ -1,13 +1,13 @@
 # Privacy
 
-Openbar is built to be local-first. Core features run on your Mac, and the app has no Openbar account or cloud dashboard. Openbar runs no servers of its own; the connections it makes are listed below.
+Openbar is built to be local-first. Core features run on your Mac, and there is no Openbar account. The one server we run takes the anonymous daily usage ping; every other connection goes to the service its feature names, and the list below covers all of them.
 
 ## The short version
 
 - **No account.** There is nothing to sign up for and nobody to log in as.
 - **No subscription.** The app is free and stays free, with nothing held back behind a paid tier.
-- **No automatic telemetry.** Openbar gathers no usage stats, crash reports or device identifiers. Feedback is a GitHub issue you write and send yourself.
-- **No Openbar analytics or tracking.** There are no analytics kits, no ad networks and no third party tracking anywhere in the app.
+- **Anonymous usage stats once a day, easy to switch off.** Openbar sends one small ping a day with a random install ID, the app and system versions, and counts of sessions, terminals and island sections. It never sends prompts, replies, file paths, folder or project names, model names, account names or host names. Switching it off deletes the ID too ([what it sends](#network-connections), item 13). There are no crash reports, and feedback is a GitHub issue you write and send yourself.
+- **No third-party analytics or tracking.** The app has no analytics kits, ad networks or third-party trackers. The usage ping goes to our own dashboard only.
 - **No data selling.** Openbar never sells personal information or shared screenshots and recordings.
 - **Your settings stay put.** Preferences and saved state live in the app's own local storage on your Mac and are never uploaded. The exceptions are the hooks the Sessions page adds to Claude Code's own settings, the extension it adds to Antigravity, VS Code, Cursor or Windsurf and the `~/.openbar` folder they use, all on this Mac and only when you install them.
 
@@ -133,6 +133,17 @@ For each separate Codex home (`CODEX_HOME`) you add in the AI Agents section, it
 11. **Per-app AirPlay, only while you route an app to AirPlay.** The audio of the apps you set to AirPlay in the Volume Mixer is streamed, from memory, to the AirPlay speaker you pick on your local network. Openbar hands it to macOS's own AirPlay stack, which finds the speaker and makes the connection; Openbar does not contact the speaker or any other address itself, and nothing leaves your local network through this feature. Only the routed apps' audio is sent. It is not saved or recorded, and streaming stops as soon as no app is routed to AirPlay or the speaker is disconnected.
 
 12. **Covers for Firefox-based browsers, only after you turn on Find covers for Firefox and Zen.** For the YouTube tab whose title is the song's, the video's thumbnail is loaded from `i.ytimg.com`, which receives only the video ID. When no YouTube tab shows the song and a session saved since the lookup began shows an open YouTube Music tab, the song's title and artist and your Mac's region are sent once per lookup to Apple's public catalog search at `itunes.apple.com`, and the album art of a result with the same title and artist is loaded from Apple's image servers at `mzstatic.com`, never from another host the reply might name. Without a readable session that shows YouTube Music, nothing goes to Apple, and a plain YouTube video listed in that session is matched by its own tab instead. These providers receive ordinary request data, including your public IP address, under their own policies. The requests go out through your Mac's own connection, not through a proxy, VPN or secure DNS set only inside the browser. Requests use an ephemeral session without cookies, reject redirects and stop at 4 MB. A lookup gives up about a minute after it starts, and stops at its next try when the song changes, playback stops or the option is turned off. Covers stay in memory for the last eight songs and are never written to disk.
+
+13. **Anonymous usage stats, once a day, on by default and easy to switch off.** So we know how many people use Openbar and which parts they use, the app sends one small ping a day to our own dashboard at `openbar-stats.vercel.app`, hosted on Vercel. It goes about a minute after launch when the last one is more than 20 hours old, then about every 24 hours while the app runs, and again 6 hours after a failed attempt. It holds exactly these fields:
+
+    - `installId`: a random ID made on this install and tied to nothing else. Switching stats off deletes it, and switching them back on makes a new one. A settings export leaves it out.
+    - `platform`, `osVersion`, `arch` and, on a Mac, `rosetta` and `build`: the system the app runs on, for example `mac`, `15.3.0`, `arm64`. Windows sends its build as `10.0.26100`; Linux sends the distribution's name and version.
+    - `appVersion`.
+    - `agents`: for each agent used since the last ping, how many sessions started and whether Openbar's hooks are installed for it.
+    - `terminals`: how many sessions ran in each kind of terminal, from a fixed list such as `ghostty` or `vscode`. Any other app counts as `other`, so app names never leave your machine.
+    - `features`: which island sections are on, and how many times you opened each. The island opening by itself, as for a session's question, doesn't count.
+
+    The counts cover the time since the last ping and start again after it. The ping never carries prompts, replies, commands, file paths, project or folder names, model names, account names, host names or anything you typed. The dashboard reads the city and country from the request, rounds the location to about 10 km and never stores or logs your IP address. Vercel, like any web host, sees the request's IP address under its own policy. The dashboard keeps the pings, and only Openbar's maintainers can open it. Turn it off with **Share anonymous usage stats** in Settings under General on a Mac, or under About on Windows and Linux; that deletes the ID and the counts at once. Nothing is sent while `DO_NOT_TRACK=1` is set, and a Developer build never sends anything. On the Mac the ID and counts live in the app's preferences; on Windows and Linux the ID is `statsInstallId` in `settings.json` and the counts are in `usage-stats.json` beside it. The code is in [UsageStats](../Sources/Openbar/Services/UsageStats/) for the Mac and [usage_stats](../windows/src-tauri/src/usage_stats/) for Windows and Linux. Requests use an ephemeral session without cookies, and redirects are refused.
 
 That is the entire list. There are no hidden beacons or background uploads.
 

@@ -76,6 +76,8 @@ export interface IslandSettings {
   language: LanguagePreference;
   /** Ask GitHub now and then whether a newer version exists (updates/). */
   checkUpdates: boolean;
+  /** The anonymous daily usage ping (#333); off deletes its id and counts. */
+  shareUsageStats: boolean;
   /** Offer beta releases too (the Mac's includeBetaUpdates). Off by default: Windows since 1.0, Linux since 1.0. */
   betaUpdates: boolean;
   /** "Skip this version": the version whose prompts stay quiet; a newer one prompts again. */
@@ -293,6 +295,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   sections: { agents: true, sessions: true },
   language: "auto",
   checkUpdates: true,
+  shareUsageStats: true,
   betaUpdates: false,
   updateSkipped: "",
   updateSnoozedUntil: 0,

@@ -195,6 +195,18 @@ private struct WelcomeStep: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
+                // The usage ping is on by default; new installs hear it here (#333).
+                HStack(spacing: 4) {
+                    Text(text.welcomeStats)
+                        .foregroundStyle(.tertiary)
+                    Button(text.welcomeStatsLink) {
+                        SettingsRouter.shared.request(FeatureSettingsDestination(.general))
+                        appDelegate()?.openSettingsWindow()
+                    }
+                    .buttonStyle(.link)
+                }
+                .font(.system(size: 11))
+                .padding(.top, 2)
             }
             .padding(.top, 26)
             .padding(.horizontal, 30)
