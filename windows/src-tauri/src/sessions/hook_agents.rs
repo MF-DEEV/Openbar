@@ -119,6 +119,7 @@ impl Provider {
                 | Provider::Droid
                 | Provider::Cline
                 | Provider::Kimi
+                | Provider::Kiro
         )
     }
 
@@ -286,7 +287,8 @@ pub fn waits(data: &[u8]) -> bool {
             || contains(data, b"\"pi\"")
             || contains(data, b"\"proxy\"")
             || contains(data, b"\"zcode\"")
-            || contains(data, b"\"qwen\""))
+            || contains(data, b"\"qwen\"")
+            || contains(data, b"\"kiro\""))
     {
         return false;
     }
@@ -302,8 +304,11 @@ pub fn waits(data: &[u8]) -> bool {
             json.get("hook").and_then(Value::as_str) == Some("proxy")
                 && matches!(kind, Some("approval" | "question"))
         }
-        // ZCode's permission hook prints the island's answer.
-        Some("zcode") => json.get("hook").and_then(Value::as_str) == Some("PermissionRequest"),
+        // ZCode's permission hook prints the island's answer, and so does
+        // Kiro CLI's: Kiro shows its dialog only once the hook answered nothing.
+        Some("zcode" | "kiro") => {
+            json.get("hook").and_then(Value::as_str) == Some("PermissionRequest")
+        }
         // So does Qwen Code's, but for a question or a plan, which only its own dialog takes.
         Some("qwen") => {
             json.get("hook").and_then(Value::as_str) == Some("PermissionRequest")
@@ -393,9 +398,7 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
         Provider::Qwen => qwen(&hook, event, pid, now, policy, &mut decoded),
         Provider::Droid => droid(&hook, event, pid, now, policy, &mut decoded),
         Provider::Kimi => decoded.events = kimi(&hook, event, pid, now, policy),
-        Provider::Kiro => {
-            decoded.events = claude_style(Provider::Kiro, &hook, event, pid, now, policy, None)
-        }
+        Provider::Kiro => kiro(&hook, event, pid, now, policy, &mut decoded),
         Provider::Hermes => decoded.events = hermes(&hook, event, pid, now, policy),
         Provider::Grok => {
             decoded.events = grok(&hook, event, pid, now, policy);
@@ -1690,6 +1693,112 @@ fn qwen(
     decoded.events = events;
 }
 
+// MARK: Kiro CLI
+
+/// Kiro CLI's hooks (kiro.dev/docs/hooks/types): Claude Code's fields, with
+/// the session's id, folder and event, its tools under Kiro's own names and
+/// arguments, read as Claude Code's (`kiro::claude_input`). No event names a
+/// tool call, so a tool ends the one of its kind that started last. Its
+/// permission hook runs before its dialog shows and is held for the island.
+/// Escape at its dialog cancels the turn with no `Stop`: the tool's result
+/// says so, and ends the turn.
+fn kiro(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+    decoded: &mut Decoded,
+) {
+    let Some(session) = text(json, "session_id") else {
+        return;
+    };
+    let cwd = text(json, "cwd");
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Kiro,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    let raw = str_of(json.get("tool_name")).unwrap_or("");
+    let tool = name(Provider::Kiro, raw);
+    let input = super::kiro::claude_input(raw, &arguments(json.get("tool_input")));
+    let event = text(json, "hook_event_name").unwrap_or_else(|| hook.to_owned());
+    match event.as_str() {
+        "SessionStart" => add(Kind::Started),
+        "SessionEnd" => add(Kind::Ended),
+        "UserPromptSubmit" => add(Kind::Prompt(
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
+        )),
+        "PreToolUse" => add(Kind::ToolStarted(tool_use(&tool, &input, now, policy))),
+        "PermissionRequest" => {
+            let request = format!("{:x}", rand_id());
+            // Read as Claude Code's, whatever the previews: the person decides on it.
+            let full = tool_summary::permission_detail(&tool, &input);
+            let complete = tool != "Bash"
+                || input
+                    .get("command")
+                    .and_then(Value::as_str)
+                    .is_some_and(|s| !s.is_empty());
+            let mut permission = Permission {
+                request_id: request.clone(),
+                tool: if tool.is_empty() {
+                    "Tool".to_owned()
+                } else {
+                    tool.clone()
+                },
+                summary: tool_summary::summary(&tool, &input),
+                detail: String::new(),
+                content: None,
+                offers_always: false,
+                since: now,
+                tool_id: None,
+                input_key: Some(tool_summary::input_key(&tool, &input)),
+                questions: Vec::new(),
+                diffs: file_diff::diffs(&tool, &input, cwd.as_deref()),
+                plan_modes: Vec::new(),
+                risk: super::risk::Risk::Unassessed,
+            };
+            permission.set_content(&full, complete, Some(full.chars().count()));
+            decoded.permission = Some((session.clone(), request));
+            add(Kind::HeldPermission(permission));
+        }
+        "PostToolUse" => {
+            // The tool ran, or its dialog was answered: here or in Kiro.
+            add(Kind::PermissionSettled(None));
+            let cancelled = super::kiro::cancelled(json.get("tool_response"));
+            add(Kind::ToolFinished {
+                id: None,
+                input_key: Some(tool_summary::input_key(&tool, &input)),
+                name: tool,
+                failed: cancelled,
+                started: None,
+            });
+            if cancelled {
+                add(Kind::Stopped {
+                    last_text: None,
+                    failed: false,
+                });
+            }
+        }
+        // Kiro's Stop carries no reply: its session's log holds it (service).
+        "Stop" => add(Kind::Stopped {
+            last_text: None,
+            failed: false,
+        }),
+        _ => {}
+    }
+    decoded.events = events;
+}
+
 // MARK: Grok CLI
 
 /// Grok CLI's hooks (xAI's Grok Build, user guide "Hooks"): camelCase input
@@ -2630,18 +2739,27 @@ pub fn name(provider: Provider, tool: &str) -> String {
             ("agents_spawn", "Task"),
             ("ask_user_question", "AskUserQuestion"),
         ],
+        // Kiro's hooks name its tools as below, its shell `execute_pwsh` on Windows.
         Provider::Kiro => &[
             ("execute_bash", "Bash"),
-            ("shell", "Bash"),
+            ("execute_pwsh", "Bash"),
+            ("execute_shell", "Bash"),
+            ("read_file", "Read"),
             ("fs_read", "Read"),
-            ("read", "Read"),
+            ("read_code", "Read"),
             ("fs_write", "Write"),
-            ("write", "Write"),
-            ("edit", "Edit"),
-            ("grep", "Grep"),
-            ("glob", "Glob"),
+            ("write_file", "Write"),
+            ("str_replace", "Edit"),
+            ("replace_text", "Edit"),
+            ("append_lines", "Edit"),
+            ("edit_code", "Edit"),
+            ("grep_search", "Grep"),
+            ("file_search", "Glob"),
+            ("find_files", "Glob"),
             ("web_fetch", "WebFetch"),
             ("web_search", "WebSearch"),
+            ("invoke_sub_agent", "Task"),
+            ("task_update", "TodoWrite"),
         ],
         Provider::Devin => &[
             ("exec", "Bash"),
@@ -2871,6 +2989,19 @@ impl Entry {
 
     pub fn model(&self) -> Option<&str> {
         self.model.as_deref()
+    }
+
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+
+    /// When the turn still open started: none once it ended.
+    pub fn turn_open_since(&self) -> Option<Time> {
+        if self.turn_open {
+            self.turn_started
+        } else {
+            None
+        }
     }
 
     fn open_tool(&self) -> Option<&ToolUse> {
@@ -3541,10 +3672,11 @@ pub fn takes_one_return(provider: Provider) -> bool {
     }
     // Cline sends on the first return; a second would approve the tool it
     // may ask about next (#241). So does Kimi Code, where a second picks
-    // "Approve once" in the dialog its reply may open at once (#240).
+    // "Approve once" in the dialog its reply may open at once (#240), and
+    // Kiro CLI, whose "Allow once" a second would take (#238).
     matches!(
         provider,
-        Provider::Zcode | Provider::Hermes | Provider::Cline | Provider::Kimi
+        Provider::Zcode | Provider::Hermes | Provider::Cline | Provider::Kimi | Provider::Kiro
     )
 }
 
@@ -3755,15 +3887,8 @@ pub mod installer {
     ];
 
     /// Kiro CLI's triggers (kiro.dev/docs/hooks/types), named as Claude Code's
-    /// are. Each only tells: Kiro goes on whatever the hook answers.
-    pub const KIRO_EVENTS: [&str; 6] = [
-        "SessionStart",
-        "SessionEnd",
-        "UserPromptSubmit",
-        "PreToolUse",
-        "PostToolUse",
-        "Stop",
-    ];
+    /// are. Only `PermissionRequest` waits for the island's answer.
+    pub const KIRO_EVENTS: [&str; 7] = super::super::kiro::EVENTS;
 
     /// ZCode's events (its hooks guide, zcode.z.ai/en/docs/hooks), every one
     /// it has: its config refuses any other name. They sit under
@@ -4408,9 +4533,9 @@ pub mod installer {
     }
 
     /// Kiro CLI's hooks file of the island's own, in its standalone hook
-    /// format (kiro.dev/docs/hooks): a hook for each event, which tells and
-    /// never answers, so Kiro asks in its terminal as it always did. Tool
-    /// events carry the matcher that takes every tool.
+    /// format (kiro.dev/docs/hooks): a hook for each event, tool events with
+    /// the matcher that takes every tool. Only the permission hook waits, as
+    /// long as Claude Code's does; Kiro reads timeouts in seconds.
     pub fn kiro_file(exe: &Path, app: &str) -> Vec<u8> {
         let hooks: Vec<Value> = KIRO_EVENTS
             .iter()
@@ -4422,10 +4547,14 @@ pub mod installer {
                         "type": "command",
                         "command": portable_command(Provider::Kiro, event, exe, app),
                     },
-                    "timeout": EVENT_TIMEOUT,
+                    "timeout": if *event == "PermissionRequest" {
+                        claude::PERMISSION_TIMEOUT
+                    } else {
+                        EVENT_TIMEOUT
+                    },
                     "enabled": true,
                 });
-                if matches!(*event, "PreToolUse" | "PostToolUse") {
+                if super::super::kiro::TOOL_EVENTS.contains(event) {
                     hook["matcher"] = json!("*");
                 }
                 hook
@@ -7476,7 +7605,7 @@ mod tests {
     }
 
     #[test]
-    fn kiro_hooks_are_a_file_of_the_islands_own_and_never_answer() {
+    fn kiro_hooks_are_a_file_of_the_islands_own_and_hold_its_permission() {
         let exe = Path::new("C:/Openbar/Openbar.exe");
         let file: Value = serde_json::from_slice(&installer::kiro_file(exe, "app")).unwrap();
         assert_eq!(file["version"], "v1");
@@ -7491,6 +7620,12 @@ mod tests {
         assert!(
             command.starts_with("C:/Openbar/Openbar.exe --hook --agent kiro --event PreToolUse")
         );
+        let ask = hooks
+            .iter()
+            .find(|h| h["trigger"] == "PermissionRequest")
+            .unwrap();
+        assert_eq!(ask["matcher"], "*");
+        assert_eq!(ask["timeout"], crate::hooks::installer::PERMISSION_TIMEOUT);
         let stop = hooks.iter().find(|h| h["trigger"] == "Stop").unwrap();
         assert!(stop.get("matcher").is_none());
         assert!(
@@ -7502,7 +7637,7 @@ mod tests {
             start_arguments(Provider::Kiro, "fix it"),
             vec!["chat", "fix it"]
         );
-        assert!(!Provider::Kiro.answers_permissions());
+        assert!(Provider::Kiro.answers_permissions());
         assert!(Provider::HOOK_AGENTS.contains(&Provider::Kiro) && Provider::Kiro.installs_hooks());
     }
 

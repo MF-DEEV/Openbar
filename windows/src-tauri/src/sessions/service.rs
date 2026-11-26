@@ -42,6 +42,8 @@ use crate::hosts::{self, Located};
 const ACTIVE_TICK: Duration = Duration::from_secs(1);
 const QUIET_TICK: Duration = Duration::from_secs(3);
 /// A permission hook is let go a little before Claude Code's 600 s timeout.
+/// How long a Kiro CLI turn is quiet before its log is read for an end (#238).
+const KIRO_QUIET: Time = 3.0;
 const HOOK_PATIENCE: f64 = 590.0;
 /// A line longer than this is not one worth reading.
 const MAX_LINE: usize = 32 * 1024 * 1024;
@@ -752,6 +754,7 @@ impl Service {
             .map(|e| e.session_id.clone())
             .collect();
         inner.hermes_places.keep(&hermes);
+        self.end_cancelled_kiro_turns(inner, t);
         // Qwen Code stops waiting for its hook after a minute and asks in its
         // own dialog, which the island then answers with keys (#239).
         let dialogs: Vec<(String, String)> = inner
@@ -846,6 +849,11 @@ impl Service {
         } else {
             hook_agents::agent_process(&chain, decoded.pid)
         };
+        // Kiro CLI's hooks run in its agent server, which has no terminal or
+        // console: its terminal UI above it has (#238).
+        if provider == models::Provider::Kiro && pid > 0 {
+            pid = super::kiro::terminal_process(&chain, pid as u32) as i32;
+        }
         // Grok CLI's hook may outlive the shell that ran it (Windows'
         // PowerShell doesn't wait for this app): Grok names its own process.
         if provider == models::Provider::Grok
@@ -878,6 +886,7 @@ impl Service {
                 models::Provider::Vibe => hook_agents::vibe_reply(&Decision::Allow, &[]),
                 models::Provider::Zcode => hook_agents::zcode_reply(&Decision::Allow, None),
                 models::Provider::Qwen => super::qwen::reply(&Decision::Allow),
+                models::Provider::Kiro => super::kiro::reply(&Decision::Allow),
                 _ => hook_agents::opencode_reply(&Decision::Allow),
             }
             && let Some(connection) = connection.take()
@@ -1043,6 +1052,9 @@ impl Service {
                 let mut named = event.clone();
                 named.kind = hook_agents::Kind::Model(model);
                 inner.hook_agents.ingest(named, t);
+            }
+            if provider == models::Provider::Kiro {
+                self.kiro_details(&mut inner, &mut event, previews, t);
             }
             if provider == models::Provider::Kimi {
                 // Kimi tells its client with every event: only a change is news.
@@ -2059,6 +2071,36 @@ impl Service {
                     self.publish(&mut inner, t);
                     return true;
                 }
+                // Kiro CLI's own dialog, once the island let its hook go:
+                // Return allows, Down and Return deny (#238).
+                if let Some(entry) = inner
+                    .hook_agents
+                    .entry(session)
+                    .filter(|e| e.provider == models::Provider::Kiro && e.in_dialog)
+                    .cloned()
+                {
+                    let Some(keys) = super::kiro::keys(&decision) else {
+                        return false;
+                    };
+                    let Some(located) = inner
+                        .hosts
+                        .get(&entry.pid)
+                        .cloned()
+                        .filter(|l| hosts::takes_keys(&l.host))
+                    else {
+                        return false;
+                    };
+                    drop(inner);
+                    if press_droid(entry.pid as u32, &located, &keys).is_err() {
+                        return false;
+                    }
+                    let mut inner = self.inner.lock().unwrap();
+                    let t = now();
+                    inner.hook_agents.resolve(session, request);
+                    inner.hook_agents.acknowledge(session, t);
+                    self.publish(&mut inner, t);
+                    return true;
+                }
                 // Droid's prompts take keys: Return for its yes, arrows to its
                 // no, numbers for questions and specs; its hooks tell when it
                 // moves on (#242).
@@ -2128,6 +2170,7 @@ impl Service {
                 let vibe = provider == Some(models::Provider::Vibe);
                 let zcode = provider == Some(models::Provider::Zcode);
                 let qwen = provider == Some(models::Provider::Qwen);
+                let kiro = provider == Some(models::Provider::Kiro);
                 if vibe || zcode {
                     // A question is answered or skipped, never allowed; answers go only to a question.
                     let asks = p.asks_questions();
@@ -2157,6 +2200,8 @@ impl Service {
                     hook_agents::zcode_reply(&decision, input.as_ref())
                 } else if qwen {
                     super::qwen::reply(&decision)
+                } else if kiro {
+                    super::kiro::reply(&decision)
                 } else {
                     hook_agents::opencode_reply(&decision)
                 };
@@ -2620,14 +2665,14 @@ impl Service {
         ok
     }
 
-    /// Lets Qwen Code's held requests go unanswered, so it asks in its own
-    /// dialog: the person went to answer there (#239).
+    /// Lets Qwen Code's and Kiro CLI's held requests go unanswered, so they
+    /// ask in their own dialog: the person went to answer there (#239, #238).
     fn release_held(&self, session: &str) {
         let mut inner = self.inner.lock().unwrap();
         if inner
             .hook_agents
             .entry(session)
-            .is_none_or(|e| e.provider != models::Provider::Qwen)
+            .is_none_or(|e| !matches!(e.provider, models::Provider::Qwen | models::Provider::Kiro))
         {
             return;
         }
@@ -2645,6 +2690,116 @@ impl Service {
         }
         let t = now();
         self.publish(&mut inner, t);
+    }
+
+    /// What Kiro CLI's session files add to an event (#238): at a start, a
+    /// prompt or a turn's end, its model and, with previews on, its title
+    /// from `session.json`; at a turn's end, with previews on, the reply its
+    /// log holds, which its `Stop` doesn't carry.
+    fn kiro_details(
+        &self,
+        inner: &mut Inner,
+        event: &mut hook_agents::AgentEvent,
+        previews: bool,
+        t: Time,
+    ) {
+        if !matches!(
+            event.kind,
+            hook_agents::Kind::Started
+                | hook_agents::Kind::Prompt(_)
+                | hook_agents::Kind::Stopped { .. }
+        ) {
+            return;
+        }
+        let Some(folder) = hooks::installer::home_dir().and_then(|home| {
+            super::kiro::session_folder(&event.session_id, &super::kiro::folder(&home))
+        }) else {
+            return;
+        };
+        let (title, model) = super::kiro::details(&folder);
+        let entry = inner.hook_agents.entry(&event.id()).cloned();
+        if let Some(model) = model
+            && entry
+                .as_ref()
+                .is_none_or(|e| e.model() != Some(model.as_str()))
+        {
+            let mut named = event.clone();
+            named.kind = hook_agents::Kind::Model(model);
+            inner.hook_agents.ingest(named, t);
+        }
+        if previews
+            && let Some(title) = title
+            && entry
+                .as_ref()
+                .is_none_or(|e| e.title() != Some(title.as_str()))
+        {
+            let mut named = event.clone();
+            named.kind = hook_agents::Kind::Title(title);
+            inner.hook_agents.ingest(named, t);
+        }
+        if previews
+            && let hook_agents::Kind::Stopped {
+                last_text: None,
+                failed,
+            } = event.kind
+            && let Some(reply) = super::kiro::last_turn(&folder.join("messages.jsonl"), true).reply
+        {
+            event.kind = hook_agents::Kind::Stopped {
+                last_text: Some(reply),
+                failed,
+            };
+        }
+    }
+
+    /// Kiro CLI's turns the person cancelled with Escape while it worked:
+    /// Kiro runs no hook for that, its session's log tells (#238).
+    fn end_cancelled_kiro_turns(&self, inner: &mut Inner, t: Time) {
+        let Some(kiro) = hooks::installer::home_dir().map(|home| super::kiro::folder(&home)) else {
+            return;
+        };
+        let previews = inner.engine.policy().previews;
+        let open: Vec<hook_agents::Entry> = inner
+            .hook_agents
+            .entries()
+            .filter(|e| {
+                e.provider == models::Provider::Kiro
+                    && e.permission.is_none()
+                    && e.turn_open_since().is_some()
+                    && t - e.heard > KIRO_QUIET
+            })
+            .cloned()
+            .collect();
+        for entry in open {
+            let Some(started) = entry.turn_open_since() else {
+                continue;
+            };
+            let Some(folder) = super::kiro::session_folder(&entry.session_id, &kiro) else {
+                continue;
+            };
+            let last = super::kiro::last_turn(&folder.join("messages.jsonl"), previews);
+            // Times here are seconds; the log's are milliseconds.
+            if !last.ended
+                || last
+                    .at
+                    .is_none_or(|at| (at as f64) / 1000.0 < started - 2.0)
+            {
+                continue;
+            }
+            inner.hook_agents.ingest(
+                hook_agents::AgentEvent {
+                    provider: models::Provider::Kiro,
+                    session_id: entry.session_id.clone(),
+                    pid: entry.pid,
+                    cwd: Some(entry.cwd.clone()),
+                    date: t,
+                    kind: hook_agents::Kind::Stopped {
+                        last_text: last.reply,
+                        failed: false,
+                    },
+                },
+                t,
+            );
+        }
     }
 
     /// A Kimi Code session its own server holds (#240).
