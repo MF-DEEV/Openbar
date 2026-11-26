@@ -171,9 +171,21 @@ pub async fn scratchpad_export<R: Runtime>(
     name: String,
     text: String,
 ) -> Result<Option<String>, String> {
+    #[cfg(target_os = "linux")]
+    return tauri::async_runtime::spawn_blocking(move || {
+        let Some(path) = linux_save_dialog(&app, &name) else {
+            return Ok(None);
+        };
+        fs::write(&path, text.as_bytes()).map_err(|e| e.to_string())?;
+        Ok(Some(path.to_string_lossy().into_owned()))
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    #[cfg(not(target_os = "linux"))]
     let owner = app
         .get_webview_window(crate::island::LABEL)
         .and_then(|w| platform::handle(&w));
+    #[cfg(not(target_os = "linux"))]
     tauri::async_runtime::spawn_blocking(move || {
         let Some(path) = platform::save_dialog(owner, &name) else {
             return Ok(None);
@@ -183,6 +195,36 @@ pub async fn scratchpad_export<R: Runtime>(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// GTK's save dialog, starting in the Documents folder (the home folder when
+/// there is none): the Mac stub's bare `~/Desktop` is often missing or
+/// localized on Linux, and the person never chose it (#190).
+#[cfg(target_os = "linux")]
+fn linux_save_dialog<R: Runtime>(app: &AppHandle<R>, name: &str) -> Option<std::path::PathBuf> {
+    use tauri_plugin_dialog::DialogExt;
+    let folder = app
+        .path()
+        .document_dir()
+        .ok()
+        .filter(|d| d.is_dir())
+        .or_else(|| app.path().home_dir().ok())
+        .unwrap_or_default();
+    let mut dialog = app
+        .dialog()
+        .file()
+        .set_directory(&folder)
+        .set_file_name(name)
+        .add_filter("Text", &["txt"]);
+    if let Some(island) = app.get_webview_window(crate::island::LABEL) {
+        dialog = dialog.set_parent(&island);
+    }
+    let path = dialog.blocking_save_file()?.into_path().ok()?;
+    Some(if path.extension().is_none() {
+        path.with_extension("txt")
+    } else {
+        path
+    })
 }
 
 #[cfg(windows)]
@@ -224,7 +266,7 @@ mod platform {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 mod platform {
     use std::path::PathBuf;
     use tauri::{Runtime, WebviewWindow};
