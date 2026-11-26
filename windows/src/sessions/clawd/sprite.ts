@@ -943,6 +943,12 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [8, false],
     [9, false],
   ],
+  kiro: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -1116,6 +1122,18 @@ export const KIMI_BODY = [
   ".AAAAAAAAAAA.",
 ];
 
+/** Kiro CLI's figure: a ghost, round on top with a scalloped hem. */
+export const KIRO_BODY = [
+  "...CCCCCCC...",
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CC.CCC.CCC.CC",
+];
+
 export const QWEN_BODY = [
   "...CCCCCCC...",
   "..CCCCCCCCC..",
@@ -1236,6 +1254,9 @@ function compose(
     // The dot goes first, so a hat simply covers it.
     put(s(12, -2, ["AA", "A."]));
     put(s(0, 0, KIMI_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "kiro") {
+    put(s(0, 0, KIRO_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));

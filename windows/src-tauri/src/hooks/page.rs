@@ -1247,6 +1247,7 @@ pub fn display_name(provider: Provider) -> &'static str {
         Provider::Droid => "Factory Droid",
         Provider::Cline => "Cline",
         Provider::Kimi => "Kimi Code",
+        Provider::Kiro => "Kiro CLI",
         Provider::Custom => "Other tool",
     }
 }

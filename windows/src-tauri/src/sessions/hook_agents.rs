@@ -40,7 +40,7 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 15] = [
+    pub const HOOK_AGENTS: [Provider; 16] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -56,11 +56,12 @@ impl Provider {
         Provider::Droid,
         Provider::Cline,
         Provider::Kimi,
+        Provider::Kiro,
     ];
 
     /// The hook agents the island puts hooks or a plugin into. Cline is read
     /// from its own session store instead, and gets nothing (#241).
-    pub const INSTALLED_AGENTS: [Provider; 14] = [
+    pub const INSTALLED_AGENTS: [Provider; 15] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -75,6 +76,7 @@ impl Provider {
         Provider::Qwen,
         Provider::Droid,
         Provider::Kimi,
+        Provider::Kiro,
     ];
 
     /// Whether the island puts hooks or a plugin into the agent.
@@ -117,6 +119,7 @@ impl Provider {
                 | Provider::Droid
                 | Provider::Cline
                 | Provider::Kimi
+                | Provider::Kiro
         )
     }
 
@@ -139,6 +142,7 @@ impl Provider {
             Provider::Droid => "droid",
             Provider::Cline => "cline",
             Provider::Kimi => "kimi",
+            Provider::Kiro => "kiro",
             Provider::Custom => "custom",
         }
     }
@@ -168,6 +172,7 @@ impl Provider {
             Provider::Droid,
             Provider::Cline,
             Provider::Kimi,
+            Provider::Kiro,
             Provider::Custom,
         ]
         .into_iter()
@@ -282,7 +287,8 @@ pub fn waits(data: &[u8]) -> bool {
             || contains(data, b"\"pi\"")
             || contains(data, b"\"proxy\"")
             || contains(data, b"\"zcode\"")
-            || contains(data, b"\"qwen\""))
+            || contains(data, b"\"qwen\"")
+            || contains(data, b"\"kiro\""))
     {
         return false;
     }
@@ -298,8 +304,11 @@ pub fn waits(data: &[u8]) -> bool {
             json.get("hook").and_then(Value::as_str) == Some("proxy")
                 && matches!(kind, Some("approval" | "question"))
         }
-        // ZCode's permission hook prints the island's answer.
-        Some("zcode") => json.get("hook").and_then(Value::as_str) == Some("PermissionRequest"),
+        // ZCode's permission hook prints the island's answer, and so does
+        // Kiro CLI's: Kiro shows its dialog only once the hook answered nothing.
+        Some("zcode" | "kiro") => {
+            json.get("hook").and_then(Value::as_str) == Some("PermissionRequest")
+        }
         // So does Qwen Code's, but for a question or a plan, which only its own dialog takes.
         Some("qwen") => {
             json.get("hook").and_then(Value::as_str) == Some("PermissionRequest")
@@ -389,6 +398,7 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
         Provider::Qwen => qwen(&hook, event, pid, now, policy, &mut decoded),
         Provider::Droid => droid(&hook, event, pid, now, policy, &mut decoded),
         Provider::Kimi => decoded.events = kimi(&hook, event, pid, now, policy),
+        Provider::Kiro => kiro(&hook, event, pid, now, policy, &mut decoded),
         Provider::Hermes => decoded.events = hermes(&hook, event, pid, now, policy),
         Provider::Grok => {
             decoded.events = grok(&hook, event, pid, now, policy);
@@ -1683,6 +1693,112 @@ fn qwen(
     decoded.events = events;
 }
 
+// MARK: Kiro CLI
+
+/// Kiro CLI's hooks (kiro.dev/docs/hooks/types): Claude Code's fields, with
+/// the session's id, folder and event, its tools under Kiro's own names and
+/// arguments, read as Claude Code's (`kiro::claude_input`). No event names a
+/// tool call, so a tool ends the one of its kind that started last. Its
+/// permission hook runs before its dialog shows and is held for the island.
+/// Escape at its dialog cancels the turn with no `Stop`: the tool's result
+/// says so, and ends the turn.
+fn kiro(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+    decoded: &mut Decoded,
+) {
+    let Some(session) = text(json, "session_id") else {
+        return;
+    };
+    let cwd = text(json, "cwd");
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Kiro,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    let raw = str_of(json.get("tool_name")).unwrap_or("");
+    let tool = name(Provider::Kiro, raw);
+    let input = super::kiro::claude_input(raw, &arguments(json.get("tool_input")));
+    let event = text(json, "hook_event_name").unwrap_or_else(|| hook.to_owned());
+    match event.as_str() {
+        "SessionStart" => add(Kind::Started),
+        "SessionEnd" => add(Kind::Ended),
+        "UserPromptSubmit" => add(Kind::Prompt(
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
+        )),
+        "PreToolUse" => add(Kind::ToolStarted(tool_use(&tool, &input, now, policy))),
+        "PermissionRequest" => {
+            let request = format!("{:x}", rand_id());
+            // Read as Claude Code's, whatever the previews: the person decides on it.
+            let full = tool_summary::permission_detail(&tool, &input);
+            let complete = tool != "Bash"
+                || input
+                    .get("command")
+                    .and_then(Value::as_str)
+                    .is_some_and(|s| !s.is_empty());
+            let mut permission = Permission {
+                request_id: request.clone(),
+                tool: if tool.is_empty() {
+                    "Tool".to_owned()
+                } else {
+                    tool.clone()
+                },
+                summary: tool_summary::summary(&tool, &input),
+                detail: String::new(),
+                content: None,
+                offers_always: false,
+                since: now,
+                tool_id: None,
+                input_key: Some(tool_summary::input_key(&tool, &input)),
+                questions: Vec::new(),
+                diffs: file_diff::diffs(&tool, &input, cwd.as_deref()),
+                plan_modes: Vec::new(),
+                risk: super::risk::Risk::Unassessed,
+            };
+            permission.set_content(&full, complete, Some(full.chars().count()));
+            decoded.permission = Some((session.clone(), request));
+            add(Kind::HeldPermission(permission));
+        }
+        "PostToolUse" => {
+            // The tool ran, or its dialog was answered: here or in Kiro.
+            add(Kind::PermissionSettled(None));
+            let cancelled = super::kiro::cancelled(json.get("tool_response"));
+            add(Kind::ToolFinished {
+                id: None,
+                input_key: Some(tool_summary::input_key(&tool, &input)),
+                name: tool,
+                failed: cancelled,
+                started: None,
+            });
+            if cancelled {
+                add(Kind::Stopped {
+                    last_text: None,
+                    failed: false,
+                });
+            }
+        }
+        // Kiro's Stop carries no reply: its session's log holds it (service).
+        "Stop" => add(Kind::Stopped {
+            last_text: None,
+            failed: false,
+        }),
+        _ => {}
+    }
+    decoded.events = events;
+}
+
 // MARK: Grok CLI
 
 /// Grok CLI's hooks (xAI's Grok Build, user guide "Hooks"): camelCase input
@@ -2623,6 +2739,28 @@ pub fn name(provider: Provider, tool: &str) -> String {
             ("agents_spawn", "Task"),
             ("ask_user_question", "AskUserQuestion"),
         ],
+        // Kiro's hooks name its tools as below, its shell `execute_pwsh` on Windows.
+        Provider::Kiro => &[
+            ("execute_bash", "Bash"),
+            ("execute_pwsh", "Bash"),
+            ("execute_shell", "Bash"),
+            ("read_file", "Read"),
+            ("fs_read", "Read"),
+            ("read_code", "Read"),
+            ("fs_write", "Write"),
+            ("write_file", "Write"),
+            ("str_replace", "Edit"),
+            ("replace_text", "Edit"),
+            ("append_lines", "Edit"),
+            ("edit_code", "Edit"),
+            ("grep_search", "Grep"),
+            ("file_search", "Glob"),
+            ("find_files", "Glob"),
+            ("web_fetch", "WebFetch"),
+            ("web_search", "WebSearch"),
+            ("invoke_sub_agent", "Task"),
+            ("task_update", "TodoWrite"),
+        ],
         Provider::Devin => &[
             ("exec", "Bash"),
             ("read", "Read"),
@@ -2851,6 +2989,19 @@ impl Entry {
 
     pub fn model(&self) -> Option<&str> {
         self.model.as_deref()
+    }
+
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+
+    /// When the turn still open started: none once it ended.
+    pub fn turn_open_since(&self) -> Option<Time> {
+        if self.turn_open {
+            self.turn_started
+        } else {
+            None
+        }
     }
 
     fn open_tool(&self) -> Option<&ToolUse> {
@@ -3501,6 +3652,7 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Droid => Some("droid"),
         Provider::Cline => Some("cline"),
         Provider::Kimi => Some("kimi"),
+        Provider::Kiro => Some("kiro-cli"),
         Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
 }
@@ -3520,10 +3672,11 @@ pub fn takes_one_return(provider: Provider) -> bool {
     }
     // Cline sends on the first return; a second would approve the tool it
     // may ask about next (#241). So does Kimi Code, where a second picks
-    // "Approve once" in the dialog its reply may open at once (#240).
+    // "Approve once" in the dialog its reply may open at once (#240), and
+    // Kiro CLI, whose "Allow once" a second would take (#238).
     matches!(
         provider,
-        Provider::Zcode | Provider::Hermes | Provider::Cline | Provider::Kimi
+        Provider::Zcode | Provider::Hermes | Provider::Cline | Provider::Kimi | Provider::Kiro
     )
 }
 
@@ -3554,6 +3707,8 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         Provider::Devin | Provider::Grok | Provider::Droid => vec!["--".into(), prompt.into()],
         // On a terminal, `hermes chat -q` opens the session with it as the first turn.
         Provider::Hermes => vec!["chat".into(), "-q".into(), prompt.into()],
+        // `kiro-cli chat <question>` opens its terminal UI with the question as the first turn.
+        Provider::Kiro => vec!["chat".into(), prompt.into()],
         // A prompt alone runs Cline headless; `--tui` keeps its terminal UI with it as the first turn.
         Provider::Cline => vec!["--tui".into(), prompt.into()],
         Provider::Zcode
@@ -3731,6 +3886,10 @@ pub mod installer {
         "StopCancelled",
     ];
 
+    /// Kiro CLI's triggers (kiro.dev/docs/hooks/types), named as Claude Code's
+    /// are. Only `PermissionRequest` waits for the island's answer.
+    pub const KIRO_EVENTS: [&str; 7] = super::super::kiro::EVENTS;
+
     /// ZCode's events (its hooks guide, zcode.z.ai/en/docs/hooks), every one
     /// it has: its config refuses any other name. They sit under
     /// `hooks.events` in its CLI config, which also says `hooks.enabled`.
@@ -3879,6 +4038,19 @@ pub mod installer {
         env_dir("GROK_HOME").unwrap_or_else(|| home.join(".grok"))
     }
 
+    /// Kiro CLI's folder: `KIRO_HOME`, or `~/.kiro` (`%USERPROFILE%\.kiro`). The
+    /// Kiro IDE keeps its files there too, so only its command says it is here.
+    pub fn kiro_folder(home: &Path) -> PathBuf {
+        env_dir("KIRO_HOME").unwrap_or_else(|| home.join(".kiro"))
+    }
+
+    /// The island's own hooks file in Kiro CLI's global `hooks` folder.
+    pub fn kiro_hooks(home: &Path, app: &str) -> PathBuf {
+        kiro_folder(home)
+            .join("hooks")
+            .join(format!("{}.json", own_name(app)))
+    }
+
     pub fn grok_hooks(home: &Path, app: &str) -> PathBuf {
         grok_folder(home)
             .join("hooks")
@@ -3958,6 +4130,7 @@ pub mod installer {
             Provider::Droid => super::super::droid::folder(home),
             Provider::Cline => super::super::cline::folder(home),
             Provider::Kimi => super::super::kimi::folder(home),
+            Provider::Kiro => kiro_folder(home),
             Provider::Claude | Provider::Custom => return None,
         })
     }
@@ -4359,6 +4532,40 @@ pub mod installer {
         data
     }
 
+    /// Kiro CLI's hooks file of the island's own, in its standalone hook
+    /// format (kiro.dev/docs/hooks): a hook for each event, tool events with
+    /// the matcher that takes every tool. Only the permission hook waits, as
+    /// long as Claude Code's does; Kiro reads timeouts in seconds.
+    pub fn kiro_file(exe: &Path, app: &str) -> Vec<u8> {
+        let hooks: Vec<Value> = KIRO_EVENTS
+            .iter()
+            .map(|event| {
+                let mut hook = json!({
+                    "name": format!("{}-{event}", own_name(app)),
+                    "trigger": event,
+                    "action": {
+                        "type": "command",
+                        "command": portable_command(Provider::Kiro, event, exe, app),
+                    },
+                    "timeout": if *event == "PermissionRequest" {
+                        claude::PERMISSION_TIMEOUT
+                    } else {
+                        EVENT_TIMEOUT
+                    },
+                    "enabled": true,
+                });
+                if super::super::kiro::TOOL_EVENTS.contains(event) {
+                    hook["matcher"] = json!("*");
+                }
+                hook
+            })
+            .collect();
+        let mut data = serde_json::to_vec_pretty(&json!({ "version": "v1", "hooks": hooks }))
+            .unwrap_or_default();
+        data.push(b'\n');
+        data
+    }
+
     pub fn opencode_file(endpoint: &str, app: &str) -> Vec<u8> {
         let literal = serde_json::to_string(endpoint).unwrap_or_else(|_| "\"\"".into());
         PLUGIN
@@ -4662,6 +4869,7 @@ pub mod installer {
             },
             Provider::Copilot => own_state(&path, &copilot_file(exe, app)),
             Provider::Grok => own_state(&path, &grok_file(exe, app)),
+            Provider::Kiro => own_state(&path, &kiro_file(exe, app)),
             Provider::Opencode => own_state(&path, &opencode_file(endpoint, app)),
             Provider::Pi => own_state(&path, &pi_file(endpoint, app)),
             Provider::Vibe => match vibe_text(&path) {
@@ -4897,6 +5105,7 @@ pub mod installer {
             }
             Provider::Copilot => write_own(&path, &copilot_file(exe, app), app),
             Provider::Grok => write_own(&path, &grok_file(exe, app), app),
+            Provider::Kiro => write_own(&path, &kiro_file(exe, app), app),
             Provider::Opencode => write_own(&path, &opencode_file(endpoint, app), app),
             Provider::Pi => write_own(&path, &pi_file(endpoint, app), app),
             Provider::Vibe => {
@@ -4976,9 +5185,11 @@ pub mod installer {
         };
         let failure = |e: claude::Failure| e.to_string();
         match provider {
-            Provider::Copilot | Provider::Opencode | Provider::Pi | Provider::Grok => {
-                remove_own(&path, app)
-            }
+            Provider::Copilot
+            | Provider::Opencode
+            | Provider::Pi
+            | Provider::Grok
+            | Provider::Kiro => remove_own(&path, app),
             // Its hooks.json may hold the island's entries without a settings.json.
             Provider::Droid => match path.parent() {
                 Some(folder) => super::super::droid::remove(folder, app).map_err(failure),
@@ -7347,6 +7558,89 @@ mod tests {
         assert_eq!(grok_session_pid_in(b"{}", "a"), None);
     }
 
+    // MARK: Kiro CLI (#238)
+
+    fn kiro_event(hook: &str, extra: Value) -> Vec<u8> {
+        let mut event = json!({
+            "session_id": "f2946a26-3735-4b08-8d05-c928010302d5",
+            "cwd": "/w/rocket", "hook_event_name": hook,
+        });
+        for (k, v) in extra.as_object().unwrap() {
+            event[k] = v.clone();
+        }
+        envelope("kiro", hook, event)
+    }
+
+    #[test]
+    fn kiro_sessions_come_through_hooks_and_end_with_the_turn() {
+        let mut tracker = Tracker::default();
+        feed(&mut tracker, &kiro_event("SessionStart", json!({})), ON);
+        feed(
+            &mut tracker,
+            &kiro_event("UserPromptSubmit", json!({"prompt": "add a retry"})),
+            ON,
+        );
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].id, "kiro:f2946a26-3735-4b08-8d05-c928010302d5");
+        assert_eq!(sessions[0].provider, Provider::Kiro);
+        assert_eq!(sessions[0].phase, SessionPhase::Generating);
+        feed(
+            &mut tracker,
+            &kiro_event(
+                "PreToolUse",
+                json!({"tool_name": "execute_bash", "tool_input": {"command": "cargo test"}}),
+            ),
+            ON,
+        );
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].phase, SessionPhase::RunningTool);
+        feed(&mut tracker, &kiro_event("Stop", json!({})), ON);
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].phase, SessionPhase::Finished);
+        feed(&mut tracker, &kiro_event("SessionEnd", json!({})), ON);
+        assert!(snap(&mut tracker, NOW, true).0.is_empty());
+        assert_eq!(name(Provider::Kiro, "execute_bash"), "Bash");
+        assert_eq!(name(Provider::Kiro, "fs_read"), "Read");
+        assert_eq!(Provider::from_key("kiro"), Some(Provider::Kiro));
+    }
+
+    #[test]
+    fn kiro_hooks_are_a_file_of_the_islands_own_and_hold_its_permission() {
+        let exe = Path::new("C:/Openbar/Openbar.exe");
+        let file: Value = serde_json::from_slice(&installer::kiro_file(exe, "app")).unwrap();
+        assert_eq!(file["version"], "v1");
+        let hooks = file["hooks"].as_array().unwrap();
+        assert_eq!(hooks.len(), installer::KIRO_EVENTS.len());
+        let pre = hooks.iter().find(|h| h["trigger"] == "PreToolUse").unwrap();
+        assert_eq!(pre["matcher"], "*");
+        assert_eq!(pre["enabled"], true);
+        assert_eq!(pre["name"], "openbar-app-PreToolUse");
+        assert_eq!(pre["timeout"], installer::EVENT_TIMEOUT);
+        let command = pre["action"]["command"].as_str().unwrap();
+        assert!(
+            command.starts_with("C:/Openbar/Openbar.exe --hook --agent kiro --event PreToolUse")
+        );
+        let ask = hooks
+            .iter()
+            .find(|h| h["trigger"] == "PermissionRequest")
+            .unwrap();
+        assert_eq!(ask["matcher"], "*");
+        assert_eq!(ask["timeout"], crate::hooks::installer::PERMISSION_TIMEOUT);
+        let stop = hooks.iter().find(|h| h["trigger"] == "Stop").unwrap();
+        assert!(stop.get("matcher").is_none());
+        assert!(
+            installer::kiro_hooks(Path::new("/h"), "app").ends_with("hooks/openbar-app.json")
+                || std::env::var_os("KIRO_HOME").is_some()
+        );
+        assert_eq!(command_name(Provider::Kiro), Some("kiro-cli"));
+        assert_eq!(
+            start_arguments(Provider::Kiro, "fix it"),
+            vec!["chat", "fix it"]
+        );
+        assert!(Provider::Kiro.answers_permissions());
+        assert!(Provider::HOOK_AGENTS.contains(&Provider::Kiro) && Provider::Kiro.installs_hooks());
+    }
+
     // MARK: ZCode (#245)
 
     fn zcode(event: &str, extra: Value) -> Vec<u8> {
@@ -7519,7 +7813,8 @@ mod tests {
             Provider::Hermes,
             Provider::Qwen,
             Provider::Droid,
-            Provider::Kimi
+            Provider::Kimi,
+            Provider::Kiro
         ]));
         assert_eq!(Provider::from_key("zcode"), Some(Provider::Zcode));
     }

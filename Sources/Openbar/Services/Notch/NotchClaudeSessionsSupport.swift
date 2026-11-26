@@ -42,6 +42,7 @@ enum NotchClaudeSessionsSupport {
         case .droid: return DefaultsKey.notchSessionsAgentDroid
         case .cline: return DefaultsKey.notchSessionsAgentCline
         case .kimi: return DefaultsKey.notchSessionsAgentKimi
+        case .kiro: return DefaultsKey.notchSessionsAgentKiro
         case .hermes: return DefaultsKey.notchSessionsAgentHermes
         case .claude, .codex, .custom: return nil
         }

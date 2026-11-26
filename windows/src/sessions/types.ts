@@ -197,6 +197,8 @@ export type Provider =
   | "cline"
   /** Moonshot AI's Kimi Code (kimi, kimi web and its app), heard through hooks in its config.toml; its terminal takes the island's keys, its server its answers (#240). */
   | "kimi"
+  /** Amazon's Kiro CLI, heard through hooks in ~/.kiro/hooks; it asks in its own terminal (#238). */
+  | "kiro"
   /** A tool with Claude Code style hooks added on the Hooks page (#236): never one of the named agents. */
   | "custom";
 
@@ -219,6 +221,7 @@ export const PROVIDERS: readonly Provider[] = [
   "droid",
   "cline",
   "kimi",
+  "kiro",
 ];
 
 /** The agents that report through the island's hooks or plugin
@@ -239,6 +242,7 @@ export const HOOK_AGENTS = [
   "droid",
   "cline",
   "kimi",
+  "kiro",
 ] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
@@ -261,6 +265,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   droid: "Droid",
   cline: "Cline",
   kimi: "Kimi",
+  kiro: "Kiro",
   custom: "Other tool",
 };
 
@@ -286,6 +291,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   droid: "Factory Droid",
   cline: "Cline",
   kimi: "Kimi Code",
+  kiro: "Kiro CLI",
   custom: "Other tool",
 };
 
@@ -425,6 +431,7 @@ export interface Counts {
   workingDroid?: number;
   workingCline?: number;
   workingKimi?: number;
+  workingKiro?: number;
   /** Of `working`, the tools added on the Hooks page (#236). */
   workingCustom?: number;
   waiting: number;
@@ -499,6 +506,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     droid: counts.workingDroid ?? 0,
     cline: counts.workingCline ?? 0,
     kimi: counts.workingKimi ?? 0,
+    kiro: counts.workingKiro ?? 0,
     custom: counts.workingCustom ?? 0,
   };
   if (provider === "claude") {

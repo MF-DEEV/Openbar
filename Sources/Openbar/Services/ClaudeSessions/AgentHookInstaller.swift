@@ -5,22 +5,22 @@ import CryptoKit
 import Foundation
 
 /// Puts the island's hooks into Gemini CLI, Copilot CLI, Cursor, Mistral
-/// Vibe, Devin CLI, Grok CLI, ZCode, Qwen Code, Factory Droid and Kimi Code, and its plugin into OpenCode and Pi, and takes them
+/// Vibe, Devin CLI, Grok CLI, ZCode, Qwen Code, Factory Droid, Kimi Code and Kiro CLI, and its plugin into OpenCode and Pi, and takes them
 /// out again, only when the person presses Install or Remove. Where the
 /// agent keeps every hook in one file (Gemini's settings, Cursor's
 /// hooks.json, Vibe's hooks.toml, Devin's and ZCode's config.json, Qwen Code's settings.json) the island's entries
 /// go beside the person's own, carry its marker, and the file is copied
 /// aside first, as for Claude Code. Where the agent reads a folder of files
-/// (Copilot's and Grok's hooks, OpenCode's plugins, Pi's extensions) the
+/// (Copilot's, Grok's and Kiro's hooks, OpenCode's plugins, Pi's extensions) the
 /// island writes a file of its own.
 ///
 /// Each hook is the system's `nc` writing the event, wrapped in an envelope
 /// naming the agent and the hook, to the island's socket. When the app is
 /// not running it connects to nothing and prints nothing, and the agent
-/// carries on as if there were no hook. Only ZCode's and Qwen Code's
-/// permission hooks wait for an answer. ZCode asks in its own prompt at the
-/// same time; Qwen Code asks only once the hook answered nothing, so the
-/// island lets the hook go whenever the person should answer in Qwen Code.
+/// carries on as if there were no hook. Only ZCode's, Qwen Code's and Kiro
+/// CLI's permission hooks wait for an answer. ZCode asks in its own prompt at
+/// the same time; Qwen Code and Kiro ask only once the hook answered nothing,
+/// so the island lets the hook go whenever the person should answer there.
 enum AgentHookInstaller {
     static let eventTimeout = 5
 
@@ -148,7 +148,7 @@ enum AgentHookInstaller {
 
     /// The agents whose config folder can be named by hand, beside the one
     /// their home variable or default names (#236).
-    static let foldersByHand: [ClaudeSessionProvider] = [.codex, .gemini, .copilot, .pi, .vibe, .grok, .qwen, .droid, .kimi]
+    static let foldersByHand: [ClaudeSessionProvider] = [.codex, .gemini, .copilot, .pi, .vibe, .grok, .qwen, .droid, .kimi, .kiro]
 
     /// The agent's hook file in a config folder the person added (#236): the
     /// folder Gemini keeps as `.gemini`, Copilot's `COPILOT_HOME`, Pi's
@@ -166,6 +166,8 @@ enum AgentHookInstaller {
         case .droid: return folder.appending(path: "settings.json")
         // A `KIMI_CODE_HOME`: its config.toml.
         case .kimi: return folder.appending(path: "config.toml")
+        // A `KIRO_HOME`: the island's own file in its `hooks` folder.
+        case .kiro: return AgentKiro.hooks(folder: folder, bundle: bundle)
         default: return nil
         }
     }
@@ -209,6 +211,7 @@ enum AgentHookInstaller {
         case .droid: return AgentDroid.folder(home: home, environment: environment)
         case .cline: return AgentCline.folder(home: home, environment: environment)
         case .kimi: return AgentKimi.folder(home: home, environment: environment)
+        case .kiro: return AgentKiro.folder(home: home, environment: environment)
         case .codex:
             return environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
                 ?? home.appending(path: ".codex")
@@ -306,7 +309,8 @@ enum AgentHookInstaller {
                 + "| /usr/bin/nc -w 2 -U \(quoted) >/dev/null 2>&1; exit 0 \(marker(bundle: bundle))"
         }
         // Kimi Code puts what a prompt's hook prints into the model's context: nothing is printed.
-        let quiet = provider == .kimi ? " >/dev/null" : ""
+        // So does Kiro CLI, whose permission hook alone prints the island's answer.
+        let quiet = provider == .kimi || (provider == .kiro && event != "PermissionRequest") ? " >/dev/null" : ""
         var command = "{ printf '\(head)' \"$PPID\"; cat; printf '}'; } | /usr/bin/nc -U \(quoted)\(quiet) 2>/dev/null"
         if provider == .cursor, cursorContinues.contains(event) { command += "; printf '{\"continue\":true}'" }
         return command + "; exit 0 \(marker(bundle: bundle))"
@@ -446,6 +450,9 @@ enum AgentHookInstaller {
             case .grok:
                 guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
                 return data == grokFile(socket: socket, bundle: bundle) ? .installed : .outdated
+            case .kiro:
+                guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
+                return data == AgentKiro.file(socket: socket, bundle: bundle) ? .installed : .outdated
             case .opencode:
                 guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
                 return data == opencodeFile(socket: socket, bundle: bundle) ? .installed : .outdated
@@ -531,6 +538,8 @@ enum AgentHookInstaller {
             try writeOwn(copilotFile(socket: socket, bundle: bundle), to: url, bundle: bundle)
         case .grok:
             try writeOwn(grokFile(socket: socket, bundle: bundle), to: url, bundle: bundle)
+        case .kiro:
+            try writeOwn(AgentKiro.file(socket: socket, bundle: bundle), to: url, bundle: bundle)
         case .opencode:
             try writeOwn(opencodeFile(socket: socket, bundle: bundle), to: url, bundle: bundle)
         case .pi:
@@ -595,7 +604,7 @@ enum AgentHookInstaller {
         case .cursor:
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
             try ClaudeHookInstaller.update(url) { flatRemoving(from: $0, bundle: bundle) }
-        case .copilot, .opencode, .pi, .grok:
+        case .copilot, .opencode, .pi, .grok, .kiro:
             try removeOwn(url, bundle: bundle)
         case .vibe:
             guard try ClaudeHookInstaller.contents(url) != nil else { return }

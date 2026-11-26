@@ -427,7 +427,8 @@ extension ClaudeSessionProvider {
     /// than Claude's clay. Cline, white on black as well, a sea green no
     /// other agent wears, between Gemini's sky and Grok's moss. Kimi Code
     /// the pale blue its mark's head fades to, lighter than Antigravity's
-    /// and less green than Gemini's sky.
+    /// and less green than Gemini's sky. Kiro CLI the violet of its ghost's
+    /// ground, deeper than Devin's orchid and redder than Qwen's indigo.
     var tint: Color {
         if let agent { return agent.tint }
         switch self {
@@ -443,6 +444,7 @@ extension ClaudeSessionProvider {
         case .droid: return Color(red: 1.0, green: 0.42, blue: 0.13)
         case .cline: return Color(red: 0.25, green: 0.84, blue: 0.74)
         case .kimi: return Color(red: 0.47, green: 0.71, blue: 1.0)
+        case .kiro: return Color(red: 0.60, green: 0.36, blue: 1.0)
         default: return Color(red: 0.80, green: 0.82, blue: 0.90)
         }
     }

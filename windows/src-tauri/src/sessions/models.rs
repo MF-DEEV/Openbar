@@ -813,6 +813,7 @@ pub struct SessionCounts {
     pub working_hermes: i64,
     pub working_qwen: i64,
     pub working_droid: i64,
+    pub working_kiro: i64,
     pub working_cline: i64,
     pub working_kimi: i64,
     /// Of `working`, the ones of tools added on the Hooks page (#236).
@@ -846,6 +847,7 @@ impl SessionCounts {
                     Provider::Droid => counts.working_droid += 1,
                     Provider::Cline => counts.working_cline += 1,
                     Provider::Kimi => counts.working_kimi += 1,
+                    Provider::Kiro => counts.working_kiro += 1,
                     Provider::Custom => counts.working_custom += 1,
                     Provider::Claude => {}
                 }
@@ -906,6 +908,9 @@ pub enum Provider {
     /// through hooks in its config.toml; its terminal UI takes keys, its local
     /// server takes answers and replies (#240).
     Kimi,
+    /// Amazon's Kiro CLI (`kiro-cli`), heard through hooks in `~/.kiro/hooks`;
+    /// it asks in its own terminal, and the island only tells (#238).
+    Kiro,
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     Custom,

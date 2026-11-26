@@ -26,6 +26,7 @@ pub mod hook_agents;
 pub mod hook_message;
 pub mod inspection;
 pub mod kimi;
+pub mod kiro;
 pub mod models;
 pub mod plan_modes;
 pub mod qwen;

@@ -465,7 +465,7 @@ enum KimiAgentTests {
                      "found where its install script puts it")
         suite.expect(ClaudeSessionProvider.kimi.displayName == "Kimi Code" && ClaudeSessionProvider.kimi.shortName == "Kimi"
                      && ClaudeSessionProvider.kimi.answersPermissions && ClaudeSessionProvider.kimi.reportsThroughHooks
-                     && ClaudeSessionProvider.kimi.character == .kimi && ClaudeSessionProvider.installedAgents.last == .kimi
+                     && ClaudeSessionProvider.kimi.character == .kimi && ClaudeSessionProvider.installedAgents.contains(.kimi)
                      && AgentHookInstaller.foldersByHand.contains(.kimi),
                      "named Kimi Code, answered on the island")
         suite.expect(AgentKimi.modelName("kimi-code/kimi-for-coding") == "kimi-for-coding" && AgentKimi.modelName("mock") == "mock",
