@@ -126,9 +126,55 @@ pub fn fetch(url: &str, part: &Path, progress: &mut dyn FnMut(u64)) -> Result<()
     out.flush().map_err(|e| e.to_string())
 }
 
+/// The desktop's sound settings, where a microphone is picked, as the
+/// voice reply's "Open Settings" opens Windows' sound page: the desktop's
+/// own panel first, then PulseAudio's volume control (input devices tab).
+/// False when none of them is installed.
+pub fn open_sound_settings() -> bool {
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    sound_settings(&desktop)
+        .iter()
+        .any(|(program, args)| crate::linux::command::spawn(program, args))
+}
+
+fn sound_settings(desktop: &str) -> Vec<(&'static str, &'static [&'static str])> {
+    let desktop = desktop.to_ascii_lowercase();
+    let has = |name: &str| desktop.split(':').any(|part| part == name);
+    let mut found: Vec<(&'static str, &'static [&'static str])> = Vec::new();
+    if has("gnome") || has("ubuntu") || has("unity") || has("pop") || has("budgie") {
+        found.push(("gnome-control-center", &["sound"]));
+    }
+    if has("kde") {
+        found.push(("systemsettings", &["kcm_pulseaudio"]));
+        found.push(("systemsettings5", &["kcm_pulseaudio"]));
+    }
+    if has("x-cinnamon") || has("cinnamon") {
+        found.push(("cinnamon-settings", &["sound"]));
+    }
+    if has("mate") {
+        found.push(("mate-volume-control", &["--page=input"]));
+    }
+    found.push(("pavucontrol", &["--tab=4"]));
+    found.push(("pavucontrol-qt", &[]));
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_desktops_own_sound_panel_comes_before_the_volume_control() {
+        let first = |desktop: &str| sound_settings(desktop)[0].0;
+        assert_eq!(first("ubuntu:GNOME"), "gnome-control-center");
+        assert_eq!(first("KDE"), "systemsettings");
+        assert_eq!(first("X-Cinnamon"), "cinnamon-settings");
+        assert_eq!(first("MATE"), "mate-volume-control");
+        assert_eq!(first("XFCE"), "pavucontrol");
+        assert_eq!(first(""), "pavucontrol");
+        // The volume control stays the last resort everywhere.
+        assert!(sound_settings("GNOME").iter().any(|(p, _)| *p == "pavucontrol"));
+    }
 
     #[test]
     fn floats_are_read_little_endian_and_a_split_sample_waits() {
