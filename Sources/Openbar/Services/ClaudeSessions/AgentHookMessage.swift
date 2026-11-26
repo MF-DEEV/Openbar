@@ -111,7 +111,7 @@ enum AgentHookMessage {
     static func waits(_ data: Data) -> Bool {
         guard isEnvelope(data), AgentLogParser.contains(data, "\"opencode\"") || AgentLogParser.contains(data, "\"pi\"")
             || AgentLogParser.contains(data, "\"proxy\"") || AgentLogParser.contains(data, "\"zcode\"")
-            || AgentLogParser.contains(data, "\"qwen\"")
+            || AgentLogParser.contains(data, "\"qwen\"") || AgentLogParser.contains(data, "\"kiro\"")
         else { return false }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let name = json[key] as? String, let provider = ClaudeSessionProvider(rawValue: name),
@@ -126,6 +126,8 @@ enum AgentHookMessage {
             return json["hook"] as? String == "PermissionRequest"
                 && !AgentQwen.askedInQwen.contains(event["tool_name"] as? String ?? "")
         }
+        // So does Kiro CLI's: Kiro shows its dialog only once the hook answered nothing.
+        if provider == .kiro { return json["hook"] as? String == "PermissionRequest" }
         guard provider.reportsThroughPlugin else { return false }
         return kind == "listen" || (provider == .opencode && kind == "permission")
     }
@@ -168,6 +170,7 @@ enum AgentHookMessage {
         case .qwen: qwen(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .droid: droid(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .kimi: kimi(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
+        case .kiro: kiro(hook, event, pid: pid, now: now, policy: policy, into: &decoded)
         // Cline is read from its own store, never through a hook (#241).
         case .claude, .cline: return nil
         }
@@ -656,6 +659,62 @@ enum AgentHookMessage {
             decoded.qwen = .stopped
             let failed = (text(json, "hook_event_name") ?? hook) == "StopFailure"
             add(.stopped(lastText: policy.previews ? preview(json["last_assistant_message"]) : nil, failed: failed))
+        default: break
+        }
+    }
+
+    // MARK: Kiro CLI
+
+    /// Kiro CLI's hooks (kiro.dev/docs/hooks/types): Claude Code's fields,
+    /// with the session's id, folder and event, its tools under Kiro's own
+    /// names and arguments, which are read as Claude Code's (`AgentKiro`).
+    /// No event names a tool call, so a tool ends the one of its kind that
+    /// started last. Its permission hook runs before its dialog shows and is
+    /// held for the island. Escape at its dialog cancels the turn with no
+    /// `Stop`: the tool's result says so, and ends the turn.
+    private static func kiro(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                             policy: ClaudeContentPolicy, into decoded: inout Decoded) {
+        guard let session = text(json, "session_id") else { return }
+        let cwd = text(json, "cwd")
+        func add(_ kind: AgentHookEvent.Kind) {
+            decoded.events.append(AgentHookEvent(provider: .kiro, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+        }
+        let raw = json["tool_name"] as? String ?? ""
+        let tool = AgentHookTools.name(.kiro, raw)
+        let input = AgentKiro.claudeInput(raw, arguments(json["tool_input"]))
+        switch text(json, "hook_event_name") ?? hook {
+        case "SessionStart":
+            add(.started)
+        case "SessionEnd":
+            add(.ended)
+        case "UserPromptSubmit":
+            add(.prompt(policy.previews ? preview(json["prompt"]) : nil))
+        case "PreToolUse":
+            add(.toolStarted(toolUse(tool, input: input, at: now, policy: policy)))
+        case "PermissionRequest":
+            let request = UUID().uuidString
+            // Read as Claude Code's, whatever the previews: the person decides on it.
+            let full = ClaudeToolSummary.permissionDetail(name: tool, input: input)
+            let content = PermissionContent(full: full, complete: tool != "Bash" || (input["command"] as? String).map { !$0.isEmpty } == true,
+                                            originalLength: full.unicodeScalars.count)
+            let permission = ClaudePermission(
+                requestID: request, tool: tool.isEmpty ? "Tool" : tool,
+                summary: ClaudeToolSummary.summary(name: tool, input: input),
+                detail: content.preview, content: content, offersAlways: false, since: now,
+                inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                diffs: ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: cwd))
+            decoded.permission = (session, request)
+            add(.heldPermission(permission))
+        case "PostToolUse":
+            // The tool ran, or its dialog was answered: here or in Kiro.
+            add(.permissionSettled(nil))
+            let cancelled = AgentKiro.cancelled(json["tool_response"])
+            add(.toolFinished(id: nil, name: tool, inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                              failed: cancelled, started: nil))
+            if cancelled { add(.stopped(lastText: nil, failed: false)) }
+        case "Stop":
+            // Kiro's Stop carries no reply: its session's log holds it (ClaudeSessionService).
+            add(.stopped(lastText: nil, failed: false))
         default: break
         }
     }
@@ -1255,6 +1314,12 @@ enum AgentHookTools {
                 "web_search": "WebSearch", "todo_write": "TodoWrite", "agent": "Task", "monitor": "BashOutput",
                 "notebook_edit": "NotebookEdit", "ask_user_question": "AskUserQuestion",
                 "enter_plan_mode": "EnterPlanMode", "exit_plan_mode": "ExitPlanMode"],
+        // Kiro's hooks name its tools as below, its shell `execute_pwsh` on Windows.
+        .kiro: ["execute_bash": "Bash", "execute_pwsh": "Bash", "execute_shell": "Bash", "read_file": "Read",
+                "fs_read": "Read", "read_code": "Read", "fs_write": "Write", "write_file": "Write", "str_replace": "Edit",
+                "replace_text": "Edit", "append_lines": "Edit", "edit_code": "Edit", "grep_search": "Grep",
+                "file_search": "Glob", "find_files": "Glob", "web_fetch": "WebFetch", "web_search": "WebSearch",
+                "invoke_sub_agent": "Task", "task_update": "TodoWrite"],
         .kimi: ["FetchURL": "WebFetch", "TodoList": "TodoWrite", "Agent": "Task", "ReadMediaFile": "Read",
                 "TaskOutput": "BashOutput", "TaskStop": "KillShell"],
         .droid: ["Execute": "Bash", "Create": "Write", "ApplyPatch": "Edit", "FetchUrl": "WebFetch",

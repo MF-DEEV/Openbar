@@ -139,6 +139,10 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     /// through hooks in its config.toml; its terminal UI takes keys, its
     /// local server takes answers and replies (#240).
     case kimi
+    /// Amazon's Kiro CLI (`kiro-cli`), heard through a hooks file of the
+    /// island's own in `~/.kiro/hooks`, whose permission hook the island
+    /// holds and answers (#238).
+    case kiro
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     case custom
@@ -153,7 +157,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .droid, .cline, .kimi, .custom: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .zcode, .hermes, .qwen, .droid, .cline, .kimi, .kiro, .custom: return nil
         }
     }
 
@@ -177,6 +181,7 @@ extension ClaudeSessionProvider {
         case .droid: return "Factory Droid"
         case .cline: return "Cline"
         case .kimi: return "Kimi Code"
+        case .kiro: return "Kiro CLI"
         case .custom: return "Other tool"
         }
     }
@@ -194,6 +199,7 @@ extension ClaudeSessionProvider {
         case .qwen: return "Qwen"
         case .droid: return "Droid"
         case .kimi: return "Kimi"
+        case .kiro: return "Kiro"
         default: return displayName
         }
     }
@@ -203,7 +209,7 @@ extension ClaudeSessionProvider {
 
     /// The agents that report through the island's hooks or plugin.
     static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok,
-                                                      .zcode, .hermes, .qwen, .droid, .cline, .kimi]
+                                                      .zcode, .hermes, .qwen, .droid, .cline, .kimi, .kiro]
 
     /// The hook agents the island puts hooks or a plugin into. Cline is read
     /// from its own session store instead, and gets nothing (#241).
@@ -232,10 +238,12 @@ extension ClaudeSessionProvider {
     /// can't approve a call it asks about either, but its prompt takes Return
     /// for yes and Escape for no, and digits for its questions and specs.
     /// Kimi Code's hooks only tell of a request too: its terminal UI takes
-    /// a choice's number, and its local server the answer itself.
+    /// a choice's number, and its local server the answer itself. Kiro CLI's
+    /// permission hook holds its request until the island answers, as Qwen
+    /// Code's does; once let go, its dialog takes Return and Down.
     var answersPermissions: Bool {
         switch self {
-        case .claude, .codex, .opencode, .grok, .zcode, .hermes, .qwen, .droid, .cline, .kimi: return true
+        case .claude, .codex, .opencode, .grok, .zcode, .hermes, .qwen, .droid, .cline, .kimi, .kiro: return true
         case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return false
         }
     }

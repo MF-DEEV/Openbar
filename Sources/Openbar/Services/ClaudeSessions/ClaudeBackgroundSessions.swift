@@ -850,6 +850,7 @@ enum AgentCLI {
         case .droid: return "droid"
         case .cline: return "cline"
         case .kimi: return "kimi"
+        case .kiro: return "kiro-cli"
         case .claude, .codex, .custom: return nil
         }
     }
@@ -873,7 +874,7 @@ enum AgentCLI {
 
     /// The arguments that open the agent's terminal UI with a first prompt
     /// already sent: `gemini -i`, `copilot -i`, `agy -i`, `qwen -i`, `opencode --prompt`,
-    /// `devin --`, `grok --`, `droid --`, and `cursor-agent`, `pi` and `vibe` take it as it is.
+    /// `devin --`, `grok --`, `droid --`, `kiro-cli chat`, and `cursor-agent`, `pi` and `vibe` take it as it is.
     static func startArguments(_ provider: ClaudeSessionProvider, prompt: String?) -> [String] {
         guard let prompt, !prompt.isEmpty else { return [] }
         switch provider {
@@ -886,6 +887,8 @@ enum AgentCLI {
         case .cline: return ["--tui", prompt]
         // On a terminal, `hermes chat -q` opens the session with it as the first turn.
         case .hermes: return ["chat", "-q", prompt]
+        // `kiro-cli chat <question>` opens its terminal UI with the question as the first turn.
+        case .kiro: return ["chat", prompt]
         case .zcode, .kimi, .claude, .codex, .custom: return []
         }
     }

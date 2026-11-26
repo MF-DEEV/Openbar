@@ -329,6 +329,9 @@ enum NotchClawdSprite {
             kimiDot.forEach { put($0) }
             put(Stamp(x: 0, y: 0, rows: kimiBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .kiro:
+            put(Stamp(x: 0, y: 0, rows: kiroBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -375,6 +378,7 @@ enum NotchClawdSprite {
         case .droid: return [(3, true), (4, true), (8, false), (9, false)]
         case .cline: return [(3, true), (4, true), (8, false), (9, false)]
         case .kimi: return [(3, true), (4, true), (8, false), (9, false)]
+        case .kiro: return [(3, true), (4, true), (8, false), (9, false)]
         }
     }
 
@@ -556,6 +560,17 @@ enum NotchClawdSprite {
         ".AAAAAAAAAAA.",
     ]
     private static let kimiDot = [Stamp(x: 12, y: -2, rows: ["AA", "A."])]
+    /// Kiro CLI's figure: its mark's ghost, round on top, its hem scalloped.
+    static let kiroBody = [
+        "...CCCCCCC...",
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CC.CCC.CCC.CC",
+    ]
     static let hermesBody = [
         "...AAAAAAA...",
         ".CCCCCCCCCCC.",
@@ -1154,7 +1169,7 @@ enum NotchClawdSprite {
             }
         case .hermes:
             if letter == "W" { return hermesWing }
-        case .vibe, .devin, .antigravity, .grok, .zcode, .qwen, .droid, .cline, .kimi:
+        case .vibe, .devin, .antigravity, .grok, .zcode, .qwen, .droid, .cline, .kimi, .kiro:
             break
         case .clawd:
             break

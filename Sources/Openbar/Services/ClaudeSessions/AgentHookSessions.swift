@@ -306,7 +306,9 @@ final class AgentHookSessions {
         // anywhere else. Qwen Code's question or plan with keys, in its own
         // dialog; its tools' through the hook the island holds.
         let qwenKeys = entry.provider == .qwen && entry.permission.map(AgentQwen.answeredByKeys) == true
-        let keyed = entry.provider == .grok || entry.provider == .droid || qwenKeys
+        // Kiro CLI's tools through the hook the island holds; once let go, by keys in its dialog (#238).
+        let kiroKeys = entry.provider == .kiro && entry.permission?.inAgentDialog == true
+        let keyed = entry.provider == .grok || entry.provider == .droid || qwenKeys || kiroKeys
         // Cline's CLI takes keys where its terminal does, and an approval
         // through Cline's hub anywhere; its extension asks in its own panel.
         let clineAnswers = entry.provider == .cline && entry.client != AgentCline.extensionClient

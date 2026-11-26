@@ -550,6 +550,21 @@ final class ClaudeSessionService: ObservableObject {
                 }
                 return
             }
+            if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .kiro, current.inAgentDialog {
+                // Kiro CLI's own dialog, once the island let its hook go:
+                // Return allows, Down and Return deny (#238).
+                guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host),
+                      let keys = AgentKiro.keys(decision) else { return }
+                actions.async { [self] in
+                    guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
+                    queue.async { [self] in
+                        hookAgents.resolve(id, request: request)
+                        hookAgents.acknowledge(id, now: Date())
+                        publish(now: Date())
+                    }
+                }
+                return
+            }
             if hookAgents.owns(id), let entry = hookAgents.entry(id), entry.provider == .droid {
                 // Droid's prompts take keys: Return for its yes, arrows to its no,
                 // numbers for questions and specs; its hooks tell when it moves on (#242).
@@ -655,10 +670,10 @@ final class ClaudeSessionService: ObservableObject {
                 return
             }
             if hookAgents.owns(id) {
-                // OpenCode's plugin and ZCode's and Qwen Code's hooks wait for the
-                // answer; the other agents ask in their own terminal.
+                // OpenCode's plugin and ZCode's, Qwen Code's and Kiro CLI's hooks
+                // wait for the answer; the other agents ask in their own terminal.
                 let provider = hookAgents.entry(id)?.provider
-                let vibe = provider == .vibe, zcode = provider == .zcode, qwen = provider == .qwen
+                let vibe = provider == .vibe, zcode = provider == .zcode, qwen = provider == .qwen || provider == .kiro
                 if vibe || zcode || qwen {
                     // A question is answered or skipped, never allowed; answers go only to a question.
                     switch decision {
@@ -670,6 +685,7 @@ final class ClaudeSessionService: ObservableObject {
                 guard let asked = agentPending[request], asked.session == id,
                       let reply = vibe ? AgentHookMessage.vibeReply(decision, questions: current.questions)
                         : zcode ? AgentHookMessage.zcodeReply(decision, input: agentInputs[request])
+                        : provider == .kiro ? AgentKiro.reply(decision)
                         : qwen ? AgentQwen.reply(decision)
                         : AgentHookMessage.opencodeReply(decision) else { return }
                 if case .deny = decision {} else {
@@ -1706,7 +1722,8 @@ final class ClaudeSessionService: ObservableObject {
            let permission = Self.allowable(decoded.events, request: asked.request),
            let reply = decoded.provider == .vibe ? AgentHookMessage.vibeReply(.allow)
             : decoded.provider == .zcode ? AgentHookMessage.zcodeReply(.allow)
-            : decoded.provider == .qwen ? AgentQwen.reply(.allow) : AgentHookMessage.opencodeReply(.allow) {
+            : decoded.provider == .qwen ? AgentQwen.reply(.allow)
+            : decoded.provider == .kiro ? AgentKiro.reply(.allow) : AgentHookMessage.opencodeReply(.allow) {
             let id = AgentHookEvent.id(decoded.provider, asked.session)
             agentPending.removeValue(forKey: asked.request)?.connection.finish()
             connection.finish(reply)
@@ -1837,6 +1854,9 @@ final class ClaudeSessionService: ObservableObject {
                     if let text = last.text { kind = .stopped(lastText: text, failed: failed) }
                 }
             }
+            if event.provider == .kiro {
+                kind = kiroKind(kind, of: event, pid: agent, cwd: cwd, now: now)
+            }
             if event.provider == .droid, let path = decoded.transcript {
                 switch kind {
                 case .prompt, .stopped, .started:
@@ -1886,6 +1906,50 @@ final class ClaudeSessionService: ObservableObject {
         }
         return nil
     }
+
+    /// What Kiro CLI's session files add to an event (#238): at a start or a
+    /// prompt, its title (previews on) and model from `session.json`; at a
+    /// turn's end, with previews on, the reply its log holds, which its
+    /// `Stop` doesn't carry.
+    private func kiroKind(_ kind: AgentHookEvent.Kind, of event: AgentHookEvent, pid: Int32, cwd: String?,
+                          now: Date) -> AgentHookEvent.Kind {
+        switch kind {
+        case .started, .prompt, .stopped: break
+        default: return kind
+        }
+        guard let folder = AgentKiro.sessionFolder(event.sessionID, folder: AgentKiro.folder(home: home)) else { return kind }
+        let details = AgentKiro.details(sessionFolder: folder)
+        let entry = hookAgents.entry(event.id)
+        func tell(_ told: AgentHookEvent.Kind) {
+            hookAgents.ingest(AgentHookEvent(provider: .kiro, sessionID: event.sessionID, pid: pid, cwd: cwd,
+                                             date: event.date, kind: told), now: now)
+        }
+        if let model = details.model, entry?.model != model { tell(.model(model)) }
+        if engine.policy.previews, let title = details.title, entry?.title != title { tell(.title(title)) }
+        if engine.policy.previews, case .stopped(nil, let failed) = kind,
+           let reply = AgentKiro.lastTurn(log: folder.appending(path: "messages.jsonl"), text: true).reply {
+            return .stopped(lastText: reply, failed: failed)
+        }
+        return kind
+    }
+
+    /// Kiro CLI's turns the person cancelled with Escape while it worked:
+    /// Kiro runs no hook for that, its session's log tells (#238).
+    private func endCancelledKiroTurns(now: Date) {
+        let kiro = AgentKiro.folder(home: home)
+        for entry in hookAgents.entries.values where entry.provider == .kiro && entry.permission == nil {
+            guard let started = entry.turnStarted, entry.turnEnded.map({ $0 < started }) ?? true,
+                  now.timeIntervalSince(entry.heard) > Self.kiroQuiet,
+                  let folder = AgentKiro.sessionFolder(entry.sessionID, folder: kiro) else { continue }
+            let last = AgentKiro.lastTurn(log: folder.appending(path: "messages.jsonl"), text: engine.policy.previews)
+            guard last.ended, last.at.map({ $0 >= started.addingTimeInterval(-2) }) ?? false else { continue }
+            hookAgents.ingest(AgentHookEvent(provider: .kiro, sessionID: entry.sessionID, pid: entry.pid, cwd: entry.cwd,
+                                             date: now, kind: .stopped(lastText: last.reply, failed: false)), now: now)
+        }
+    }
+
+    /// How long a Kiro CLI turn is quiet before its log is read for an end.
+    private static let kiroQuiet: TimeInterval = 3
 
     /// Lets Qwen Code's held requests go unanswered, so it asks in its own
     /// dialog: the person went to answer there (#239).
@@ -2080,7 +2144,7 @@ final class ClaudeSessionService: ObservableObject {
     /// zellij has no terminal attached (#235).
     func openHost(_ session: ClaudeSession, completion: @escaping (ClaudeHostOpen) -> Void = { _ in }) {
         acknowledge(session.id)
-        if session.provider == .qwen { releaseHeld(session.id) }
+        if session.provider == .qwen || session.provider == .kiro { releaseHeld(session.id) }
         if session.id == ClaudeSessionSample.id { return completion(.missing) }
         if session.provider == .codex, session.host.remoteAlias != nil {
             // A host's Codex runs in a terminal there, which nothing here shows.
@@ -2326,6 +2390,7 @@ final class ClaudeSessionService: ObservableObject {
         }
         let codexPids = Set(codexTerminals.map(\.pid))
         releaseAgents(now: now)
+        endCancelledKiroTurns(now: now)
         let agentPids = Set(hookAgents.entries.values.map(\.pid))
         hosts = hosts.filter { alive.contains($0.key) || codexPids.contains($0.key) || agentPids.contains($0.key) }
         for index in records.indices {

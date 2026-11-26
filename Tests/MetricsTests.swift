@@ -158,6 +158,7 @@ struct MetricsTests {
                 DroidAgentTests.run(suite)
                 ClineAgentTests.run(suite)
                 KimiAgentTests.run(suite)
+                KiroAgentTests.run(suite)
                 ClaudeDesktopTests.run(suite)
                 HookPageTests.run(suite)
                 ClaudeFileDiffTests.run(suite)
@@ -183,6 +184,7 @@ struct MetricsTests {
                 DroidAgentTests.run(suite)
                 ClineAgentTests.run(suite)
                 KimiAgentTests.run(suite)
+                KiroAgentTests.run(suite)
                 HookPageTests.run(suite)
             }),
             ("claude-desktop", { ClaudeDesktopTests.run(suite) }),

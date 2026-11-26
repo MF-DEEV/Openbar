@@ -394,6 +394,7 @@ struct NotchClaudeSessionStrings {
         case .droid: return agentHintDroid
         case .cline: return agentHintCline
         case .kimi: return agentHintKimi
+        case .kiro: return agentHintKiro
         case .claude, .codex, .custom: return ""
         }
     }
@@ -752,6 +753,10 @@ extension NotchClaudeSessionStrings {
 
     var agentHintKimi: String {
         "Hooks in ~/.kimi-code/config.toml, next to your own, for kimi, kimi web and the Kimi Code app. Sessions show what runs and when Kimi Code waits on you. Allow, Always, Deny, its questions and its plans are answered on the island: by keys typed into its terminal in Terminal, iTerm2, tmux, zellij, WezTerm or kitty, and through Kimi’s own server in kimi web and the app. Replies go the same way. Kimi Code for VS Code asks in its own panel, where Open takes you."
+    }
+
+    var agentHintKiro: String {
+        "A hooks file of the island’s own in ~/.kiro/hooks, for kiro-cli. Sessions show what runs and when Kiro CLI waits on you. Allow and Deny are answered on the island, which holds Kiro’s request until you answer; open the session and Kiro asks in its terminal, where the island can still answer it by keys in Terminal, iTerm2, tmux, zellij, WezTerm or kitty. Replies are typed there too."
     }
 
     var agentHintDroid: String {
