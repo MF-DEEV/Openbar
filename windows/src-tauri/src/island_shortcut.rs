@@ -12,6 +12,16 @@ use std::sync::{
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
+/// Who keeps shortcuts for itself, in the messages a rejected one gets.
+#[cfg(not(target_os = "linux"))]
+const SYSTEM: &str = "Windows";
+#[cfg(not(target_os = "linux"))]
+const SYSTEM_CAPITAL: &str = "Windows";
+#[cfg(target_os = "linux")]
+const SYSTEM: &str = "the desktop";
+#[cfg(target_os = "linux")]
+const SYSTEM_CAPITAL: &str = "The desktop";
+
 pub const DEFAULT: &str = "Ctrl+Alt+Space";
 
 #[derive(Default)]
@@ -46,7 +56,9 @@ pub fn parse(raw: &str) -> Result<Shortcut, String> {
         || (mods.contains(Modifiers::CONTROL | Modifiers::ALT)
             && matches!(key.key, Code::Delete | Code::Tab))
     {
-        return Err("This combination is reserved by Windows. Choose another shortcut.".into());
+        return Err(format!(
+            "This combination is reserved by {SYSTEM}. Choose another shortcut."
+        ));
     }
     let code = key.key.to_string();
     let supported = (code.starts_with("Key") && code.len() == 4)
@@ -160,7 +172,7 @@ impl<R: Runtime> Registry for Plugin<'_, R> {
             return Err("This shortcut is already used by another Openbar feature.".into());
         }
         plugin.register(key).map_err(|e| {
-            format!("Windows couldn't register this shortcut. Another app may be using it. {e}")
+            format!("{SYSTEM_CAPITAL} couldn't register this shortcut. Another app may be using it. {e}")
         })
     }
     fn unregister(&self, key: Shortcut) -> Result<(), String> {
