@@ -54,6 +54,48 @@ enum NotchPermissionQueueTests {
             suite.expect(byID["a2"]?.line == "rm -rf x", "the row shows the command")
         }
 
+        suite.run("permission queue: Allow all's list keeps the whole ask (#281)") {
+            var edit = ask("e1", 1, tool: "Edit", text: "/repo/a.swift")
+            edit.diffs = [ClaudeFileDiff(path: "/repo/a.swift")]
+            let s = session("a", [edit], provider: .codex)
+            let entry = BatchApproval(batch: "b1", session: s, ask: edit, at: start)
+            suite.expect(entry.agent == "codex" && entry.session == "a" && entry.project == "a" && entry.tool == "Edit"
+                         && entry.detail == "/repo/a.swift" && entry.paths == nil && entry.at == start.timeIntervalSince1970,
+                         "session, agent, tool and path, and no path list that repeats the detail")
+            var multi = ask("m1", 1, tool: "MultiEdit", text: "2 files")
+            var moved = ClaudeFileDiff(path: "/repo/b.swift")
+            moved.movedTo = "/repo/c.swift"
+            multi.diffs = [ClaudeFileDiff(path: "/repo/a.swift"), moved]
+            suite.expect(BatchApproval(batch: "b", session: s, ask: multi, at: start).paths
+                         == ["/repo/a.swift", "/repo/b.swift", "/repo/c.swift"], "every file a change touches, a move's target too")
+            let long = String(repeating: "é", count: BatchApproval.detailLimit + 5)
+            let cut = BatchApproval(batch: "b", session: s, ask: ask("l1", 1, text: long), at: start).detail
+            suite.expect(cut.unicodeScalars.count == BatchApproval.detailLimit + 1 && cut.hasSuffix("…"), "a huge command is cut")
+            let full = BatchApproval(batch: "b", session: s, ask: ask("f1", 1, text: "echo one\necho two"), at: start)
+            suite.expect(full.detail == "echo one\necho two", "the whole text, not the row's first line")
+
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("openbar-batch-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let url = dir.appendingPathComponent("sessions/batch-approvals.json")
+            let log = BatchApprovalLog(url: url, container: dir)
+            for i in 0..<(BatchApprovalLog.cap + 3) {
+                log.record(BatchApproval(batch: "b\(i / 2)", session: s, ask: ask("r\(i)", 1, text: "echo \(i)"),
+                                         at: start.addingTimeInterval(Double(i))))
+            }
+            log.flush()
+            let kept = BatchApprovalLog.load(url)
+            suite.expect(kept.count == BatchApprovalLog.cap && kept.first?.detail == "echo \(BatchApprovalLog.cap + 2)",
+                         "newest first, capped at \(BatchApprovalLog.cap): \(kept.count)")
+            let mode = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.posixPermissions] as? Int
+            suite.expect(mode == 0o600, "owner-only file")
+            log.clear()
+            log.flush()
+            suite.expect(!FileManager.default.fileExists(atPath: url.path) && BatchApprovalLog.load(url).isEmpty, "Clear empties it")
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? Data("{oops".utf8).write(to: url)
+            suite.expect(BatchApprovalLog.load(url).isEmpty, "a broken file reads as empty")
+        }
+
         suite.run("permission queue: a new ask joins at the foot") {
             let before = NotchPermissionQueue([session("a", [ask("a1", 1)]), session("b", [ask("b1", 2)])])
             let after = NotchPermissionQueue([session("b", [ask("b1", 2), ask("b2", 9)]), session("a", [ask("a1", 1)])])

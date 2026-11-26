@@ -18,8 +18,9 @@ use super::models::{Permission, Session, Time};
 pub const CHANGED: &str = "sessions://batch-approvals";
 /// Entries kept; the oldest go first.
 pub const CAP: usize = 500;
-/// Characters of a command kept, so one huge heredoc can't bloat the file.
-pub const DETAIL_LIMIT: usize = 4000;
+/// Characters of a command kept: as much as a row shows before the command
+/// has to be read whole, which Allow all never takes.
+pub const DETAIL_LIMIT: usize = 8000;
 /// Paths kept for one ask.
 const PATH_LIMIT: usize = 50;
 /// The file, read whole, is ignored past this size.
@@ -58,11 +59,13 @@ impl Entry {
             .ok()
             .and_then(|v| v.as_str().map(str::to_owned))
             .unwrap_or_default();
-        let detail = if ask.detail.trim().is_empty() {
-            ask.summary.clone().unwrap_or_default()
-        } else {
-            ask.detail.clone()
-        };
+        // The whole text the agent sent, not the row's preview of it.
+        let full = ask.content.as_ref().map(|c| c.full.to_string());
+        let detail = [full, Some(ask.detail.clone()), ask.summary.clone()]
+            .into_iter()
+            .flatten()
+            .find(|t| !t.trim().is_empty())
+            .unwrap_or_default();
         let mut paths: Vec<String> = Vec::new();
         // A move names where the file goes too.
         for path in ask
@@ -221,6 +224,17 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("openbar-batch-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir.join("batch-approvals.json")
+    }
+
+    #[test]
+    fn keeps_the_full_text_not_the_preview() {
+        let mut p = ask("");
+        p.set_content("echo one\necho two", true, None);
+        p.detail = "echo one …".into();
+        assert_eq!(
+            Entry::of("b", &session(), &p, 1.0).detail,
+            "echo one\necho two"
+        );
     }
 
     #[test]
