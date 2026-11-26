@@ -36,7 +36,7 @@ The levels come from the files the model menu already reads: Claude Code's `cach
 - **Codex**: a background thread gets `effort` on its first `turn/start` (`thread/start` takes none), and Codex keeps it for the turns after. Codex in a terminal starts with `-c model_reasoning_effort=<level>`, which overrides `config.toml` for that run only. The level is written bare: it isn't TOML, so Codex reads it as the word itself, and no quote has to survive a terminal's or `cmd`'s quoting.
 - **Other agents**: no Effort menu yet; what each one takes at start is in [more-session-agents.md](more-session-agents.md#effort-in-new-session-289).
 
-Checked by starting real sessions against a local mock of each API: in Background and Terminal on Windows and Linux, in Background on the Mac (the Mac builds the same arguments, covered by its tests). Claude Code 2.1.318 to 2.1.328 sends the level as `output_config.effort`, and its session log and the island's bars show it; Codex 0.164 to 0.170 sends it as `reasoning.effort` (Ultra goes out as `xhigh`, with Codex's own task delegation), and `thread/read` reports it as the thread's `reasoningEffort`.
+Checked by starting real sessions against a local mock of each API: in Background and Terminal on Windows and Linux, in Background on the Mac (the Mac builds the same arguments, covered by its tests). Claude Code 2.1.318 to 2.1.328 sends the level as `output_config.effort`, and its session log and the island's bars show it; Codex (0.164 and 0.170 in a terminal; the app-server daemon that runs background threads updated itself to 0.172) sends it as `reasoning.effort` (Ultra goes out as `xhigh`, with Codex's own task delegation), and `thread/read` reports it as the thread's `reasoningEffort`.
 
 ## Safe commands
 
