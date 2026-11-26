@@ -567,6 +567,12 @@ export const S = {
   get defaultModel() {
     return t("windows.sessions.defaultModel");
   },
+  get effortPicker() {
+    return t("windows.sessions.effortPicker");
+  },
+  get defaultEffort() {
+    return t("windows.sessions.defaultEffort");
+  },
   get backgroundNeedsPrompt() {
     return t("windows.sessions.backgroundNeedsPrompt");
   },

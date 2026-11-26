@@ -355,7 +355,7 @@ enum ClaudeBackgroundSessionTests {
         suite.expect(ClaudeCLI.startArguments(prompt: "go", background: false, effort: nil) == ["--", "go"], "the default adds nothing")
         suite.expect(ClaudeCLI.startArguments(prompt: nil, background: false, effort: "x; rm") == [], "nothing that isn't a level")
         suite.expect(CodexCLI.startArguments(prompt: "go", model: "gpt-a", effort: "xhigh")
-                     == ["-m", "gpt-a", "-c", "model_reasoning_effort=\"xhigh\"", "--", "go"], "Codex's effort as a setting for the run")
+                     == ["-m", "gpt-a", "-c", "model_reasoning_effort=xhigh", "--", "go"], "Codex's effort as a setting for the run")
         suite.expect(CodexCLI.startArguments(prompt: "go", model: nil, effort: "") == ["--", "go"], "Codex's default adds nothing")
         let input: [[String: Any]] = [["type": "text", "text": "go"]]
         let first = CodexSessionClient.firstTurn(thread: "t1", input: input, effort: "ultra")

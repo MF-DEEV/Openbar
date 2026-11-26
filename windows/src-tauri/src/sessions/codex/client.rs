@@ -73,9 +73,9 @@ enum Waiting {
     Resume,
     /// The newest turn of a thread joined while it worked (`running_turn`).
     Turns(String),
-    /// A thread the island asked for, its first prompt, and who waits:
-    /// None once Codex has it, else Codex's words.
-    Started(Value, Vec<String>, Sender<Option<String>>),
+    /// A thread the island asked for, its first prompt, the effort it starts
+    /// at, and who waits: None once Codex has it, else Codex's words.
+    Started(Value, Vec<String>, Option<String>, Sender<Option<String>>),
     Other,
 }
 
@@ -85,6 +85,16 @@ pub fn thread_start_params(cwd: &str, model: Option<&str>) -> Value {
     let mut params = json!({"cwd": cwd});
     if let Some(model) = model.filter(|m| !m.is_empty()) {
         params["model"] = json!(model);
+    }
+    params
+}
+
+/// A new thread's first turn. `thread/start` takes no effort, so it goes
+/// here, where Codex keeps it for the turns after too (#289).
+pub fn first_turn_params(thread: &str, input: &Value, effort: Option<&str>) -> Value {
+    let mut params = json!({"threadId": thread, "input": input});
+    if let Some(effort) = effort.filter(|e| crate::sessions::background::is_effort(e)) {
+        params["effort"] = json!(effort);
     }
     params
 }
@@ -127,7 +137,7 @@ impl Shared {
         self.outbox = None;
         // A start the daemon never answered failed.
         for (_, waiting) in self.waiting.drain() {
-            if let Waiting::Started(_, _, done) = waiting {
+            if let Waiting::Started(_, _, _, done) = waiting {
                 let _ = done.send(Some(String::new()));
             }
         }
@@ -399,6 +409,7 @@ impl CodexClient {
         &self,
         cwd: &str,
         model: Option<&str>,
+        effort: Option<&str>,
         prompt: &str,
         safe_commands: Vec<String>,
     ) -> Option<Receiver<Option<String>>> {
@@ -411,7 +422,7 @@ impl CodexClient {
         s.call(
             "thread/start",
             thread_start_params(cwd, model),
-            Waiting::Started(input, safe_commands, done),
+            Waiting::Started(input, safe_commands, effort.map(str::to_owned), done),
         );
         Some(receiver)
     }
@@ -720,11 +731,11 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
         (None, Some(id)) => {
             let waiting = id.as_i64().and_then(|id| s.waiting.remove(&id));
             let result = message.get("result").cloned().unwrap_or(Value::Null);
-            if let Some(Waiting::Started(input, safe, done)) = &waiting {
+            if let Some(Waiting::Started(input, safe, effort, done)) = &waiting {
                 let thread = result.pointer("/thread/id").and_then(Value::as_str);
                 if let Some(thread) = thread {
                     s.grants.grant(thread, safe.clone());
-                    let params = json!({"threadId": thread, "input": input});
+                    let params = first_turn_params(thread, input, effort.as_deref());
                     s.call("turn/start", params, Waiting::Other);
                     let _ = done.send(None);
                 } else {
@@ -1432,6 +1443,24 @@ mod tests {
             json!({"cwd": "C:/w"})
         );
         assert_eq!(thread_start_params("C:/w", None), json!({"cwd": "C:/w"}));
+    }
+
+    #[test]
+    fn a_new_threads_first_turn_carries_its_effort() {
+        let input = json!([{"type": "text", "text": "go"}]);
+        assert_eq!(
+            first_turn_params("t1", &input, Some("ultra")),
+            json!({"threadId": "t1", "input": input, "effort": "ultra"})
+        );
+        // The default sends none, nor anything that isn't a level.
+        assert_eq!(
+            first_turn_params("t1", &input, None),
+            json!({"threadId": "t1", "input": input})
+        );
+        assert_eq!(
+            first_turn_params("t1", &input, Some("a b")),
+            json!({"threadId": "t1", "input": input})
+        );
     }
     #[test]
     fn security_command_approval_boundary_rejects_bypasses_and_stale_inspection() {

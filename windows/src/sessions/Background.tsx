@@ -17,13 +17,22 @@ import {
   Trash2,
   UserRound,
 } from "lucide-react";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { t, tf, useLocale } from "../i18n";
 import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
 import { canRemoveBackground, canStopBackground, problemText } from "./format";
 import { S } from "./strings";
-import type { ClaudeAccount, NewSessionModel, Provider, Session, SessionOrigin, WorktreeRemoval } from "./types";
+import { EffortBars, effortLevel } from "./progress/ModelLabel";
+import type {
+  ClaudeAccount,
+  NewSessionEffort,
+  NewSessionModel,
+  Provider,
+  Session,
+  SessionOrigin,
+  WorktreeRemoval,
+} from "./types";
 import { isOwnWorktree, worktreeName } from "./worktree";
 
 /** Says a session runs in the background, in words, on its row. */
@@ -565,10 +574,79 @@ export function ModelMenu({
   agent: Provider;
   onPick: (key: string) => void;
 }) {
+  return (
+    <ChoiceMenu
+      name={S.modelPicker}
+      icon={<Cpu size={11} className="s-model-icon" />}
+      label={modelLabel(value)}
+      labelKey={agent}
+      items={models.map((model) => ({ key: modelKey(model), text: menuText(model) }))}
+      value={value ? modelKey(value) : undefined}
+      onPick={onPick}
+    />
+  );
+}
+
+/** How hard the model thinks (#289): Default, which leaves it to the agent's
+ * settings, then the levels the model takes under the agent's names. */
+export function EffortMenu({
+  model,
+  value,
+  shown,
+  labelKey,
+  onPick,
+}: {
+  model: NewSessionModel;
+  value: NewSessionEffort | undefined;
+  /** The level the session starts at, the default's when none is picked. */
+  shown: NewSessionEffort | undefined;
+  labelKey: string;
+  onPick: (key: string) => void;
+}) {
+  const fallback = model.efforts?.find((e) => e.id === model.defaultEffort)?.name;
+  const items = [
+    { key: "", text: fallback ? `${S.defaultEffort} · ${fallback}` : S.defaultEffort },
+    ...(model.efforts ?? []).map((e) => ({ key: e.id, text: e.detail ? `${e.name} · ${e.detail}` : e.name })),
+  ];
+  return (
+    <ChoiceMenu
+      name={S.effortPicker}
+      icon={
+        <span className="s-model-icon s-effort-icon">
+          <EffortBars level={Math.max(1, effortLevel(shown?.id))} />
+        </span>
+      }
+      label={shown?.name ?? S.defaultEffort}
+      labelKey={labelKey}
+      items={items}
+      value={value?.id ?? ""}
+      onPick={onPick}
+    />
+  );
+}
+
+/** A menu that opens upward, with the arrow keys, Return and Escape. */
+function ChoiceMenu({
+  name,
+  icon,
+  label,
+  labelKey,
+  items,
+  value,
+  onPick,
+}: {
+  name: string;
+  icon: ReactNode;
+  label: string;
+  /** Changes when the label belongs to something else (another agent). */
+  labelKey: string;
+  items: { key: string; text: string }[];
+  value: string | undefined;
+  onPick: (key: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
-  const label = modelLabel(value);
 
   useEffect(() => {
     if (!open) return;
@@ -583,13 +661,13 @@ export function ModelMenu({
     setActive(
       Math.max(
         0,
-        models.findIndex((m) => m === value),
+        items.findIndex((item) => item.key === value),
       ),
     );
     setOpen(true);
   };
-  const pick = (model: NewSessionModel) => {
-    onPick(modelKey(model));
+  const pick = (key: string) => {
+    onPick(key);
     setOpen(false);
   };
 
@@ -613,10 +691,10 @@ export function ModelMenu({
         } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
           event.preventDefault();
           const step = event.key === "ArrowDown" ? 1 : -1;
-          setActive((current) => (current + step + models.length) % models.length);
+          setActive((current) => (current + step + items.length) % items.length);
         } else if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          if (models[active]) pick(models[active]);
+          if (items[active]) pick(items[active].key);
         }
       }}
     >
@@ -625,24 +703,24 @@ export function ModelMenu({
         className={`s-model-button${open ? " is-open" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`${S.modelPicker}: ${label}`}
-        title={S.modelPicker}
+        aria-label={`${name}: ${label}`}
+        title={name}
         onClick={() => (open ? setOpen(false) : show())}
       >
-        <Cpu size={11} className="s-model-icon" />
+        {icon}
         <span className="s-model-label">
-          <span key={`${agent}-${label}`} className="s-model-text">
+          <span key={`${labelKey}-${label}`} className="s-model-text">
             {label}
           </span>
         </span>
         <ChevronsUpDown size={10} className="s-model-chevron" />
       </button>
-      <div className={`s-model-list${open ? " is-open" : ""}`} role="listbox" aria-label={S.modelPicker} hidden={!open}>
-        {models.map((model, index) => {
-          const selected = model === value;
+      <div className={`s-model-list${open ? " is-open" : ""}`} role="listbox" aria-label={name} hidden={!open}>
+        {items.map((item, index) => {
+          const selected = item.key === value;
           return (
             <button
-              key={modelKey(model)}
+              key={item.key}
               type="button"
               role="option"
               aria-selected={selected}
@@ -650,10 +728,10 @@ export function ModelMenu({
               className={`s-model-option${index === active ? " is-active" : ""}`}
               style={{ "--i": index } as CSSProperties}
               onPointerEnter={() => setActive(index)}
-              onClick={() => pick(model)}
+              onClick={() => pick(item.key)}
             >
               <Check size={11} className="s-model-check" style={{ opacity: selected ? 1 : 0 }} />
-              <span>{menuText(model)}</span>
+              <span>{item.text}</span>
             </button>
           );
         })}

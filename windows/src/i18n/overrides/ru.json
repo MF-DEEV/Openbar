@@ -989,5 +989,7 @@
   "windows.hooks.linkAttentionOne": ", 1 требует внимания",
   "windows.hooks.linkAttentionMany": ", требуют внимания: %d",
   "windows.hooks.open": "Открыть хуки",
-  "windows.sessions.agentInEditor": "%@ в %@"
+  "windows.sessions.agentInEditor": "%@ в %@",
+  "windows.sessions.effortPicker": "Усилие",
+  "windows.sessions.defaultEffort": "По умолчанию"
 }

@@ -4,7 +4,7 @@
 // What New session last started with in each project, and its safe commands
 // (#270; NewSessionChoices.swift and SafeCommands.swift on the Mac).
 
-import type { Provider } from "./types";
+import type { NewSessionEffort, NewSessionModel, Provider } from "./types";
 
 export type SafeKind = "build" | "test" | "lint" | "git" | "custom";
 
@@ -20,6 +20,8 @@ export interface NewSessionChoices {
   account?: string;
   /** The model key per agent. */
   models?: Partial<Record<Provider, string>>;
+  /** The effort per agent and model (#289), by `effortKey`; "" is the model's default. */
+  efforts?: Record<string, string>;
   worktree?: boolean;
   background?: boolean;
   safe?: boolean;
@@ -78,6 +80,42 @@ export function saveChoices(path: string, choices: NewSessionChoices, now = Date
   } catch {
     // Private storage off: the choices last this visit.
   }
+}
+
+/** The efforts all projects last started with, for a project with none of its own. */
+export const EFFORTS_KEY = "openbar.newSession.efforts";
+
+/** Where an effort is kept: the agent and the model's key ("" for the agent's default model). */
+export const effortKey = (agent: Provider, model: string) => `${agent}|${model}`;
+
+export function lastEfforts(from = storage()): Record<string, string> {
+  try {
+    const parsed: unknown = JSON.parse(from?.getItem(EFFORTS_KEY) ?? "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function rememberEffort(key: string, effort: string, to = storage()) {
+  try {
+    to?.setItem(EFFORTS_KEY, JSON.stringify({ ...lastEfforts(to), [key]: effort }));
+  } catch {
+    // Private storage off: the choice lasts this visit.
+  }
+}
+
+/** The level picked for a model, if it takes it; none is the model's default. */
+export function pickedEffort(
+  model: NewSessionModel | undefined,
+  picked: string | undefined,
+): NewSessionEffort | undefined {
+  return picked ? model?.efforts?.find((e) => e.id === picked) : undefined;
+}
+
+/** The level a session starts at: the one picked, else the one the default gives when it can be told. */
+export function shownEffort(model: NewSessionModel | undefined, picked: NewSessionEffort | undefined) {
+  return picked ?? model?.efforts?.find((e) => e.id === model.defaultEffort);
 }
 
 /** The agents whose sessions can start with the list. */

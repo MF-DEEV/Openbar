@@ -277,6 +277,7 @@ export const bridge = {
       worktree = false,
       worktreeName: string | null = null,
       safeCommands: string[] = [],
+      effort: string | null = null,
     ) =>
       call<string | null>("sessions_start", {
         folder,
@@ -285,6 +286,7 @@ export const bridge = {
         background,
         agent,
         model,
+        effort,
         worktree,
         worktreeName,
         safeCommands,

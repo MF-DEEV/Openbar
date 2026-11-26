@@ -2244,6 +2244,13 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* The Effort menu's mark: the running session's bars, at the level it starts with. */
+.s-effort-icon {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .s-model-label {
   display: inline-block;
   max-width: min(150px, 34vw);

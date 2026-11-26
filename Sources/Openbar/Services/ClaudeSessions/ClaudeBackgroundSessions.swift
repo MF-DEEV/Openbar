@@ -933,11 +933,12 @@ enum CodexCLI {
 
     /// The arguments that start Codex's terminal UI. Codex takes an effort
     /// only as a setting, which `-c` overrides for this run alone; nothing
-    /// is written to `config.toml`.
+    /// is written to `config.toml`. A bare word isn't TOML, so Codex reads it
+    /// as the string itself (`codex --help`).
     static func startArguments(prompt: String?, model: String?, effort: String? = nil) -> [String] {
         var arguments: [String] = []
         if let model, !model.isEmpty { arguments += ["-m", model] }
-        if let effort, NewSessionEffort.isValid(effort) { arguments += ["-c", "model_reasoning_effort=\"\(effort)\""] }
+        if let effort, NewSessionEffort.isValid(effort) { arguments += ["-c", "model_reasoning_effort=\(effort)"] }
         if let prompt, !prompt.isEmpty { arguments += ["--", prompt] }
         return arguments
     }

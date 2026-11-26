@@ -267,11 +267,13 @@ pub fn settings_disable(data: &[u8]) -> bool {
 /// dash from reading as an option. A worktree name has Claude Code make the
 /// session its own worktree, which `claude rm` removes again. `allowed`
 /// rules hold for the session only (#270); `--allowedTools` takes one or
-/// more, and `--` ends them before the prompt.
+/// more, and `--` ends them before the prompt. `effort` holds for the
+/// session only too (#289), as `/effort` would.
 pub fn start_arguments(
     prompt: &str,
     background: bool,
     model: Option<&str>,
+    effort: Option<&str>,
     worktree: Option<&str>,
     allowed: &[String],
 ) -> Vec<String> {
@@ -282,6 +284,10 @@ pub fn start_arguments(
     if let Some(model) = model.filter(|m| !m.is_empty()) {
         arguments.push("--model".to_owned());
         arguments.push(model.to_owned());
+    }
+    if let Some(effort) = effort.filter(|e| is_effort(e)) {
+        arguments.push("--effort".to_owned());
+        arguments.push(effort.to_owned());
     }
     if let Some(worktree) = worktree.filter(|w| !w.is_empty()) {
         arguments.push("--worktree".to_owned());
@@ -1049,6 +1055,12 @@ pub struct NewSessionModel {
     pub id: Option<String>,
     pub name: String,
     pub detail: Option<String>,
+    /// How hard the model can think (#289), in the agent's order; empty when
+    /// it takes no effort or the agent doesn't say.
+    pub efforts: Vec<NewSessionEffort>,
+    /// The level it starts at when none is picked: what the agent's settings
+    /// say, else the model's own default.
+    pub default_effort: Option<String>,
 }
 
 impl NewSessionModel {
@@ -1057,8 +1069,53 @@ impl NewSessionModel {
             id: Some(id.to_owned()),
             name: name.to_owned(),
             detail: None,
+            efforts: Vec::new(),
+            default_effort: None,
         }
     }
+
+    fn fallback(detail: Option<String>) -> NewSessionModel {
+        NewSessionModel {
+            id: None,
+            name: String::new(),
+            detail,
+            efforts: Vec::new(),
+            default_effort: None,
+        }
+    }
+}
+
+/// A reasoning effort a model takes, under the agent's own name, with what
+/// the agent marks it with ("Recommended", a usage warning, its default).
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct NewSessionEffort {
+    pub id: String,
+    pub name: String,
+    pub detail: Option<String>,
+}
+
+/// An effort goes on a command line, so only a plain word passes: `low`,
+/// `xhigh`, `max`.
+pub fn is_effort(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 32
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
+}
+
+/// A level as the agent's own picker names it, for an agent that keeps only
+/// ids (Codex).
+pub fn effort_name(id: &str) -> String {
+    if id == "xhigh" {
+        return "Extra high".to_owned();
+    }
+    let mut chars = id.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 /// Claude Code's aliases for its latest models (`claude --help`), so the
@@ -1081,6 +1138,108 @@ pub struct ClaudeCatalog {
     pub aliases: HashMap<String, String>,
     pub names: HashMap<String, String>,
     pub current: Option<String>,
+    /// The efforts each model takes (`thinking.effort_options`), empty for one
+    /// that takes none (`thinking.type` "none").
+    pub efforts: HashMap<String, Vec<NewSessionEffort>>,
+    /// Each model's own default effort (`runtime.default_effort`, else the
+    /// option marked Recommended).
+    pub default_efforts: HashMap<String, String>,
+}
+
+/// The effort Claude Code's settings start a model at: one per model
+/// (`modelSettings.<id>.effortLevel`, what `/effort` saves) or one for all
+/// (`effortLevel`).
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct ClaudeEffortSettings {
+    pub per_model: HashMap<String, String>,
+    pub all: Option<String>,
+}
+
+/// A model's effort options and the one marked Recommended.
+pub fn claude_efforts(thinking: &Value) -> (Vec<NewSessionEffort>, Option<String>) {
+    if thinking.get("type").and_then(Value::as_str) == Some("none") {
+        return (Vec::new(), None);
+    }
+    let mut efforts: Vec<NewSessionEffort> = Vec::new();
+    let mut recommended = None;
+    for option in thinking
+        .get("effort_options")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let Some(id) = option.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        if !is_effort(id) || efforts.iter().any(|e| e.id == id) {
+            continue;
+        }
+        let name = option
+            .get("name")
+            .and_then(Value::as_str)
+            .filter(|n| !n.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| effort_name(id));
+        let badge = option
+            .pointer("/badge/message")
+            .and_then(Value::as_str)
+            .filter(|b| !b.is_empty());
+        if badge == Some("Recommended") {
+            recommended = Some(id.to_owned());
+        }
+        efforts.push(NewSessionEffort {
+            id: id.to_owned(),
+            name,
+            detail: badge.map(str::to_owned),
+        });
+    }
+    (efforts, recommended)
+}
+
+/// The efforts Claude Code's settings start models at.
+pub fn claude_effort_setting(data: &[u8]) -> ClaudeEffortSettings {
+    let Ok(value) = serde_json::from_slice::<Value>(data) else {
+        return ClaudeEffortSettings::default();
+    };
+    let mut settings = ClaudeEffortSettings {
+        all: value
+            .get("effortLevel")
+            .and_then(Value::as_str)
+            .filter(|e| is_effort(e))
+            .map(str::to_owned),
+        ..Default::default()
+    };
+    for (id, model) in value
+        .get("modelSettings")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+    {
+        if let Some(level) = model
+            .get("effortLevel")
+            .and_then(Value::as_str)
+            .filter(|e| is_effort(e))
+        {
+            settings.per_model.insert(id.clone(), level.to_owned());
+        }
+    }
+    settings
+}
+
+/// The catalog's id for an alias or a full name: `opus` and
+/// `claude-opus-5-5[1m]` are both `claude-opus-5-5`.
+pub fn claude_id(model: &str, catalog: Option<&ClaudeCatalog>) -> String {
+    let base = model.split('[').next().unwrap_or(model).trim();
+    let alias = base.to_ascii_lowercase();
+    catalog
+        .and_then(|c| c.aliases.get(&alias).cloned())
+        .or_else(|| {
+            CLAUDE_LATEST
+                .iter()
+                .find(|(a, _)| *a == alias)
+                .map(|(_, id)| (*id).to_owned())
+        })
+        .unwrap_or_else(|| base.to_owned())
 }
 
 /// The freshest of the cached catalogs, one per account Claude Code signed
@@ -1103,6 +1262,21 @@ pub fn claude_catalog(files: &[Vec<u8>]) -> Option<ClaudeCatalog> {
                 let name = model.get("name").and_then(Value::as_str).unwrap_or("");
                 if !id.is_empty() && !name.is_empty() {
                     catalog.names.insert(id.to_owned(), name.to_owned());
+                }
+                if let Some(thinking) = model.get("thinking").filter(|_| !id.is_empty()) {
+                    let (efforts, recommended) = claude_efforts(thinking);
+                    let runtime = model
+                        .pointer("/runtime/default_effort")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned);
+                    if let Some(fallback) = [runtime, recommended]
+                        .into_iter()
+                        .flatten()
+                        .find(|level| efforts.iter().any(|e| &e.id == level))
+                    {
+                        catalog.default_efforts.insert(id.to_owned(), fallback);
+                    }
+                    catalog.efforts.insert(id.to_owned(), efforts);
                 }
             }
             for (alias, target) in config
@@ -1143,21 +1317,38 @@ pub fn claude_catalog(files: &[Vec<u8>]) -> Option<ClaudeCatalog> {
 pub fn claude_models(
     current: Option<&str>,
     catalog: Option<&ClaudeCatalog>,
+    settings: Option<&ClaudeEffortSettings>,
 ) -> Vec<NewSessionModel> {
     // `default` in the settings leaves it to the account, as no setting does.
     let picked = current
         .filter(|m| !m.eq_ignore_ascii_case("default"))
         .or_else(|| catalog.and_then(|c| c.current.as_deref()));
-    let mut models = vec![NewSessionModel {
-        id: None,
-        name: String::new(),
-        detail: picked.map(|m| claude_name(m, catalog)),
-    }];
-    models.extend(
-        CLAUDE_ALIASES
-            .iter()
-            .map(|alias| NewSessionModel::named(alias, &claude_name(alias, catalog))),
-    );
+    let with_efforts = |mut model: NewSessionModel, name: Option<&str>| {
+        let (Some(name), Some(catalog)) = (name, catalog) else {
+            return model;
+        };
+        let id = claude_id(name, Some(catalog));
+        model.efforts = catalog.efforts.get(&id).cloned().unwrap_or_default();
+        model.default_effort = [
+            settings.and_then(|s| s.per_model.get(&id).cloned()),
+            settings.and_then(|s| s.all.clone()),
+            catalog.default_efforts.get(&id).cloned(),
+        ]
+        .into_iter()
+        .flatten()
+        .find(|level| model.efforts.iter().any(|e| &e.id == level));
+        model
+    };
+    let mut models = vec![with_efforts(
+        NewSessionModel::fallback(picked.map(|m| claude_name(m, catalog))),
+        picked,
+    )];
+    models.extend(CLAUDE_ALIASES.iter().map(|alias| {
+        with_efforts(
+            NewSessionModel::named(alias, &claude_name(alias, catalog)),
+            Some(alias),
+        )
+    }));
     models
 }
 
@@ -1237,7 +1428,13 @@ pub fn codex_catalog(data: Option<&[u8]>) -> Vec<NewSessionModel> {
                 .get("priority")
                 .and_then(Value::as_i64)
                 .unwrap_or(i64::MAX);
-            Some((priority, index, NewSessionModel::named(id, name)))
+            let mut listed = NewSessionModel::named(id, name);
+            let fallback = model.get("default_reasoning_level").and_then(Value::as_str);
+            listed.efforts = codex_efforts(model.get("supported_reasoning_levels"), fallback);
+            listed.default_effort = fallback
+                .filter(|f| listed.efforts.iter().any(|e| e.id == *f))
+                .map(str::to_owned);
+            Some((priority, index, listed))
         })
         .collect();
     shown.sort_by_key(|(priority, index, _)| (*priority, *index));
@@ -1249,9 +1446,38 @@ pub fn codex_catalog(data: Option<&[u8]>) -> Vec<NewSessionModel> {
         .collect()
 }
 
+/// The levels a Codex model takes (`supported_reasoning_levels`, each
+/// `{effort, description}`), its default marked as Codex's picker marks it.
+pub fn codex_efforts(levels: Option<&Value>, fallback: Option<&str>) -> Vec<NewSessionEffort> {
+    let mut efforts: Vec<NewSessionEffort> = Vec::new();
+    for level in levels.and_then(Value::as_array).into_iter().flatten() {
+        let Some(id) = level
+            .get("effort")
+            .and_then(Value::as_str)
+            .or_else(|| level.as_str())
+        else {
+            continue;
+        };
+        if !is_effort(id) || efforts.iter().any(|e| e.id == id) {
+            continue;
+        }
+        efforts.push(NewSessionEffort {
+            id: id.to_owned(),
+            name: effort_name(id),
+            detail: (Some(id) == fallback).then(|| "default".to_owned()),
+        });
+    }
+    efforts
+}
+
 /// The top-level `model = "…"` of a `config.toml`; one inside a table is a
 /// profile's or a provider's, not the default.
 pub fn codex_setting(toml: &str) -> Option<String> {
+    codex_setting_of(toml, "model")
+}
+
+/// A top-level `key = "…"` of a `config.toml`.
+pub fn codex_setting_of(toml: &str, wanted: &str) -> Option<String> {
     for raw in toml.lines() {
         let line = raw.trim();
         if line.starts_with('[') {
@@ -1260,7 +1486,7 @@ pub fn codex_setting(toml: &str) -> Option<String> {
         let Some((key, value)) = line.split_once('=') else {
             continue;
         };
-        if key.trim() != "model" {
+        if key.trim() != wanted {
             continue;
         }
         let mut value = value.trim();
@@ -1281,32 +1507,60 @@ pub fn codex_setting(toml: &str) -> Option<String> {
 
 /// The default (named by `config.toml`, else Codex's first), then the catalog.
 pub fn codex_models(cache: Option<&[u8]>, config: Option<&str>) -> Vec<NewSessionModel> {
-    let listed = codex_catalog(cache);
-    let detail = match config.and_then(codex_setting) {
+    let configured_effort = config.and_then(|c| codex_setting_of(c, "model_reasoning_effort"));
+    // `model_reasoning_effort` applies to every model that takes it.
+    let listed: Vec<NewSessionModel> = codex_catalog(cache)
+        .into_iter()
+        .map(|mut model| {
+            if let Some(level) = configured_effort
+                .as_ref()
+                .filter(|level| model.efforts.iter().any(|e| &&e.id == level))
+            {
+                model.default_effort = Some(level.clone());
+            }
+            model
+        })
+        .collect();
+    let configured = config.and_then(codex_setting);
+    let resolved = match &configured {
+        Some(id) => listed.iter().find(|m| m.id.as_deref() == Some(id.as_str())),
+        None => listed.first(),
+    };
+    let detail = match &configured {
         Some(id) => Some(
-            listed
-                .iter()
-                .find(|m| m.id.as_deref() == Some(id.as_str()))
+            resolved
                 .map(|m| m.name.clone())
-                .unwrap_or(id),
+                .unwrap_or_else(|| id.clone()),
         ),
         None => listed.first().map(|m| m.name.clone()),
     };
-    let mut models = vec![NewSessionModel {
-        id: None,
-        name: String::new(),
-        detail,
-    }];
+    let mut fallback = NewSessionModel::fallback(detail);
+    if let Some(resolved) = resolved {
+        fallback.efforts = resolved.efforts.clone();
+        fallback.default_effort = resolved.default_effort.clone();
+    }
+    let mut models = vec![fallback];
     models.extend(listed);
     models
 }
 
-/// The arguments that start Codex's terminal UI.
-pub fn codex_start_arguments(prompt: &str, model: Option<&str>) -> Vec<String> {
+/// The arguments that start Codex's terminal UI. Codex takes an effort only
+/// as a setting, which `-c` overrides for this run alone; nothing is written
+/// to `config.toml`. A bare word isn't TOML, so Codex reads it as the string
+/// itself, and no quote has to survive a console's quoting.
+pub fn codex_start_arguments(
+    prompt: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Vec<String> {
     let mut arguments = Vec::new();
     if let Some(model) = model.filter(|m| !m.is_empty()) {
         arguments.push("-m".to_owned());
         arguments.push(model.to_owned());
+    }
+    if let Some(effort) = effort.filter(|e| is_effort(e)) {
+        arguments.push("-c".to_owned());
+        arguments.push(format!("model_reasoning_effort={effort}"));
     }
     let prompt = prompt.trim();
     if !prompt.is_empty() {
@@ -1466,27 +1720,34 @@ mod tests {
     #[test]
     fn command_lines() {
         assert_eq!(
-            start_arguments("-x", true, None, None, &[]),
+            start_arguments("-x", true, None, None, None, &[]),
             ["--bg", "--", "-x"]
         );
-        assert_eq!(start_arguments("  ", true, None, None, &[]), ["--bg"]);
-        assert!(start_arguments("", false, Some(""), Some(""), &[]).is_empty());
+        assert_eq!(start_arguments("  ", true, None, None, None, &[]), ["--bg"]);
+        assert!(start_arguments("", false, Some(""), None, Some(""), &[]).is_empty());
         assert_eq!(
-            start_arguments("-x", true, Some("opus"), None, &[]),
+            start_arguments("-x", true, Some("opus"), None, None, &[]),
             ["--bg", "--model", "opus", "--", "-x"]
         );
         // Claude Code makes the session's worktree itself.
         assert_eq!(
-            start_arguments("go", true, Some("opus"), Some("fix"), &[]),
+            start_arguments("go", true, Some("opus"), None, Some("fix"), &[]),
             ["--bg", "--model", "opus", "--worktree", "fix", "--", "go"]
         );
         assert_eq!(
-            start_arguments("go", false, None, Some("fix"), &[]),
+            start_arguments("go", false, None, None, Some("fix"), &[]),
             ["--worktree", "fix", "--", "go"]
         );
         // Safe commands (#270) come before the prompt's `--`.
         assert_eq!(
-            start_arguments("go", true, None, None, &["Bash(git diff:*)".to_owned()]),
+            start_arguments(
+                "go",
+                true,
+                None,
+                None,
+                None,
+                &["Bash(git diff:*)".to_owned()]
+            ),
             ["--bg", "--allowedTools", "Bash(git diff:*)", "--", "go"]
         );
         assert!(
@@ -1587,8 +1848,161 @@ mod tests {
     }
 
     #[test]
+    fn new_session_efforts() {
+        // Claude Code's catalog, shaped as 2.1.318 caches it.
+        let file = br#"{"fetchedAt":3,"catalog":{"config":{"models":[
+          {"id":"claude-opus-5-5","name":"Opus 5.5","thinking":{"type":"effort","effort_options":[{"id":"low","name":"Low"},{"id":"medium","name":"Medium","badge":{"message":"Recommended","variant":"neutral"}},{"id":"high","name":"High"},{"id":"xhigh","name":"Extra"},{"id":"max","name":"Max","badge":{"message":"3.5x or more usage","variant":"warning"}}]},"runtime":{"default_effort":"medium"}},
+          {"id":"claude-opus-4-6","name":"Opus 4.6","thinking":{"type":"effort","effort_options":[{"id":"low"},{"id":"high","name":"High","badge":{"message":"Recommended"}},{"id":"max","name":"Max"},{"id":"bad id; rm"},{"id":"low","name":"Again"}]}},
+          {"id":"claude-haiku-4-5-20251001","name":"Haiku 4.5","thinking":{"type":"none"}},
+          {"id":"claude-sonnet-5-5","name":"Sonnet 5.5"}],
+          "provider_alias_targets":{"opus":{"default":"claude-opus-5-5"},"sonnet":{"default":"claude-sonnet-5-5"},"haiku":{"default":"claude-haiku-4-5-20251001"},"fable":{"default":"claude-opus-4-6"}}},
+          "state":{"model":"claude-opus-4-6[1m]"}}}"#;
+        let catalog = claude_catalog(&[file.to_vec()]).unwrap();
+        let ids =
+            |efforts: &[NewSessionEffort]| efforts.iter().map(|e| e.id.clone()).collect::<Vec<_>>();
+        let opus = &catalog.efforts["claude-opus-5-5"];
+        assert_eq!(ids(opus), ["low", "medium", "high", "xhigh", "max"]);
+        assert_eq!(
+            opus.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(),
+            ["Low", "Medium", "High", "Extra", "Max"]
+        );
+        assert_eq!(opus[1].detail.as_deref(), Some("Recommended"));
+        assert_eq!(opus[4].detail.as_deref(), Some("3.5x or more usage"));
+        assert_eq!(opus[0].detail, None);
+        // Only the levels the model takes, once each, nothing that isn't a plain word.
+        assert_eq!(
+            ids(&catalog.efforts["claude-opus-4-6"]),
+            ["low", "high", "max"]
+        );
+        assert_eq!(catalog.efforts["claude-opus-4-6"][0].name, "Low");
+        assert!(catalog.efforts["claude-haiku-4-5-20251001"].is_empty());
+        assert!(!catalog.efforts.contains_key("claude-sonnet-5-5"));
+        assert_eq!(catalog.default_efforts["claude-opus-5-5"], "medium");
+        assert_eq!(catalog.default_efforts["claude-opus-4-6"], "high");
+
+        let models = claude_models(None, Some(&catalog), None);
+        let by = |key: &str| {
+            models
+                .iter()
+                .find(|m| m.id.as_deref().unwrap_or("") == key)
+                .unwrap()
+                .clone()
+        };
+        assert_eq!(by("opus").efforts.len(), 5);
+        assert_eq!(by("opus").default_effort.as_deref(), Some("medium"));
+        assert!(by("haiku").efforts.is_empty() && by("haiku").default_effort.is_none());
+        assert!(by("sonnet").efforts.is_empty());
+        // The default model, a full name with its context, gets that model's levels.
+        assert_eq!(ids(&by("").efforts), ["low", "high", "max"]);
+        assert_eq!(by("").default_effort.as_deref(), Some("high"));
+        assert!(
+            claude_models(None, None, None)
+                .iter()
+                .all(|m| m.efforts.is_empty())
+        );
+
+        // What the settings start a model at.
+        let settings = claude_effort_setting(
+            br#"{"effortLevel":"low","modelSettings":{"claude-opus-5-5":{"effortLevel":"xhigh"},"claude-opus-4-6":{"effortLevel":"xhigh"},"x":{"effortLevel":"a b"}}}"#,
+        );
+        assert_eq!(settings.all.as_deref(), Some("low"));
+        assert_eq!(settings.per_model["claude-opus-5-5"], "xhigh");
+        assert!(!settings.per_model.contains_key("x"));
+        let set = claude_models(None, Some(&catalog), Some(&settings));
+        let set_by = |key: &str| {
+            set.iter()
+                .find(|m| m.id.as_deref().unwrap_or("") == key)
+                .unwrap()
+                .default_effort
+                .clone()
+        };
+        assert_eq!(set_by("opus").as_deref(), Some("xhigh"));
+        // A level the model lacks falls to the one for all.
+        assert_eq!(set_by("fable").as_deref(), Some("low"));
+        assert_eq!(
+            claude_effort_setting(b"not json"),
+            ClaudeEffortSettings::default()
+        );
+
+        // Codex's levels, shaped as 0.172 writes models_cache.json.
+        let cache: &[u8] = br#"{"models":[{"slug":"gpt-a","display_name":"GPT A","visibility":"list","priority":1,"default_reasoning_level":"low","supported_reasoning_levels":[{"effort":"low","description":"Fast"},{"effort":"medium"},{"effort":"xhigh"},{"effort":"ultra"},{"effort":""}]},{"slug":"gpt-b","display_name":"GPT B","visibility":"list","priority":2,"default_reasoning_level":"medium","supported_reasoning_levels":["low","medium"]},{"slug":"gpt-c","visibility":"list","priority":3}]}"#;
+        let codex = codex_models(Some(cache), None);
+        assert_eq!(ids(&codex[1].efforts), ["low", "medium", "xhigh", "ultra"]);
+        assert_eq!(
+            codex[1]
+                .efforts
+                .iter()
+                .map(|e| e.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Low", "Medium", "Extra high", "Ultra"]
+        );
+        assert_eq!(codex[1].efforts[0].detail.as_deref(), Some("default"));
+        assert_eq!(codex[1].default_effort.as_deref(), Some("low"));
+        assert_eq!(ids(&codex[2].efforts), ["low", "medium"]);
+        assert!(codex[3].efforts.is_empty());
+        assert_eq!(codex[0].efforts, codex[1].efforts);
+        assert_eq!(codex[0].default_effort.as_deref(), Some("low"));
+        let configured = codex_models(
+            Some(cache),
+            Some("model = \"gpt-b\"\nmodel_reasoning_effort = \"low\"\n"),
+        );
+        assert_eq!(ids(&configured[0].efforts), ["low", "medium"]);
+        assert_eq!(configured[0].default_effort.as_deref(), Some("low"));
+        // A configured level the model lacks leaves the model's own.
+        let lacking = codex_models(Some(cache), Some("model_reasoning_effort = \"ultra\""));
+        assert_eq!(lacking[1].default_effort.as_deref(), Some("ultra"));
+        assert_eq!(lacking[2].default_effort.as_deref(), Some("medium"));
+        assert_eq!(
+            codex_setting_of(
+                "[profiles.x]\nmodel_reasoning_effort = \"high\"",
+                "model_reasoning_effort"
+            ),
+            None
+        );
+
+        // How each agent takes it.
+        assert_eq!(
+            start_arguments(
+                "go",
+                true,
+                Some("opus"),
+                Some("high"),
+                Some("w"),
+                &["Bash(ls:*)".to_owned()]
+            ),
+            [
+                "--bg",
+                "--model",
+                "opus",
+                "--effort",
+                "high",
+                "--worktree",
+                "w",
+                "--allowedTools",
+                "Bash(ls:*)",
+                "--",
+                "go"
+            ]
+        );
+        assert!(start_arguments("", false, None, Some("x; rm"), None, &[]).is_empty());
+        assert_eq!(
+            codex_start_arguments("go", Some("gpt-a"), Some("xhigh")),
+            [
+                "-m",
+                "gpt-a",
+                "-c",
+                "model_reasoning_effort=xhigh",
+                "--",
+                "go"
+            ]
+        );
+        assert_eq!(codex_start_arguments("go", None, Some("")), ["--", "go"]);
+        assert!(is_effort("xhigh") && !is_effort("") && !is_effort("High") && !is_effort("a\"b"));
+    }
+
+    #[test]
     fn new_session_models() {
-        let claude = claude_models(Some("opus[1m]"), None);
+        let claude = claude_models(Some("opus[1m]"), None, None);
         let ids: Vec<Option<&str>> = claude.iter().map(|m| m.id.as_deref()).collect();
         assert_eq!(
             ids,
@@ -1603,7 +2017,7 @@ mod tests {
         assert_eq!(claude[0].detail.as_deref(), Some("Opus 5.5 (1M)"));
         let names: Vec<&str> = claude[1..].iter().map(|m| m.name.as_str()).collect();
         assert_eq!(names, ["Fable 5.2", "Opus 5.5", "Sonnet 5.5", "Haiku 5.5"]);
-        assert_eq!(claude_models(None, None)[0].detail, None);
+        assert_eq!(claude_models(None, None, None)[0].detail, None);
         assert_eq!(claude_name("claude-fable-5-1", None), "Fable 5.1");
         assert_eq!(claude_name("claude-opus-5-5[1m]", None), "Opus 5.5 (1M)");
         assert_eq!(claude_name("my-proxy-model", None), "my-proxy-model");
@@ -1623,7 +2037,7 @@ mod tests {
                 .map(String::as_str),
             Some("claude-opus-6")
         );
-        let resolved = claude_models(None, catalog.as_ref());
+        let resolved = claude_models(None, catalog.as_ref(), None);
         let names: Vec<&str> = resolved[1..].iter().map(|m| m.name.as_str()).collect();
         assert_eq!(
             names,
@@ -1631,13 +2045,13 @@ mod tests {
         );
         assert_eq!(resolved[0].detail.as_deref(), Some("Fable 6.1 Preview"));
         assert_eq!(
-            claude_models(Some("default"), catalog.as_ref())[0]
+            claude_models(Some("default"), catalog.as_ref(), None)[0]
                 .detail
                 .as_deref(),
             Some("Fable 6.1 Preview")
         );
         assert_eq!(
-            claude_models(Some("sonnet"), catalog.as_ref())[0]
+            claude_models(Some("sonnet"), catalog.as_ref(), None)[0]
                 .detail
                 .as_deref(),
             Some("Sonnet 6")
@@ -1685,9 +2099,9 @@ mod tests {
         assert_eq!(codex_setting(""), None);
 
         assert_eq!(
-            codex_start_arguments("-x", Some("gpt-a")),
+            codex_start_arguments("-x", Some("gpt-a"), None),
             ["-m", "gpt-a", "--", "-x"]
         );
-        assert!(codex_start_arguments(" ", None).is_empty());
+        assert!(codex_start_arguments(" ", None, None).is_empty());
     }
 }
