@@ -187,6 +187,26 @@ Read from **Claude Desktop 1.24012.9 and 6.6395.1** for macOS (their `app.asar`)
 - **Settings.** Claude Desktop has two switches under More agents, shown only where the app is installed: Code tab sessions (on), and Read Cowork sessions (off until turned on). With the first off, Code tab sessions leave the list and their hooks are let go unanswered, so the app asks as it would without the island.
 - **Tested without an account.** Claude Desktop's third-party mode (`inferenceProvider: gateway` with a local stand-in model) needs no sign-in and keeps its data in `Claude-3p`, apart from a signed-in app's. Run live on the Mac (Claude Desktop 6.6395.1) and in the Windows 11 ARM64 VM (the Store package, 5.11492.5, whose data is in `%LOCALAPPDATA%\Claude-3p`): a Code tab session listed with its Desktop label, Allow on the island running the command and closing the app's own prompt, the reply field pointing at the app; a Cowork session listed working, waiting on a question ("Answer this one in Claude Desktop.") and done once answered in the app. Cowork ran in both without its virtual machine (the app falls back to running on the computer), which writes the same files.
 
+## Effort in New session (#289)
+
+New session's Effort menu is offered for Claude Code and Codex only (see [new-session-steps.md](new-session-steps.md#effort-289)). For the other agents nothing in New session picks a model, so the island couldn't list the levels the session's model takes. What each one takes at start, checked with `--help` on 2026-11-26:
+
+| Agent | Version | At start | Levels it names |
+| --- | --- | --- | --- |
+| Factory Droid | 1.21.1 | `-r` / `--reasoning-effort` on `droid exec` only; on the terminal UI New session opens, `-r` is `--resume` | per model |
+| Cline | 3.0.76 | `--thinking <level>` | none, low, medium, high, xhigh |
+| GitHub Copilot CLI | 1.0.116 | `--reasoning-effort <level>` | none, minimal, low, medium, high, xhigh, max, by model |
+| OpenCode | 1.19.6 | `--variant` on `opencode run` only, not on the terminal UI | the model's variants |
+| Pi | 0.73.1 | `--thinking <level>`, or `--model <id>:<level>` | off, minimal, low, medium, high, xhigh |
+| Hermes | 0.23.3 | `hermes chat --reasoning <level>`, for that session | none, minimal, low, medium, high, xhigh, max, ultra |
+| Grok CLI | 1.0.89 | `--reasoning-effort <level>` (alias `--effort`) | not listed |
+| Mistral Vibe | 3.1.5 | `--thinking <level>`, new sessions only, not saved | off, low, medium, high, xhigh, max, or a level the model lists |
+| Qwen Code | 0.28.6 | nothing | |
+| Gemini CLI | 0.71.1 | nothing | |
+| Cursor, Devin CLI, Google Antigravity, Kiro CLI | | not checked: not installed where this was checked | |
+
+Kimi Code and ZCode aren't offered in New session at all.
+
 ## Limits
 
 - None of these agents keeps a registry the island could read, so a Gemini CLI, Copilot CLI or Cursor session that was already running when the island started shows up at its next event. OpenCode's plugin announces its sessions itself.
