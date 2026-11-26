@@ -7,16 +7,23 @@
 //!
 //! Like the Windows reader this never records: it reads the server's lists
 //! when the server says a recording started or stopped, so `level` (a peak
-//! meter, which needs a stream of its own) stays 0, and Discord's own mute
-//! (read from its window on Windows) is not known.
+//! meter, which needs a stream of its own) stays 0. Discord's own mute and
+//! deafen come from its window through AT-SPI (`discord_voice.rs`).
 
 use std::sync::Mutex;
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::{Shared, Snapshot};
+use super::{DiscordState, Shared, Snapshot};
+
+/// The sound server's lists are read again at least this often.
+const AUDIO_EVERY: Duration = Duration::from_secs(5);
+/// Discord's Mute and Deafen while it runs, as Windows reads them.
+const DISCORD_EVERY: Duration = Duration::from_millis(300);
+/// How often a Discord window is looked for.
+const LOOK_FOR_DISCORD: Duration = Duration::from_secs(2);
 use crate::linux::pulse::{self, Event, Node, Pactl, Pulse, Stream};
 
 /// A recording by an app, from a microphone: not one that is paused, one of
@@ -59,7 +66,15 @@ fn read(pulse: &dyn Pulse) -> Snapshot {
 
 /// What the probe writes: the snapshot as of now.
 pub fn read_now() -> Snapshot {
-    read(&Pactl::default())
+    Snapshot {
+        discord: crate::linux::discord_voice::Reader::default()
+            .read(super::control)
+            .map(|s| DiscordState {
+                muted: s.muted,
+                deafened: s.deafened,
+            }),
+        ..read(&Pactl::default())
+    }
 }
 
 pub fn start(app: AppHandle, shared: Shared) {
@@ -75,6 +90,9 @@ pub fn start(app: AppHandle, shared: Shared) {
         .name("openbar-microphone".into())
         .spawn(move || {
             let pactl = Pactl::default();
+            let mut discord = crate::linux::discord_voice::Reader::default();
+            let mut audio = Snapshot::default();
+            let mut audio_read: Option<Instant> = None;
             loop {
                 let prefs = app.state::<crate::prefs::Prefs>().get();
                 let enabled = prefs
@@ -86,8 +104,20 @@ pub fn start(app: AppHandle, shared: Shared) {
                         .and_then(|v| v.as_bool())
                         .unwrap_or(true);
                 let next = if enabled {
-                    read(&pactl)
+                    if audio_read.is_none_or(|at| at.elapsed() >= AUDIO_EVERY) {
+                        audio = read(&pactl);
+                        audio_read = Some(Instant::now());
+                    }
+                    Snapshot {
+                        discord: discord.read(super::control).map(|s| DiscordState {
+                            muted: s.muted,
+                            deafened: s.deafened,
+                        }),
+                        ..audio.clone()
+                    }
                 } else {
+                    discord = Default::default();
+                    audio_read = None;
                     Snapshot::default()
                 };
                 let changed = {
@@ -103,10 +133,17 @@ pub fn start(app: AppHandle, shared: Shared) {
                     let _ = app.emit_to(crate::island::LABEL, "microphone://snapshot", &next);
                 }
                 // Until the server says something changed, and for a while after,
-                // since a recording opens with a few events in a row.
-                if rx.recv_timeout(Duration::from_secs(5)).is_ok() {
+                // since a recording opens with a few events in a row. Discord's
+                // buttons are read a few times a second while it runs.
+                let wait = if next.discord.is_some() {
+                    DISCORD_EVERY
+                } else {
+                    LOOK_FOR_DISCORD
+                };
+                if rx.recv_timeout(wait).is_ok() {
                     std::thread::sleep(Duration::from_millis(150));
                     while rx.try_recv().is_ok() {}
+                    audio_read = None;
                 }
             }
         });

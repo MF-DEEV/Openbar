@@ -13,7 +13,9 @@
 use x11rb::protocol::xproto::ConnectionExt as _;
 use x11rb::rust_connection::RustConnection;
 
+pub mod atspi;
 pub mod autostart;
+pub mod discord_voice;
 pub mod battery;
 pub mod brightness;
 pub mod command;
