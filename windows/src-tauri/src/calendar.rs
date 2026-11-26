@@ -919,7 +919,15 @@ pub async fn calendar_open(local_id: Option<String>, instance_start: Option<f64>
     return tauri::async_runtime::spawn_blocking(move || imp::open(local_id, instance))
         .await
         .unwrap_or(false);
-    #[cfg(not(windows))]
+    // An event read from a file has no instance to pick: the app opens on it, or on its calendar.
+    #[cfg(target_os = "linux")]
+    return tauri::async_runtime::spawn_blocking(move || {
+        let _ = instance;
+        imp::open(local_id)
+    })
+    .await
+    .unwrap_or(false);
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = (local_id, instance);
         false
