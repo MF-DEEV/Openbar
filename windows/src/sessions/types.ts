@@ -479,6 +479,20 @@ export interface NewSessionModel {
   id: string | null;
   name: string;
   detail: string | null;
+  /** How hard the model can think (#289), in the agent's order; none when it
+   * takes no effort or the agent doesn't say. */
+  efforts?: NewSessionEffort[];
+  /** The level it starts at when none is picked: what the agent's settings
+   * say, else the model's own default. */
+  defaultEffort?: string | null;
+}
+
+/** A reasoning effort a model takes, under the agent's own name, with what the
+ * agent marks it with ("Recommended", a usage warning, its default). */
+export interface NewSessionEffort {
+  id: string;
+  name: string;
+  detail: string | null;
 }
 
 export interface NewSessionModels {

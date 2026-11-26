@@ -98,6 +98,16 @@ enum SafeCommandsTests {
             let old = #"{"/w/x":{"agent":"claude"}}"#.data(using: .utf8)!
             defaults.set(old, forKey: DefaultsKey.notchNewSessionByProject)
             suite.expect(NewSessionChoiceStore.load("/w/x", defaults)?.safe == nil, "an older entry reads its missing fields as unset")
+            suite.expect(NewSessionChoiceStore.load("/w/x", defaults)?.efforts == nil, "and has no efforts (#289)")
+            let effortKey = NewSessionChoices.effortKey(agent: "codex", model: "gpt-x")
+            NewSessionChoiceStore.save(NewSessionChoices(agent: "codex", efforts: [effortKey: "xhigh"]), for: "/w/e", now: start, defaults)
+            suite.expect(NewSessionChoiceStore.load("/w/e", defaults)?.efforts?[effortKey] == "xhigh", "an effort comes back per agent and model")
+            suite.expect(NewSessionChoiceStore.lastEfforts(defaults).isEmpty, "no effort remembered yet")
+            NewSessionChoiceStore.rememberEffort("high", for: "claude|opus", defaults)
+            NewSessionChoiceStore.rememberEffort("", for: "claude|", defaults)
+            NewSessionChoiceStore.rememberEffort("low", for: "claude|opus", defaults)
+            suite.expect(NewSessionChoiceStore.lastEfforts(defaults) == ["claude|opus": "low", "claude|": ""],
+                         "the last effort of all projects, per agent and model")
         }
     }
 

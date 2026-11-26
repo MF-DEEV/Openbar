@@ -989,5 +989,7 @@
   "windows.hooks.linkAttentionOne": ", 1 tanesine bakılmalı",
   "windows.hooks.linkAttentionMany": ", %d tanesine bakılmalı",
   "windows.hooks.open": "Hook’ları aç",
-  "windows.sessions.agentInEditor": "%@ · %@"
+  "windows.sessions.agentInEditor": "%@ · %@",
+  "windows.sessions.effortPicker": "Efor",
+  "windows.sessions.defaultEffort": "Varsayılan"
 }

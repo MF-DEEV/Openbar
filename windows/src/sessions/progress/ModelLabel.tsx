@@ -18,7 +18,7 @@ export function shortModel(session: Pick<Session, "model" | "modelName">): strin
   return full.replace(/[ -]codex$/i, "");
 }
 
-const LEVELS: Record<string, number> = { minimal: 1, low: 1, medium: 2, high: 3, xhigh: 4, max: 4 };
+const LEVELS: Record<string, number> = { minimal: 1, low: 1, medium: 2, high: 3, xhigh: 4, max: 4, ultra: 4 };
 /** 1 to 4 bars for the level, none when the agent names none. */
 export const effortLevel = (effort?: string) => (effort ? (LEVELS[effort.toLowerCase()] ?? 0) : 0);
 

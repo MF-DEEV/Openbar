@@ -989,5 +989,7 @@
   "windows.hooks.linkAttentionOne": "、1 件は要確認",
   "windows.hooks.linkAttentionMany": "、%d 件は要確認",
   "windows.hooks.open": "フックを開く",
-  "windows.sessions.agentInEditor": "%@（%@ 内）"
+  "windows.sessions.agentInEditor": "%@（%@ 内）",
+  "windows.sessions.effortPicker": "推論レベル",
+  "windows.sessions.defaultEffort": "デフォルト"
 }

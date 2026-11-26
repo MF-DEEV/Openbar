@@ -5,13 +5,20 @@ import {
   CHOICES_KEPT,
   CHOICES_KEY,
   cleanedCommand,
+  EFFORTS_KEY,
+  effortKey,
+  lastEfforts,
   loadChoices,
   offersSafeCommands,
+  pickedEffort,
   projectKey,
+  rememberEffort,
   safeList,
   saveChoices,
   type SafeEntry,
+  shownEffort,
 } from "./newSessionChoices";
+import type { NewSessionModel } from "./types";
 
 function memory(): Storage {
   const data = new Map<string, string>();
@@ -70,5 +77,52 @@ describe("new session choices (#270)", () => {
     expect(safeList(false, "claude", suggested, [], ["x"], true)).toEqual([]);
     expect(safeList(true, "gemini", suggested, [], ["x"], true)).toEqual([]);
     expect(offersSafeCommands("claude") && offersSafeCommands("codex") && !offersSafeCommands("vibe")).toBe(true);
+  });
+});
+
+describe("new session efforts (#289)", () => {
+  const opus: NewSessionModel = {
+    id: "opus",
+    name: "Opus 5.5",
+    detail: null,
+    efforts: [
+      { id: "low", name: "Low", detail: null },
+      { id: "medium", name: "Medium", detail: "Recommended" },
+      { id: "xhigh", name: "Extra", detail: null },
+    ],
+    defaultEffort: "medium",
+  };
+
+  it("picks only a level the model takes; anything else is its default", () => {
+    expect(pickedEffort(opus, "xhigh")?.name).toBe("Extra");
+    expect(pickedEffort(opus, "max")).toBeUndefined();
+    expect(pickedEffort(opus, "")).toBeUndefined();
+    expect(pickedEffort(undefined, "low")).toBeUndefined();
+    expect(pickedEffort({ id: "haiku", name: "Haiku 4.5", detail: null }, "low")).toBeUndefined();
+  });
+
+  it("shows the level picked, else the one the default gives", () => {
+    expect(shownEffort(opus, pickedEffort(opus, "low"))?.id).toBe("low");
+    expect(shownEffort(opus, undefined)?.id).toBe("medium");
+    expect(shownEffort({ ...opus, defaultEffort: null }, undefined)).toBeUndefined();
+  });
+
+  it("keeps the last effort per agent and model", () => {
+    const store = memory();
+    expect(lastEfforts(store)).toEqual({});
+    rememberEffort(effortKey("claude", "opus"), "high", store);
+    rememberEffort(effortKey("claude", ""), "", store);
+    rememberEffort(effortKey("claude", "opus"), "low", store);
+    expect(lastEfforts(store)).toEqual({ "claude|opus": "low", "claude|": "" });
+    store.setItem(EFFORTS_KEY, "[1]");
+    expect(lastEfforts(store)).toEqual({});
+  });
+
+  it("keeps a project's efforts with its other choices", () => {
+    const store = memory();
+    saveChoices("/w/e", { agent: "codex", efforts: { [effortKey("codex", "gpt-a")]: "ultra" } }, 1, store);
+    expect(loadChoices("/w/e", store)?.efforts).toEqual({ "codex|gpt-a": "ultra" });
+    saveChoices("/w/old", { agent: "claude" }, 1, store);
+    expect(loadChoices("/w/old", store)?.efforts).toBeUndefined();
   });
 });

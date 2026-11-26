@@ -337,11 +337,13 @@ enum ClaudeCLI {
     /// with a dash from reading as an option. A worktree name has Claude Code
     /// make the session its own worktree, which `claude rm` removes again.
     /// `allowed` rules hold for the session only (#270); `--allowedTools`
-    /// takes one or more, and `--` ends them before the prompt.
-    static func startArguments(prompt: String?, background: Bool, model: String? = nil, worktree: String? = nil,
-                               allowed: [String] = []) -> [String] {
+    /// takes one or more, and `--` ends them before the prompt. `effort`
+    /// holds for the session only too (#289), as `/effort` would.
+    static func startArguments(prompt: String?, background: Bool, model: String? = nil, effort: String? = nil,
+                               worktree: String? = nil, allowed: [String] = []) -> [String] {
         var arguments = background ? ["--bg"] : []
         if let model, !model.isEmpty { arguments += ["--model", model] }
+        if let effort, NewSessionEffort.isValid(effort) { arguments += ["--effort", effort] }
         if let worktree, !worktree.isEmpty { arguments += ["--worktree", worktree] }
         if !allowed.isEmpty { arguments += ["--allowedTools"] + allowed }
         if let prompt, !prompt.isEmpty { arguments += ["--", prompt] }
@@ -649,8 +651,38 @@ struct NewSessionModel: Equatable, Identifiable {
     let name: String
     /// What the agent's default is, when it can be told.
     var detail: String?
+    /// How hard the model can think (#289), in the agent's order; empty when
+    /// it takes no effort or the agent doesn't say.
+    var efforts: [NewSessionEffort] = []
+    /// The level it starts at when none is picked: what the agent's settings
+    /// say, else the model's own default.
+    var defaultEffort: String?
 
     var key: String { id ?? "" }
+}
+
+/// A reasoning effort a model takes, under the agent's own name, with what
+/// the agent marks it with ("Recommended", a usage warning, its default).
+struct NewSessionEffort: Equatable, Identifiable {
+    let id: String
+    let name: String
+    var detail: String?
+
+    /// An effort goes on a command line, so only a plain word passes:
+    /// `low`, `xhigh`, `max`.
+    static func isValid(_ id: String) -> Bool {
+        !id.isEmpty && id.count <= 32
+            && id.unicodeScalars.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "_" || $0 == "-" }
+    }
+
+    /// A level as the agent's own picker names it, for an agent that keeps
+    /// only ids (Codex).
+    static func name(_ id: String) -> String {
+        switch id {
+        case "xhigh": return "Extra high"
+        default: return id.prefix(1).uppercased() + id.dropFirst()
+        }
+    }
 }
 
 /// The models offered for each agent on the New session page.
@@ -672,6 +704,22 @@ enum NewSessionModels {
         var aliases: [String: String] = [:]
         var names: [String: String] = [:]
         var current: String?
+        /// The efforts each model takes (`thinking.effort_options`), empty for
+        /// one that takes none (`thinking.type` "none").
+        var efforts: [String: [NewSessionEffort]] = [:]
+        /// Each model's own default effort (`runtime.default_effort`, else the
+        /// option marked Recommended).
+        var defaultEfforts: [String: String] = [:]
+    }
+
+    /// The effort Claude Code's settings start each model at:
+    /// `modelSettings.<id>.effortLevel`, what `/effort` saves. Claude Code
+    /// 2.1.318 takes low to xhigh there (max is for one session only) and
+    /// starts no model at a top-level `effortLevel` in these settings.
+    struct ClaudeEffortSettings: Equatable {
+        var perModel: [String: String] = [:]
+
+        static let saved: Set<String> = ["low", "medium", "high", "xhigh"]
     }
 
     /// The freshest of the cached catalogs, one per account Claude Code
@@ -686,6 +734,14 @@ enum NewSessionModels {
                 if let id = model["id"] as? String, let name = model["name"] as? String, !id.isEmpty, !name.isEmpty {
                     catalog.names[id] = name
                 }
+                if let id = model["id"] as? String, !id.isEmpty, let thinking = model["thinking"] as? [String: Any] {
+                    let (efforts, recommended) = claudeEfforts(thinking)
+                    catalog.efforts[id] = efforts
+                    let runtime = (model["runtime"] as? [String: Any])?["default_effort"] as? String
+                    if let fallback = [runtime, recommended].compactMap({ $0 }).first(where: { id in efforts.contains { $0.id == id } }) {
+                        catalog.defaultEfforts[id] = fallback
+                    }
+                }
             }
             for (alias, target) in config["provider_alias_targets"] as? [String: Any] ?? [:] {
                 if let id = (target as? [String: Any])?["default"] as? String, !id.isEmpty { catalog.aliases[alias] = id }
@@ -697,12 +753,46 @@ enum NewSessionModels {
         return parsed.max { $0.fetched < $1.fetched }?.catalog
     }
 
-    static func claude(defaultName: String, current: String? = nil, catalog: ClaudeCatalog? = nil) -> [NewSessionModel] {
+    /// A model's effort options and the one marked Recommended.
+    static func claudeEfforts(_ thinking: [String: Any]) -> (efforts: [NewSessionEffort], recommended: String?) {
+        guard (thinking["type"] as? String) != "none" else { return ([], nil) }
+        var efforts: [NewSessionEffort] = []
+        var recommended: String?
+        for case let option as [String: Any] in thinking["effort_options"] as? [Any] ?? [] {
+            guard let id = option["id"] as? String, NewSessionEffort.isValid(id), !efforts.contains(where: { $0.id == id })
+            else { continue }
+            let name = (option["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? NewSessionEffort.name(id)
+            let badge = (option["badge"] as? [String: Any])?["message"] as? String
+            if badge == "Recommended" { recommended = id }
+            efforts.append(NewSessionEffort(id: id, name: name, detail: badge.flatMap { $0.isEmpty ? nil : $0 }))
+        }
+        return (efforts, recommended)
+    }
+
+    static func claude(defaultName: String, current: String? = nil, catalog: ClaudeCatalog? = nil,
+                       effortSettings: ClaudeEffortSettings? = nil) -> [NewSessionModel] {
         // `default` in the settings leaves it to the account, as no setting does.
         let picked = current.flatMap { $0.lowercased() == "default" ? nil : $0 } ?? catalog?.current
         let detail = picked.map { claudeName($0, catalog: catalog) }
-        return [NewSessionModel(id: nil, name: defaultName, detail: detail)]
-            + claudeAliases.map { NewSessionModel(id: $0, name: claudeName($0, catalog: catalog)) }
+        let withEfforts = { (model: NewSessionModel, name: String?) -> NewSessionModel in
+            guard let name, let catalog else { return model }
+            var model = model
+            let id = claudeID(name, catalog: catalog)
+            model.efforts = catalog.efforts[id] ?? []
+            let set = [effortSettings?.perModel[id], catalog.defaultEfforts[id]]
+            model.defaultEffort = set.compactMap { $0 }.first { level in model.efforts.contains { $0.id == level } }
+            return model
+        }
+        return [withEfforts(NewSessionModel(id: nil, name: defaultName, detail: detail), picked)]
+            + claudeAliases.map { withEfforts(NewSessionModel(id: $0, name: claudeName($0, catalog: catalog)), $0) }
+    }
+
+    /// The catalog's id for an alias or a full name: `opus` and
+    /// `claude-opus-5-5[1m]` are both `claude-opus-5-5`.
+    static func claudeID(_ model: String, catalog: ClaudeCatalog?) -> String {
+        let base = model.split(separator: "[", maxSplits: 1).first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? model
+        let alias = base.lowercased()
+        return catalog?.aliases[alias] ?? claudeLatest[alias] ?? base
     }
 
     /// An alias or full model name as a person reads it, with its version:
@@ -725,13 +815,37 @@ enum NewSessionModels {
         return model
     }
 
+    /// The efforts Claude Code's settings start models at.
+    static func claudeEffortSetting(_ data: Data) -> ClaudeEffortSettings {
+        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return ClaudeEffortSettings() }
+        var settings = ClaudeEffortSettings()
+        for (id, value) in object["modelSettings"] as? [String: Any] ?? [:] {
+            if let level = (value as? [String: Any])?["effortLevel"] as? String, ClaudeEffortSettings.saved.contains(level) {
+                settings.perModel[id] = level
+            }
+        }
+        return settings
+    }
+
     /// Codex's models from the catalog it keeps in `models_cache.json`,
     /// the listed ones in its own order, after the default from `config.toml`.
     static func codex(cache: Data?, config: String?, defaultName: String) -> [NewSessionModel] {
-        let listed = codexCatalog(cache)
-        let configured = config.flatMap(codexSetting)
-        let detail = configured.map { id in listed.first { $0.id == id }?.name ?? id } ?? listed.first?.name
-        return [NewSessionModel(id: nil, name: defaultName, detail: detail)] + listed
+        let configuredEffort = config.flatMap { codexSetting($0, key: "model_reasoning_effort") }
+        // `model_reasoning_effort` applies to every model that takes it.
+        let listed = codexCatalog(cache).map { model -> NewSessionModel in
+            var model = model
+            if let configuredEffort, model.efforts.contains(where: { $0.id == configuredEffort }) {
+                model.defaultEffort = configuredEffort
+            }
+            return model
+        }
+        let configured = config.flatMap { codexSetting($0) }
+        let resolved = configured.map { id in listed.first { $0.id == id } } ?? listed.first
+        let detail = configured.map { id in resolved?.name ?? id } ?? listed.first?.name
+        var fallback = NewSessionModel(id: nil, name: defaultName, detail: detail)
+        fallback.efforts = resolved?.efforts ?? []
+        fallback.defaultEffort = resolved?.defaultEffort
+        return [fallback] + listed
     }
 
     static func codexCatalog(_ data: Data?) -> [NewSessionModel] {
@@ -741,7 +855,11 @@ enum NewSessionModels {
             guard let id = (model["slug"] ?? model["id"]) as? String, !id.isEmpty,
                   (model["visibility"] as? String ?? "list") == "list" else { return nil }
             let name = (model["display_name"] ?? model["displayName"]) as? String
-            return ((model["priority"] as? Int) ?? Int.max, NewSessionModel(id: id, name: name?.isEmpty == false ? name! : id))
+            var listed = NewSessionModel(id: id, name: name?.isEmpty == false ? name! : id)
+            let fallback = model["default_reasoning_level"] as? String
+            listed.efforts = codexEfforts(model["supported_reasoning_levels"], default: fallback)
+            listed.defaultEffort = listed.efforts.contains { $0.id == fallback } ? fallback : nil
+            return ((model["priority"] as? Int) ?? Int.max, listed)
         }
         var seen = Set<String>()
         return shown.enumerated()
@@ -750,14 +868,26 @@ enum NewSessionModels {
             .filter { seen.insert($0.key).inserted }
     }
 
-    /// The top-level `model = "…"` of a `config.toml`; one inside a table is
-    /// a profile's or a provider's, not the default.
-    static func codexSetting(_ toml: String) -> String? {
+    /// The levels a Codex model takes (`supported_reasoning_levels`, each
+    /// `{effort, description}`), its default marked as Codex's picker marks it.
+    static func codexEfforts(_ levels: Any?, default fallback: String?) -> [NewSessionEffort] {
+        var efforts: [NewSessionEffort] = []
+        for level in levels as? [Any] ?? [] {
+            let id = (level as? [String: Any])?["effort"] as? String ?? level as? String
+            guard let id, NewSessionEffort.isValid(id), !efforts.contains(where: { $0.id == id }) else { continue }
+            efforts.append(NewSessionEffort(id: id, name: NewSessionEffort.name(id), detail: id == fallback ? "default" : nil))
+        }
+        return efforts
+    }
+
+    /// A top-level `key = "…"` of a `config.toml` (`model` by default); one
+    /// inside a table is a profile's or a provider's, not the default.
+    static func codexSetting(_ toml: String, key: String = "model") -> String? {
         for raw in toml.split(whereSeparator: \.isNewline) {
             let line = raw.trimmingCharacters(in: .whitespaces)
             if line.hasPrefix("[") { return nil }
-            guard line.hasPrefix("model"), let equals = line.firstIndex(of: "=") else { continue }
-            guard line[..<equals].trimmingCharacters(in: .whitespaces) == "model" else { continue }
+            guard line.hasPrefix(key), let equals = line.firstIndex(of: "=") else { continue }
+            guard line[..<equals].trimmingCharacters(in: .whitespaces) == key else { continue }
             var value = line[line.index(after: equals)...].trimmingCharacters(in: .whitespaces)
             if let hash = value.range(of: " #") { value = String(value[..<hash.lowerBound]).trimmingCharacters(in: .whitespaces) }
             guard value.count >= 2, let quote = value.first, quote == "\"" || quote == "'", value.last == quote else { return nil }
@@ -776,12 +906,13 @@ enum NewSessionModels {
     static func readClaude(configHome: String?, defaultName: String,
                            home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [NewSessionModel] {
         let folder = configHome.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? home.appending(path: ".claude")
-        let setting = (try? Data(contentsOf: folder.appending(path: "settings.json"))).flatMap(claudeSetting)
+        let settings = try? Data(contentsOf: folder.appending(path: "settings.json"))
         let cache = folder.appending(path: "cache/model-catalog", directoryHint: .isDirectory)
         let files = ((try? FileManager.default.contentsOfDirectory(at: cache, includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.pathExtension == "json" }
             .compactMap { try? Data(contentsOf: $0) }
-        return claude(defaultName: defaultName, current: setting, catalog: claudeCatalog(files))
+        return claude(defaultName: defaultName, current: settings.flatMap(claudeSetting), catalog: claudeCatalog(files),
+                      effortSettings: settings.map(claudeEffortSetting))
     }
 }
 
@@ -801,10 +932,14 @@ enum CodexCLI {
         locate(path: ClaudeCLI.shell(home: home).environment["PATH"], home: home)
     }
 
-    /// The arguments that start Codex's terminal UI.
-    static func startArguments(prompt: String?, model: String?) -> [String] {
+    /// The arguments that start Codex's terminal UI. Codex takes an effort
+    /// only as a setting, which `-c` overrides for this run alone; nothing
+    /// is written to `config.toml`. A bare word isn't TOML, so Codex reads it
+    /// as the string itself (`codex --help`).
+    static func startArguments(prompt: String?, model: String?, effort: String? = nil) -> [String] {
         var arguments: [String] = []
         if let model, !model.isEmpty { arguments += ["-m", model] }
+        if let effort, NewSessionEffort.isValid(effort) { arguments += ["-c", "model_reasoning_effort=\(effort)"] }
         if let prompt, !prompt.isEmpty { arguments += ["--", prompt] }
         return arguments
     }

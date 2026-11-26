@@ -989,5 +989,7 @@
   "windows.hooks.linkAttentionOne": ", 1개 확인 필요",
   "windows.hooks.linkAttentionMany": ", %d개 확인 필요",
   "windows.hooks.open": "후크 열기",
-  "windows.sessions.agentInEditor": "%@ · %@"
+  "windows.sessions.agentInEditor": "%@ · %@",
+  "windows.sessions.effortPicker": "추론 수준",
+  "windows.sessions.defaultEffort": "기본값"
 }

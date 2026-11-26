@@ -37,6 +37,10 @@ struct NotchClaudeNewSessionView: View {
     // This project's choices.
     @State private var agentChoice = ""
     @State private var modelChoices: [String: String] = [:]
+    /// Efforts by agent and model (`NewSessionChoices.effortKey`), this
+    /// project's, then those all projects last started with.
+    @State private var effortChoices: [String: String] = [:]
+    @State private var lastEfforts: [String: String] = [:]
     /// The Claude account picked for this session; nil follows the last one used.
     @State private var accountChoice: String?
     @State private var worktreeChoice: Bool?
@@ -117,6 +121,37 @@ struct NotchClaudeNewSessionView: View {
         if model.id == nil, let detail = model.detail { return detail }
         return model.name
     }
+
+    /// The levels the model picked takes; none hides the Effort menu.
+    private var efforts: [NewSessionEffort] {
+        agent == .claude || agent == .codex ? model?.efforts ?? [] : []
+    }
+
+    private var effortStoreKey: String {
+        NewSessionChoices.effortKey(agent: agent.rawValue, model: model?.key ?? "")
+    }
+
+    /// The level picked for this agent and model; "" is the model's default,
+    /// and so is a level the model doesn't take.
+    private var effortKey: Binding<String> {
+        Binding(get: {
+            let key = effortStoreKey
+            let picked = effortChoices[key] ?? lastEfforts[key] ?? ""
+            return efforts.contains { $0.id == picked } ? picked : ""
+        }, set: { effortChoices[effortStoreKey] = $0 })
+    }
+
+    private var effort: NewSessionEffort? {
+        efforts.first { $0.id == effortKey.wrappedValue }
+    }
+
+    /// The level the session starts at: the one picked, else the one the
+    /// default gives when it can be told.
+    private var effortShown: NewSessionEffort? {
+        effort ?? model?.defaultEffort.flatMap { level in efforts.first { $0.id == level } }
+    }
+
+    private var effortLabel: String { effortShown?.name ?? text.defaultEffort }
 
     private var trimmedPrompt: String { prompt.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -423,6 +458,8 @@ struct NotchClaudeNewSessionView: View {
         chosen = folder
         agentChoice = saved?.agent ?? ""
         modelChoices = saved?.models ?? [:]
+        effortChoices = saved?.efforts ?? [:]
+        lastEfforts = NewSessionChoiceStore.lastEfforts()
         accountChoice = saved?.account
         worktreeChoice = saved?.worktree
         inBackground = saved?.background ?? true
@@ -474,7 +511,9 @@ struct NotchClaudeNewSessionView: View {
             HStack(spacing: 8) {
                 if picksAccount { accountMenu.transition(.opacity.combined(with: .offset(y: 4))) }
                 if !models.isEmpty { modelMenu.transition(.opacity.combined(with: .offset(y: 4))) }
+                if !efforts.isEmpty { effortMenu.transition(.opacity.combined(with: .offset(y: 4))) }
             }
+            .animation(motion, value: efforts.isEmpty)
         }
     }
 
@@ -562,11 +601,49 @@ struct NotchClaudeNewSessionView: View {
         .accessibilityLabel("\(text.modelPicker): \(modelLabel)")
     }
 
+    /// How hard the model thinks (#289): the levels it takes under the
+    /// agent's names, after Default, which leaves it to the agent's settings.
+    private var effortMenu: some View {
+        Menu {
+            Picker(text.effortPicker, selection: effortKey) {
+                let fallback = model?.defaultEffort.flatMap { level in efforts.first { $0.id == level }?.name }
+                Text(fallback.map { "\(text.defaultEffort) · \($0)" } ?? text.defaultEffort).tag("")
+                ForEach(efforts) { option in
+                    if let detail = option.detail {
+                        Text("\(option.name) · \(detail)").tag(option.id)
+                    } else {
+                        Text(option.name).tag(option.id)
+                    }
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            menuLabel(title: effortLabel, id: "\(effortStoreKey)-\(effortLabel)") {
+                NotchEffortBars(level: max(1, NotchSessionProgress.effortLevel(effortShown?.id)))
+                    .opacity(0.75)
+            }
+        }
+        .menuStyle(.button)
+        .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .animation(motion, value: effortLabel)
+        .help(text.effortPicker)
+        .accessibilityLabel("\(text.effortPicker): \(effortLabel)")
+    }
+
     private func menuLabel(symbol: String, title: String, id: String) -> some View {
-        HStack(spacing: 6) {
+        menuLabel(title: title, id: id) {
             Image(systemName: symbol)
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.5))
+        }
+    }
+
+    private func menuLabel<Icon: View>(title: String, id: String, @ViewBuilder icon: () -> Icon) -> some View {
+        HStack(spacing: 6) {
+            icon()
             Text(title)
                 .font(.system(size: 12.5, weight: .medium))
                 .foregroundStyle(.white.opacity(0.9))
@@ -896,7 +973,8 @@ struct NotchClaudeNewSessionView: View {
                 HStack(spacing: 4) {
                     NotchSessionAgentGlyph(provider: agent, size: agent == .claude ? 9.5 : 8.5, working: false)
                         .frame(width: 11, height: 11)
-                    Text(models.isEmpty ? agent.shortName : "\(agent.shortName) · \(modelLabel)")
+                    Text(([agent.shortName] + (models.isEmpty ? [] : [modelLabel]) + [effort?.name].compactMap { $0 })
+                        .joined(separator: " · "))
                         .font(.system(size: 10.5, weight: .medium))
                         .lineLimit(1)
                 }
@@ -1018,16 +1096,21 @@ struct NotchClaudeNewSessionView: View {
         starting = true
         problem = nil
         let picked = model?.id
+        let pickedEffort = effort?.id
         let configHome = agent == .claude ? self.configHome : chosen.configHome
         let safe = safeList
+        let effortStoreKey = effortStoreKey
+        let effortValue = effortKey.wrappedValue
+        let keepsEffort = !efforts.isEmpty
         let choices = NewSessionChoices(
             agent: agent.rawValue, account: picksAccount ? account?.id : accountChoice,
             models: modelChoices.merging([agent.rawValue: modelKey.wrappedValue]) { _, new in new },
+            efforts: keepsEffort ? effortChoices.merging([effortStoreKey: effortValue]) { _, new in new } : effortChoices,
             worktree: wantsWorktree, background: inBackground, safe: safeOn,
             safeOff: safeOff.sorted(), safeCustom: safeCustom)
         let agent = agent
         service.startSession(in: chosen.path, configHome: configHome, prompt: prompt, background: background,
-                             provider: agent, model: picked, worktree: usesWorktree,
+                             provider: agent, model: picked, effort: pickedEffort, worktree: usesWorktree,
                              worktreeName: worktreeName, safeCommands: safe) { failure in
             starting = false
             problem = failure
@@ -1037,6 +1120,7 @@ struct NotchClaudeNewSessionView: View {
             lastAgent = agent.rawValue
             if agent == .claude { lastClaudeModel = choices.models?[agent.rawValue] ?? lastClaudeModel }
             if agent == .codex { lastCodexModel = choices.models?[agent.rawValue] ?? lastCodexModel }
+            if keepsEffort { NewSessionChoiceStore.rememberEffort(effortValue, for: effortStoreKey) }
             if picksAccount, let path = account?.path { lastAccount = path }
             var off = Set(noWorktree.split(separator: ",").map(String.init))
             if wantsWorktree { off.remove(agent.rawValue) } else { off.insert(agent.rawValue) }

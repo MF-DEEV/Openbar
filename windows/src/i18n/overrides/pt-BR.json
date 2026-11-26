@@ -989,5 +989,7 @@
   "windows.hooks.linkAttentionOne": ", 1 precisa de atenção",
   "windows.hooks.linkAttentionMany": ", %d precisam de atenção",
   "windows.hooks.open": "Abrir Hooks",
-  "windows.sessions.agentInEditor": "%@ no %@"
+  "windows.sessions.agentInEditor": "%@ no %@",
+  "windows.sessions.effortPicker": "Esforço",
+  "windows.sessions.defaultEffort": "Padrão"
 }

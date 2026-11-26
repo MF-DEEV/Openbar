@@ -989,5 +989,7 @@
   "windows.hooks.linkAttentionOne": ", 1 treba skontrolovať",
   "windows.hooks.linkAttentionMany": ", na kontrolu: %d",
   "windows.hooks.open": "Otvoriť hooky",
-  "windows.sessions.agentInEditor": "%@ v %@"
+  "windows.sessions.agentInEditor": "%@ v %@",
+  "windows.sessions.effortPicker": "Úsilie",
+  "windows.sessions.defaultEffort": "Predvolené"
 }

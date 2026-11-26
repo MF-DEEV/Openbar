@@ -989,5 +989,7 @@
   "windows.hooks.linkAttentionOne": "，1 個需要查看",
   "windows.hooks.linkAttentionMany": "，%d 個需要查看",
   "windows.hooks.open": "開啟鉤子",
-  "windows.sessions.agentInEditor": "%@（於 %@）"
+  "windows.sessions.agentInEditor": "%@（於 %@）",
+  "windows.sessions.effortPicker": "推理強度",
+  "windows.sessions.defaultEffort": "預設"
 }

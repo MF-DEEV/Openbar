@@ -4095,10 +4095,11 @@ pub async fn sessions_new_models(config_home: Option<String>) -> Result<NewSessi
         let claude_folder = config_home
             .map(std::path::PathBuf::from)
             .or_else(|| hooks::installer::home_dir().map(|h| h.join(".claude")));
-        let setting = claude_folder
+        let settings = claude_folder
             .as_ref()
-            .and_then(|f| std::fs::read(f.join("settings.json")).ok())
-            .and_then(|data| background::claude_setting(&data));
+            .and_then(|f| std::fs::read(f.join("settings.json")).ok());
+        let setting = settings.as_deref().and_then(background::claude_setting);
+        let efforts = settings.as_deref().map(background::claude_effort_setting);
         // Claude Code's cached model catalog says what each alias points to.
         let catalogs: Vec<Vec<u8>> = claude_folder
             .and_then(|f| std::fs::read_dir(f.join("cache").join("model-catalog")).ok())
@@ -4118,7 +4119,11 @@ pub async fn sessions_new_models(config_home: Option<String>) -> Result<NewSessi
             .as_ref()
             .and_then(|h| std::fs::read_to_string(h.join("config.toml")).ok());
         NewSessionModels {
-            claude: background::claude_models(setting.as_deref(), catalog.as_ref()),
+            claude: background::claude_models(
+                setting.as_deref(),
+                catalog.as_ref(),
+                efforts.as_ref(),
+            ),
             codex: background::codex_models(cache.as_deref(), config.as_deref()),
         }
     })
@@ -4127,7 +4132,8 @@ pub async fn sessions_new_models(config_home: Option<String>) -> Result<NewSessi
 }
 
 /// Starts Claude Code, Codex or another agent in a folder, in the background
-/// or in the person's terminal, with a model or the agent's default. With
+/// or in the person's terminal, with a model or the agent's default, and an
+/// effort or the model's default (Claude Code and Codex only, #289). With
 /// `worktree`, a folder in a git repository gets the session its own
 /// worktree: Claude Code makes it with `--worktree`, the island makes it for
 /// the rest. "notTrusted", "needsPrompt", "codexNotStarted", "unavailable",
@@ -4143,6 +4149,7 @@ pub async fn sessions_start(
     background: bool,
     agent: Option<String>,
     model: Option<String>,
+    effort: Option<String>,
     worktree: Option<bool>,
     worktree_name: Option<String>,
     safe_commands: Option<Vec<String>>,
@@ -4157,6 +4164,7 @@ pub async fn sessions_start(
         .collect();
     tauri::async_runtime::spawn_blocking(move || {
         let model = model.as_deref().filter(|m| !m.is_empty());
+        let effort = effort.as_deref().filter(|e| self::background::is_effort(e));
         let hook_agent = agent
             .as_deref()
             .and_then(models::Provider::from_key)
@@ -4186,7 +4194,15 @@ pub async fn sessions_start(
             }
         }
         if codex {
-            return start_codex(&service, &folder, &prompt, background, model, safe_commands);
+            return start_codex(
+                &service,
+                &folder,
+                &prompt,
+                background,
+                model,
+                effort,
+                safe_commands,
+            );
         }
         // Gemini CLI, Copilot CLI, OpenCode and cursor-agent run only in a
         // console, where their hooks or plugin report them.
@@ -4220,6 +4236,7 @@ pub async fn sessions_start(
             &prompt,
             background,
             model,
+            effort,
             claude_worktree.as_deref(),
             &super::safe_commands::claude_rules(&safe_commands),
         );
@@ -4352,6 +4369,7 @@ fn start_codex(
     prompt: &str,
     background: bool,
     model: Option<&str>,
+    effort: Option<&str>,
     safe_commands: Vec<String>,
 ) -> Option<String> {
     if !background {
@@ -4361,7 +4379,7 @@ fn start_codex(
         {
             client.expect_safe_commands(folder, safe_commands);
         }
-        let arguments = self::background::codex_start_arguments(prompt, model);
+        let arguments = self::background::codex_start_arguments(prompt, model, effort);
         return (!self::background::codex_in_terminal(&arguments, Some(folder)))
             .then(|| "unavailable".to_owned());
     }
@@ -4381,7 +4399,8 @@ fn start_codex(
             std::thread::sleep(Duration::from_millis(200));
         }
     }
-    let Some(answer) = client.start_thread(folder, model, prompt.trim(), safe_commands) else {
+    let Some(answer) = client.start_thread(folder, model, effort, prompt.trim(), safe_commands)
+    else {
         return Some("codexNotStarted".to_owned());
     };
     match answer.recv_timeout(Duration::from_secs(30)) {

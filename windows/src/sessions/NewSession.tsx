@@ -37,6 +37,7 @@ import {
   AccountMenu,
   AGENT_PREF,
   DEMO_ACCOUNTS,
+  EffortMenu,
   ModelMenu,
   modelKey,
   modelLabel,
@@ -49,13 +50,18 @@ import { problemText } from "./format";
 import { ProviderMark } from "./glyphs";
 import {
   cleanedCommand,
+  effortKey,
+  lastEfforts as readLastEfforts,
   loadChoices,
   type NewSessionChoices,
   offersSafeCommands,
+  pickedEffort,
+  rememberEffort,
   safeList as listOf,
   saveChoices,
   type SafeEntry,
   type SafeKind,
+  shownEffort,
   shownSuggested,
 } from "./newSessionChoices";
 import { S } from "./strings";
@@ -186,6 +192,10 @@ export function NewSession() {
   // This project's choices.
   const [agentChoice, setAgentChoice] = useState<Provider | null>(null);
   const [modelChoices, setModelChoices] = useState<Partial<Record<Provider, string>>>({});
+  // Efforts by agent and model (`effortKey`): this project's, then those all
+  // projects last started with.
+  const [effortChoices, setEffortChoices] = useState<Record<string, string>>({});
+  const [lastEfforts, setLastEfforts] = useState(() => readLastEfforts());
   const [accountChoice, setAccountChoice] = useState<string | null>(null);
   const [worktreeChoice, setWorktreeChoice] = useState<boolean | null>(null);
   const [inBackground, setInBackground] = useState(true);
@@ -219,6 +229,12 @@ export function NewSession() {
   const list = agent === "codex" ? models.codex : agent === "claude" ? models.claude : [];
   const key = modelChoices[agent] ?? (agent === "codex" ? lastModels.codex : lastModels.claude);
   const model = list.find((m) => modelKey(m) === key) ?? list[0];
+  // The levels the model picked takes; none hides the Effort menu (#289).
+  const efforts = agent === "claude" || agent === "codex" ? (model?.efforts ?? []) : [];
+  const effortSlot = effortKey(agent, model ? modelKey(model) : "");
+  // A level the model doesn't take is its default.
+  const effort = pickedEffort(model, effortChoices[effortSlot] ?? lastEfforts[effortSlot]);
+  const effortShown = shownEffort(model, effort);
   const needsPrompt = background && prompt.trim() === "";
   const canStart = chosen !== null && !starting;
   const wantsWorktree = worktreeChoice ?? !noWorktree.split(",").includes(agent);
@@ -300,6 +316,7 @@ export function NewSession() {
     setChosen(folder);
     setAgentChoice(saved?.agent ?? null);
     setModelChoices(saved?.models ?? {});
+    setEffortChoices(saved?.efforts ?? {});
     setAccountChoice(saved?.account ?? null);
     setWorktreeChoice(saved?.worktree ?? null);
     setInBackground(saved?.background ?? true);
@@ -365,10 +382,13 @@ export function NewSession() {
     setStarting(true);
     setProblem(null);
     const modelValue = model ? modelKey(model) : key;
+    const effortValue = effort?.id ?? "";
+    const keepsEffort = efforts.length > 0;
     const choices: NewSessionChoices = {
       agent,
       account: picksAccount ? account?.id : (accountChoice ?? undefined),
       models: { ...modelChoices, [agent]: modelValue },
+      efforts: keepsEffort ? { ...effortChoices, [effortSlot]: effortValue } : effortChoices,
       worktree: wantsWorktree,
       background: inBackground,
       safe: safeOn,
@@ -385,6 +405,7 @@ export function NewSession() {
       usesWorktree,
       worktreeNameText.trim() || null,
       safe,
+      effort?.id ?? null,
     );
     setStarting(false);
     if (failure === "unavailable" && agent === "codex") setProblem(S.codexFailed);
@@ -397,6 +418,10 @@ export function NewSession() {
       if (agent === "claude" || agent === "codex") {
         remember(REMEMBER[agent], modelValue);
         setLastModels({ ...lastModels, [agent]: modelValue });
+      }
+      if (keepsEffort) {
+        rememberEffort(effortSlot, effortValue);
+        setLastEfforts({ ...lastEfforts, [effortSlot]: effortValue });
       }
       if (picksAccount && account) {
         remember(REMEMBER.account, account.path);
@@ -533,6 +558,15 @@ export function NewSession() {
               value={model}
               agent={agent}
               onPick={(value) => setModelChoices({ ...modelChoices, [agent]: value })}
+            />
+          ) : null}
+          {model && efforts.length > 0 ? (
+            <EffortMenu
+              model={model}
+              value={effort}
+              shown={effortShown}
+              labelKey={effortSlot}
+              onPick={(value) => setEffortChoices({ ...effortChoices, [effortSlot]: value })}
             />
           ) : null}
         </div>
@@ -738,7 +772,9 @@ export function NewSession() {
         {recipeChip(
           "agent",
           <ProviderMark provider={agent} size={11} />,
-          list.length > 0 ? `${SHORT_NAMES[agent]} · ${modelLabel(model)}` : SHORT_NAMES[agent],
+          [SHORT_NAMES[agent], ...(list.length > 0 ? [modelLabel(model)] : []), ...(effort ? [effort.name] : [])].join(
+            " · ",
+          ),
         )}
         {usesWorktree ? recipeChip("options", <GitBranch size={11} />, S.worktreeMark) : null}
         {safe.length > 0

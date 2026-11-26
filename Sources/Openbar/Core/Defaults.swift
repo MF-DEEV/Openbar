@@ -1000,6 +1000,9 @@ enum DefaultsKey {
     static let notchNewSessionAgent = "notchNewSessionAgent"
     static let notchNewSessionClaudeModel = "notchNewSessionClaudeModel"
     static let notchNewSessionCodexModel = "notchNewSessionCodexModel"
+    /// The effort New session last started each agent's model at (#289),
+    /// a dictionary by `NewSessionChoices.effortKey`; "" is the default.
+    static let notchNewSessionEfforts = "notchNewSessionEfforts"
     /// The agents New session starts without a worktree of their own, by
     /// `ClaudeSessionProvider` raw value, comma-separated; every other agent
     /// gets one.

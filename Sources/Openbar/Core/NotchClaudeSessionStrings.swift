@@ -294,6 +294,8 @@ struct NotchClaudeSessionStrings {
     let agentPicker: String
     let modelPicker: String
     let defaultModel: String
+    let effortPicker: String
+    let defaultEffort: String
     let backgroundNeedsPrompt: String
     let codexNotStarted: String
     let codexFailed: String
@@ -618,6 +620,8 @@ extension NotchClaudeSessionStrings {
         agentPicker: "Agent",
         modelPicker: "Model",
         defaultModel: "Default",
+        effortPicker: "Effort",
+        defaultEffort: "Default",
         backgroundNeedsPrompt: "In the background, a session needs a first prompt.",
         codexNotStarted: "Codex’s background server didn’t start. Try Terminal.",
         codexFailed: "Codex couldn’t start the session",
