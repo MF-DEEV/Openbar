@@ -3418,6 +3418,15 @@ pub enum UiDecision {
     Deny,
 }
 
+/// The Allow all click an allow came with (#281).
+#[derive(Deserialize)]
+pub struct BatchClick {
+    pub id: String,
+    /// The session's name as the row showed it.
+    #[serde(default)]
+    pub session: Option<String>,
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum UiAnswer {
@@ -3436,13 +3445,23 @@ pub fn sessions_decide(
     plan_mode: Option<PlanMode>,
     revision: Option<String>,
     inspection_token: Option<String>,
-    batch: Option<String>,
+    batch: Option<BatchClick>,
 ) -> bool {
     // Allow all names its click (#281): what the island showed of the ask is
     // kept once the agent took the allow.
-    let batched = match (&decision, &plan_mode, batch.as_deref()) {
-        (UiDecision::Allow, None, Some(batch)) if !batch.is_empty() && session_id != sample::ID => {
-            service.batch_entry(batch, &session_id, &request_id)
+    let batched = match (&decision, &plan_mode, batch) {
+        (UiDecision::Allow, None, Some(click))
+            if !click.id.is_empty() && session_id != sample::ID =>
+        {
+            service
+                .batch_entry(&click.id, &session_id, &request_id)
+                .map(|mut entry| {
+                    // The name the row showed, the person's own if they renamed it.
+                    if let Some(name) = click.session.filter(|n| !n.trim().is_empty()) {
+                        entry.session = name;
+                    }
+                    entry
+                })
         }
         _ => None,
     };

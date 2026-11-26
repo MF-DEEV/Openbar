@@ -102,13 +102,12 @@ struct SessionBatchApprovalsSettings: View {
                 Text(who(entry))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(entry.tool)
                     .font(.caption.weight(.semibold))
-                if !entry.detail.isEmpty { code(entry.detail) }
-                let paths = (entry.paths ?? []).filter { $0 != entry.detail }
-                if !paths.isEmpty { code(paths.joined(separator: "\n")) }
+                if let detail = entry.shownDetail { code(detail) }
+                if let paths = entry.paths, !paths.isEmpty { code(paths.joined(separator: "\n")) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

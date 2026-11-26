@@ -66,8 +66,12 @@ enum NotchPermissionQueueTests {
             var moved = ClaudeFileDiff(path: "/repo/b.swift")
             moved.movedTo = "/repo/c.swift"
             multi.diffs = [ClaudeFileDiff(path: "/repo/a.swift"), moved]
-            suite.expect(BatchApproval(batch: "b", session: s, ask: multi, at: start).paths
-                         == ["/repo/a.swift", "/repo/b.swift", "/repo/c.swift"], "every file a change touches, a move's target too")
+            let changed = BatchApproval(batch: "b", session: s, ask: multi, at: start)
+            suite.expect(changed.paths == ["/repo/a.swift", "/repo/b.swift", "/repo/c.swift"], "every file a change touches, a move's target too")
+            suite.expect(changed.shownDetail == "2 files", "a detail that says more than the paths shows")
+            var relative = changed
+            relative.detail = "a.swift\nrepo/b.swift"
+            suite.expect(relative.shownDetail == nil, "short forms of the listed paths aren't shown twice")
             let long = String(repeating: "é", count: BatchApproval.detailLimit + 5)
             let cut = BatchApproval(batch: "b", session: s, ask: ask("l1", 1, text: long), at: start).detail
             suite.expect(cut.unicodeScalars.count == BatchApproval.detailLimit + 1 && cut.hasSuffix("…"), "a huge command is cut")

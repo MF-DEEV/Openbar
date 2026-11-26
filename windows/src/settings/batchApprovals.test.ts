@@ -2,7 +2,7 @@
 // Copyright (C) 2026 MF DEV and the Openbar contributors
 
 import { expect, it } from "vitest";
-import { groupBatches } from "./BatchApprovals";
+import { groupBatches, shownDetail } from "./BatchApprovals";
 import type { BatchApproval } from "../sessions/types";
 
 const entry = (batch: string, at: number, detail: string): BatchApproval => ({
@@ -23,4 +23,12 @@ it("groups the asks of one click and keeps the list's order", () => {
     ["b1", 10, ["git status"]],
   ]);
   expect(groupBatches([])).toEqual([]);
+});
+
+it("leaves out a detail that only names the listed files by shorter paths", () => {
+  const edit = { ...entry("b", 1, "src\\cart.ts\nold.ts"), paths: ["C:\\shop\\src\\cart.ts", "/shop/old.ts"] };
+  expect(shownDetail(edit)).toBeNull();
+  expect(shownDetail({ ...edit, detail: "2 files" })).toBe("2 files");
+  expect(shownDetail(entry("b", 1, "ls"))).toBe("ls");
+  expect(shownDetail(entry("b", 1, "  "))).toBeNull();
 });

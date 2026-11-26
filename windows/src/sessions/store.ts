@@ -10,10 +10,20 @@ import { bridge } from "../shared/bridge";
 import { localCostumeStore } from "./clawd/costume";
 import { autoAllowConsent } from "./autoAllowConsent";
 import { codexServer } from "./types";
-import type { Decision, PlanMode, ReplyAttachment, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
+import type {
+  BatchClick,
+  Decision,
+  PlanMode,
+  ReplyAttachment,
+  ReplyFailure,
+  Session,
+  SessionEvent,
+  Snapshot,
+} from "./types";
 import { DEFAULT_SESSION_PREFS, type SessionPrefs } from "../shared/prefs";
 import type { AwayLine } from "./away";
 import { asks, type PermissionQueue } from "./queue";
+import { displayName } from "./format";
 
 /** A permission must be on screen this long before a click or Ctrl+Y can answer it. */
 export const SETTLE_DELAY = 0.8;
@@ -67,7 +77,7 @@ interface SessionsState {
     decision: Decision,
     planMode?: PlanMode,
     inspectionToken?: string,
-    batch?: string,
+    batch?: BatchClick,
   ): Promise<boolean>;
   answer(session: Session, answers: Record<string, string | string[]>): Promise<boolean>;
   skip(session: Session): Promise<boolean>;
@@ -274,7 +284,10 @@ export const useSessions = create<SessionsState>()((set, get) => ({
       queue.allowAll.map((row) => {
         const session = { ...row.session, permission: row.ask };
         return settled(get(), session)
-          ? get().decide(session, "allow", undefined, undefined, batch)
+          ? get().decide(session, "allow", undefined, undefined, {
+              id: batch,
+              session: displayName(row.session, get().names[row.session.id]),
+            })
           : Promise.resolve(false);
       }),
     );

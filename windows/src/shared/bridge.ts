@@ -9,6 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { register, unregister, type ShortcutEvent } from "@tauri-apps/plugin-global-shortcut";
 import type {
+  BatchClick,
   Decision,
   PlanMode,
   RecentFolder,
@@ -222,8 +223,8 @@ export const bridge = {
       planMode?: PlanMode,
       revision?: string,
       inspectionToken?: string,
-      /** Allow all's click, so the app lists the ask once it went through (#281). */
-      batch?: string,
+      /** Allow all's click and the row's name, so the app lists the ask once it went through (#281). */
+      batch?: BatchClick,
     ) =>
       call<boolean>("sessions_decide", {
         sessionId,

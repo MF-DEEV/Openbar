@@ -56,6 +56,16 @@ struct BatchApproval: Codable, Equatable {
     }
 
     var date: Date { Date(timeIntervalSince1970: at) }
+
+    /// The detail as the list shows it: left out when it only names, by
+    /// shorter paths, files the path list names in full.
+    var shownDetail: String? {
+        let lines = detail.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return nil }
+        let paths = self.paths ?? []
+        let covered = !paths.isEmpty && lines.allSatisfy { line in paths.contains { $0 == line || $0.hasSuffix("/" + line) } }
+        return covered ? nil : detail
+    }
     var provider: ClaudeSessionProvider? { ClaudeSessionProvider(rawValue: agent) }
 }
 

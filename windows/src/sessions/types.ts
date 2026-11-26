@@ -273,6 +273,12 @@ export const isHookAgent = (provider: Provider): provider is HookAgent =>
   (HOOK_AGENTS as readonly string[]).includes(provider);
 
 /** What the island calls each agent; product names, the same in every language. */
+/** The Allow all click an allow comes with, and the name its row showed (#281). */
+export interface BatchClick {
+  id: string;
+  session: string;
+}
+
 /** One ask the queue's Allow all answered, as the app keeps it (#281). */
 export interface BatchApproval {
   /** The click it came with; the asks of one click share it. */

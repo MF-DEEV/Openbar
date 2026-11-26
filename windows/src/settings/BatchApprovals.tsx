@@ -36,6 +36,20 @@ export function groupBatches(entries: BatchApproval[]): Batch[] {
   return out;
 }
 
+/** The detail as the list shows it: left out when it only names, by shorter paths, files the path list names in full. */
+export function shownDetail(entry: BatchApproval): string | null {
+  const lines = entry.detail
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return null;
+  const paths = entry.paths ?? [];
+  const covered =
+    paths.length > 0 &&
+    lines.every((line) => paths.some((p) => p === line || p.endsWith(`/${line}`) || p.endsWith(`\\${line}`)));
+  return covered ? null : entry.detail;
+}
+
 function agentName(agent: string): string {
   return PROVIDER_NAMES[agent as Provider] ?? agent;
 }
@@ -116,10 +130,8 @@ export function BatchApprovals() {
                       {e.project && e.project !== e.session ? <span>{e.project}</span> : null}
                     </div>
                     <div className="st-batch-tool">{e.tool}</div>
-                    {e.detail ? <pre className="st-batch-detail">{e.detail}</pre> : null}
-                    {e.paths?.length ? (
-                      <pre className="st-batch-detail">{e.paths.filter((p) => p !== e.detail.trim()).join("\n")}</pre>
-                    ) : null}
+                    {shownDetail(e) !== null ? <pre className="st-batch-detail">{shownDetail(e)}</pre> : null}
+                    {e.paths?.length ? <pre className="st-batch-detail">{e.paths.join("\n")}</pre> : null}
                   </div>
                 </div>
               ))}

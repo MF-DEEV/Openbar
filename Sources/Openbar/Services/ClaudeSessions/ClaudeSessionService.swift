@@ -756,8 +756,10 @@ final class ClaudeSessionService: ObservableObject {
         let batch = UUID().uuidString
         let now = Date()
         for row in queue.allowAll where settled(row.session.id, request: row.ask.requestID) {
-            decide(row.session.id, request: row.ask.requestID, .allow,
-                   batch: BatchApproval(batch: batch, session: row.session, ask: row.ask, at: now))
+            var entry = BatchApproval(batch: batch, session: row.session, ask: row.ask, at: now)
+            // The name the row showed, the person's own if they renamed it.
+            entry.session = displayName(row.session)
+            decide(row.session.id, request: row.ask.requestID, .allow, batch: entry)
         }
     }
 
