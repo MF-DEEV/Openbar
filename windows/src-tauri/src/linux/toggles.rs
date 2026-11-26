@@ -9,7 +9,7 @@
 //! does on Windows when the state is not known.
 
 use gtk::gio::{self, prelude::*};
-use x11rb::connection::{Connection, RequestConnection};
+use x11rb::connection::RequestConnection;
 use x11rb::protocol::dpms::{self, ConnectionExt as _};
 
 use crate::toggles::{Action, State, empty_recycle_bin};
@@ -50,11 +50,18 @@ fn display_off() -> Result<(), String> {
         .extension_information(dpms::X11_EXTENSION_NAME)
         .map_err(|e| e.to_string())?
         .ok_or("This X server has no power management for displays")?;
-    connection.dpms_enable().map_err(|e| e.to_string())?;
+    // `check` waits for the server's answer: a request only flushed is lost
+    // when the connection closes right after it (#190).
+    connection
+        .dpms_enable()
+        .map_err(|e| e.to_string())?
+        .check()
+        .map_err(|e| e.to_string())?;
     connection
         .dpms_force_level(dpms::DPMSMode::OFF)
-        .map_err(|e| e.to_string())?;
-    connection.flush().map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?
+        .check()
+        .map_err(|e| e.to_string())
 }
 
 fn trash_items() -> Option<i64> {

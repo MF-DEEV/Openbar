@@ -13,11 +13,13 @@
 use x11rb::protocol::xproto::ConnectionExt as _;
 use x11rb::rust_connection::RustConnection;
 
+pub mod atspi;
 pub mod autostart;
 pub mod battery;
 pub mod brightness;
 pub mod command;
 pub mod desktop;
+pub mod discord_voice;
 pub mod downloads;
 pub mod files;
 pub mod gtk_main;
@@ -30,6 +32,7 @@ pub mod kwin;
 pub mod layer;
 pub mod locale;
 pub mod net;
+pub mod net_process;
 pub mod ocr;
 pub mod paths;
 pub mod process;

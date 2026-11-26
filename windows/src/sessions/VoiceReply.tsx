@@ -78,9 +78,10 @@ function message(issue: VoiceIssue): string {
   }
 }
 
-function fix(issue: VoiceIssue): (() => void) | null {
-  // Windows' privacy and sound pages have no Linux counterpart to open.
-  if (onLinux() && issue !== "modelMissing") return null;
+export function fix(issue: VoiceIssue): (() => void) | null {
+  // Linux has no privacy switch: either issue opens the desktop's sound settings.
+  if (onLinux() && (issue === "microphoneDenied" || issue === "noMicrophone"))
+    return () => void bridge.voice.openWindowsSettings("sound");
   if (issue === "microphoneDenied") return () => void bridge.voice.openWindowsSettings("microphone");
   if (issue === "noMicrophone") return () => void bridge.voice.openWindowsSettings("sound");
   if (issue === "modelMissing") return () => void bridge.openSettings();

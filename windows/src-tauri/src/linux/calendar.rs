@@ -201,6 +201,65 @@ impl Cache {
     }
 }
 
+/// Where Open takes an event of the system's calendars (Windows opens it in
+/// the Calendar app or Outlook).
+#[derive(Debug, PartialEq)]
+enum OpenTarget {
+    /// In one of Evolution's local calendars: GNOME Calendar, which reads them
+    /// through Evolution Data Server, names it `<calendar>:<uid>`.
+    Evolution { calendar: String, uid: String },
+    /// Anything else: the desktop's calendar app, on its own.
+    App,
+}
+
+fn open_target(roots: &Roots, cache: &mut Cache, uid: Option<&str>) -> OpenTarget {
+    let Some(uid) = uid.filter(|u| !u.is_empty()) else {
+        return OpenTarget::App;
+    };
+    for dir in &roots.evolution {
+        for folder in subfolders(dir) {
+            let holds = cache
+                .calendar(&folder.join("calendar.ics"))
+                .is_some_and(|c| c.events.iter().any(|e| e.uid == uid));
+            if let (true, Some(name)) = (holds, folder.file_name()) {
+                // The folder is the calendar's source id, except the built-in
+                // one's: `system` holds `system-calendar`.
+                let name = name.to_string_lossy();
+                return OpenTarget::Evolution {
+                    calendar: if name == "system" {
+                        "system-calendar".into()
+                    } else {
+                        name.into_owned()
+                    },
+                    uid: uid.into(),
+                };
+            }
+        }
+    }
+    OpenTarget::App
+}
+
+/// Opens the event (or, with none, the calendar) in the desktop's calendar
+/// app; false when there is none. A calendar file is never handed to the app:
+/// GNOME Calendar and Thunderbird would import it as new events.
+pub fn open(local_id: Option<String>) -> bool {
+    use crate::linux::command::spawn;
+    use gtk::gio::{self, prelude::*};
+    let target = open_target(
+        &Roots::of_user(),
+        &mut Cache::default(),
+        local_id.as_deref(),
+    );
+    if let OpenTarget::Evolution { calendar, uid } = &target
+        && (spawn("gnome-calendar", &["--uuid", &format!("{calendar}:{uid}")])
+            || spawn("evolution", &["--component=calendar"]))
+    {
+        return true;
+    }
+    gio::AppInfo::default_for_type("text/calendar", false)
+        .is_some_and(|app| app.launch(&[], gio::AppLaunchContext::NONE).is_ok())
+}
+
 /// The calendars as the page lists them, and the events of each in `range`.
 fn read(sources: &[Source], cache: &mut Cache, range: (i64, i64)) -> Vec<(Choice, Vec<Event>)> {
     sources
@@ -410,6 +469,39 @@ mod tests {
             "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n{}END:VCALENDAR\r\n",
             events.concat()
         )
+    }
+
+    #[test]
+    fn open_goes_to_the_event_only_in_an_evolution_calendar() {
+        let home = temp("open");
+        let roots = Roots {
+            files: vec![home.join("data/openbar/calendars")],
+            folders: vec![home.join(".calendars")],
+            evolution: vec![home.join("data/evolution/calendar")],
+        };
+        let one = calendar(&[event("e1", "A", "20260105T090000Z", "20260105T100000Z")]);
+        let two = calendar(&[event("f1", "B", "20260105T090000Z", "20260105T100000Z")]);
+        write(
+            &home.join("data/evolution/calendar/system/calendar.ics"),
+            &one,
+        );
+        write(&home.join("data/openbar/calendars/Work.ics"), &two);
+        let mut cache = Cache::default();
+        assert_eq!(
+            open_target(&roots, &mut cache, Some("e1")),
+            OpenTarget::Evolution {
+                calendar: "system-calendar".into(),
+                uid: "e1".into()
+            }
+        );
+        assert_eq!(open_target(&roots, &mut cache, Some("f1")), OpenTarget::App);
+        assert_eq!(
+            open_target(&roots, &mut cache, Some("gone")),
+            OpenTarget::App
+        );
+        assert_eq!(open_target(&roots, &mut cache, Some("")), OpenTarget::App);
+        assert_eq!(open_target(&roots, &mut cache, None), OpenTarget::App);
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]

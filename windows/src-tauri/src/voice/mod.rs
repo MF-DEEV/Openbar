@@ -147,14 +147,20 @@ pub fn voice_cancel(state: tauri::State<'_, Shared>, id: u64) {
 }
 
 /// The Windows page that fixes a microphone problem: its privacy switch, or
-/// the sound page where an input device is picked.
+/// the sound page where an input device is picked. On Linux, the desktop's
+/// sound settings (`linux::voice::open_sound_settings`).
 #[tauri::command]
 pub fn voice_open_settings(page: String) -> bool {
+    #[cfg(target_os = "linux")]
+    return matches!(page.as_str(), "microphone" | "sound")
+        && crate::linux::voice::open_sound_settings();
+    #[cfg(not(target_os = "linux"))]
     let url = match page.as_str() {
         "microphone" => "ms-settings:privacy-microphone",
         "sound" => "ms-settings:sound",
         _ => return false,
     };
+    #[cfg(not(target_os = "linux"))]
     tauri_plugin_opener::open_url(url, None::<&str>).is_ok()
 }
 

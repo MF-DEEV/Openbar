@@ -4,11 +4,16 @@
 //! X11: the window manager marks a fullscreen window in `_NET_WM_STATE`, and
 //! the active window is asked about it a few times a second. On Wayland the
 //! compositor is asked the same (`wm.rs`).
+//!
+//! The same look at the active window tells whether the person is in an app
+//! (busy) or on the desktop, which Windows reads from its foreground window:
+//! the island presents itself only after the desktop, or one of Openbar's own
+//! windows, has been in front for a moment (#190).
 //! Included by `fullscreen.rs` as its `imp`, so it can reach what the module keeps private.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
 use x11rb::connection::Connection;
@@ -29,6 +34,9 @@ struct Atoms {
     state: Atom,
     fullscreen: Atom,
     pid: Atom,
+    kind: Atom,
+    desktop: Atom,
+    dock: Atom,
 }
 
 struct Probe {
@@ -59,6 +67,9 @@ fn probe() -> Option<&'static Probe> {
                 state: atom(&connection, "_NET_WM_STATE")?,
                 fullscreen: atom(&connection, "_NET_WM_STATE_FULLSCREEN")?,
                 pid: atom(&connection, "_NET_WM_PID")?,
+                kind: atom(&connection, "_NET_WM_WINDOW_TYPE")?,
+                desktop: atom(&connection, "_NET_WM_WINDOW_TYPE_DESKTOP")?,
+                dock: atom(&connection, "_NET_WM_WINDOW_TYPE_DOCK")?,
             };
             Some(Probe {
                 connection,
@@ -104,6 +115,70 @@ fn fullscreen_bounds(probe: &Probe) -> Option<[i32; 4]> {
     Some([x, y, x + i32::from(size.width), y + i32::from(size.height)])
 }
 
+/// What is in front, as far as the window manager tells.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Front {
+    /// The desktop, a panel, one of Openbar's own windows, or no window.
+    Desktop,
+    /// Another app's window.
+    App,
+    /// Nobody to ask (a Wayland compositor without an IPC Openbar speaks).
+    Unknown,
+}
+
+fn x11_front(probe: &Probe) -> Front {
+    let Some(&window) = values(probe, probe.root, probe.atoms.active, AtomEnum::WINDOW).first()
+    else {
+        return Front::Desktop;
+    };
+    if window == 0 {
+        return Front::Desktop;
+    }
+    let own = values(probe, window, probe.atoms.pid, AtomEnum::CARDINAL)
+        .first()
+        .is_some_and(|pid| *pid == std::process::id());
+    let kinds = values(probe, window, probe.atoms.kind, AtomEnum::ATOM);
+    if own || kinds.contains(&probe.atoms.desktop) || kinds.contains(&probe.atoms.dock) {
+        Front::Desktop
+    } else {
+        Front::App
+    }
+}
+
+fn wayland_front() -> Front {
+    let Some(windows) = crate::linux::wm::toplevels() else {
+        return Front::Unknown;
+    };
+    match windows.iter().find(|t| t.focused) {
+        Some(t) if t.pid != std::process::id() => Front::App,
+        _ => Front::Desktop,
+    }
+}
+
+/// Since when the desktop has been in front, for the moment it must stay.
+static SAFE_SINCE: Mutex<Option<Instant>> = Mutex::new(None);
+const SAFE_AFTER: Duration = Duration::from_millis(750);
+
+/// (may the island present itself, is the person busy in an app), as
+/// Windows decides it: presenting waits until the desktop has been in front
+/// for `SAFE_AFTER`; where nothing tells, the island presents as before.
+fn attention(front: Front, since: &mut Option<Instant>, now: Instant) -> (bool, bool) {
+    match front {
+        Front::Desktop => {
+            let since = since.get_or_insert(now);
+            (now.saturating_duration_since(*since) >= SAFE_AFTER, false)
+        }
+        Front::App => {
+            *since = None;
+            (false, true)
+        }
+        Front::Unknown => {
+            *since = None;
+            (true, false)
+        }
+    }
+}
+
 /// The focused window's rectangle in physical pixels, when it is fullscreen,
 /// as the compositor tells it on Wayland.
 fn wayland_fullscreen_bounds(scale: f64) -> Option<[i32; 4]> {
@@ -130,7 +205,13 @@ pub fn context<R: Runtime>(window: &WebviewWindow<R>) -> super::AttentionContext
         position.x + size.width as i32,
         position.y + size.height as i32,
     ];
+    let mut apply_front = |front: Front| {
+        let (allowed, busy) = attention(front, &mut SAFE_SINCE.lock().unwrap(), Instant::now());
+        context.can_auto_present = allowed;
+        context.busy = busy;
+    };
     if crate::linux::wm::available() {
+        apply_front(wayland_front());
         if let Some(bounds) = wayland_fullscreen_bounds(monitor.scale_factor()) {
             context.fullscreen = super::fullscreen_candidate(true, bounds, display);
         }
@@ -139,6 +220,7 @@ pub fn context<R: Runtime>(window: &WebviewWindow<R>) -> super::AttentionContext
     let Some(probe) = probe() else {
         return context;
     };
+    apply_front(x11_front(probe));
     if let Some(bounds) = fullscreen_bounds(probe) {
         context.fullscreen = super::fullscreen_candidate(true, bounds, display);
     }
@@ -203,4 +285,41 @@ pub fn set_hides(hides: bool) {
 
 pub fn stop<R: Runtime>(_app: &AppHandle<R>) {
     STOPPED.store(true, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_island_presents_once_the_desktop_has_been_in_front_a_moment() {
+        let start = Instant::now();
+        let at = |ms: u64| start + Duration::from_millis(ms);
+        let mut since = None;
+        assert_eq!(attention(Front::Desktop, &mut since, at(0)), (false, false));
+        assert_eq!(
+            attention(Front::Desktop, &mut since, at(500)),
+            (false, false)
+        );
+        assert_eq!(
+            attention(Front::Desktop, &mut since, at(750)),
+            (true, false)
+        );
+        // An app in front: busy, and the wait starts over.
+        assert_eq!(attention(Front::App, &mut since, at(800)), (false, true));
+        assert_eq!(
+            attention(Front::Desktop, &mut since, at(900)),
+            (false, false)
+        );
+        assert_eq!(
+            attention(Front::Desktop, &mut since, at(1_700)),
+            (true, false)
+        );
+        // Nobody to ask: as before, never busy.
+        assert_eq!(
+            attention(Front::Unknown, &mut since, at(1_800)),
+            (true, false)
+        );
+        assert_eq!(since, None);
+    }
 }

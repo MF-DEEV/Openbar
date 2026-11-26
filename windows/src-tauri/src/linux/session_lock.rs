@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors
 
-//! The session being unlocked on Linux, where Windows hears
-//! `WTS_SESSION_UNLOCK`. There is no one signal for it, so three are listened
-//! to, and the first to report the unlock wins:
+//! The session being locked and unlocked on Linux, where Windows hears
+//! `WTS_SESSION_LOCK` and `WTS_SESSION_UNLOCK`. There is no one signal for
+//! it, so three are listened to, and the first to report a change wins:
 //!
-//! - systemd-logind's `Unlock` (and the session's `LockedHint` going false),
-//!   which `loginctl unlock-session` and the desktops' lockers send,
-//! - a screensaver service's `ActiveChanged(false)`, which GNOME, KDE, XFCE
-//!   and others send,
-//! - a screen locker program that was running and is gone (`xsecurelock`,
-//!   `i3lock`, ...), for the lockers that tell no one, which X11 users start
-//!   from a key or a script.
+//! - systemd-logind's `Lock` and `Unlock` (and the session's `LockedHint`),
+//!   which `loginctl lock-session` and the desktops' lockers send,
+//! - a screensaver service's `ActiveChanged`, which GNOME, KDE, XFCE and
+//!   others send,
+//! - a screen locker program that starts and ends (`xsecurelock`, `i3lock`,
+//!   ...), for the lockers that tell no one, which X11 users start from a key
+//!   or a script.
+//!
+//! The lock starts the "while you were away" card's time away (#215), the
+//! unlock wakes the companion and shows the card. The minutes without input
+//! the card also counts come from [`idle_seconds`].
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -23,7 +27,7 @@ use zbus::blocking::{Connection, MessageIterator, Proxy, connection::Builder};
 use zbus::message::Type;
 use zbus::zvariant::{ObjectPath, OwnedValue};
 
-use crate::session_lock::EVENT;
+use crate::session_lock::{EVENT, LOCKED};
 
 /// Programs that cover the screen while it is locked and exit when it is
 /// not, by `comm`. A desktop's own screensaver is not here: its daemon never
@@ -40,23 +44,38 @@ const LOCKERS: [&str; 8] = [
     "xtrlock",
 ];
 
-/// Reports are one unlock, however many of the signals heard it.
-const ONE_UNLOCK: Duration = Duration::from_secs(5);
+/// Reports of one change are one lock or unlock, however many of the
+/// signals heard it.
+const ONE_CHANGE: Duration = Duration::from_secs(5);
 
 struct Notifier {
     app: AppHandle,
-    last: Mutex<Option<Instant>>,
+    last: Mutex<Option<(bool, Instant)>>,
 }
 
 impl Notifier {
-    fn unlocked(&self) {
-        let mut last = self.last.lock().unwrap();
-        if last.is_some_and(|at| at.elapsed() < ONE_UNLOCK) {
+    /// The session was locked (`true`) or unlocked (`false`).
+    fn changed(&self, locked: bool) {
+        if !self.news(locked, Instant::now()) {
             return;
         }
-        *last = Some(Instant::now());
-        let _ = self.app.emit(EVENT, ());
+        let _ = self.app.emit(if locked { LOCKED } else { EVENT }, ());
     }
+
+    fn news(&self, locked: bool, at: Instant) -> bool {
+        news(&mut self.last.lock().unwrap(), locked, at)
+    }
+}
+
+/// Whether a report is news: not the same change heard moments ago.
+fn news(last: &mut Option<(bool, Instant)>, locked: bool, at: Instant) -> bool {
+    if last
+        .is_some_and(|(was, then)| was == locked && at.saturating_duration_since(then) < ONE_CHANGE)
+    {
+        return false;
+    }
+    *last = Some((locked, at));
+    true
 }
 
 /// Whether a screen locker runs, from the process list at `proc`.
@@ -89,9 +108,13 @@ fn session_path(connection: &Connection) -> Option<String> {
     Some(path.as_str().to_string())
 }
 
-/// Calls `on_unlock` for each unlock logind reports for the session at
-/// `path`, until the connection ends.
-fn watch_logind(connection: &Connection, path: &str, mut on_unlock: impl FnMut()) -> Option<()> {
+/// Calls `on_change` with each lock (`true`) and unlock (`false`) logind
+/// reports for the session at `path`, until the connection ends.
+fn watch_logind(
+    connection: &Connection,
+    path: &str,
+    mut on_change: impl FnMut(bool),
+) -> Option<()> {
     let rule = MatchRule::builder()
         .msg_type(Type::Signal)
         .sender("org.freedesktop.login1")
@@ -103,7 +126,8 @@ fn watch_logind(connection: &Connection, path: &str, mut on_unlock: impl FnMut()
         let Ok(message) = message else { continue };
         let header = message.header();
         match header.member().map(|m| m.as_str()) {
-            Some("Unlock") => on_unlock(),
+            Some("Lock") => on_change(true),
+            Some("Unlock") => on_change(false),
             Some("PropertiesChanged") => {
                 let Ok((_, changed, _)) = message.body().deserialize::<(
                     String,
@@ -112,11 +136,10 @@ fn watch_logind(connection: &Connection, path: &str, mut on_unlock: impl FnMut()
                 )>() else {
                     continue;
                 };
-                if changed
-                    .get("LockedHint")
-                    .is_some_and(|v| matches!(&**v, zbus::zvariant::Value::Bool(false)))
+                if let Some(zbus::zvariant::Value::Bool(locked)) =
+                    changed.get("LockedHint").map(|v| &**v)
                 {
-                    on_unlock();
+                    on_change(*locked);
                 }
             }
             _ => {}
@@ -125,9 +148,9 @@ fn watch_logind(connection: &Connection, path: &str, mut on_unlock: impl FnMut()
     Some(())
 }
 
-/// Calls `on_unlock` for each `ActiveChanged(false)` a screensaver service
-/// (of any desktop) sends, until the connection ends.
-fn watch_screensaver(connection: &Connection, mut on_unlock: impl FnMut()) -> Option<()> {
+/// Calls `on_change` with each `ActiveChanged` a screensaver service (of any
+/// desktop) sends, until the connection ends: active is away, as a lock is.
+fn watch_screensaver(connection: &Connection, mut on_change: impl FnMut(bool)) -> Option<()> {
     let rule = MatchRule::builder()
         .msg_type(Type::Signal)
         .member("ActiveChanged")
@@ -139,13 +162,8 @@ fn watch_screensaver(connection: &Connection, mut on_unlock: impl FnMut()) -> Op
         let from_a_screensaver = header
             .interface()
             .is_some_and(|i| i.as_str().to_lowercase().contains("screensaver"));
-        if from_a_screensaver
-            && message
-                .body()
-                .deserialize::<bool>()
-                .is_ok_and(|active| !active)
-        {
-            on_unlock();
+        if from_a_screensaver && let Ok(active) = message.body().deserialize::<bool>() {
+            on_change(active);
         }
     }
     Some(())
@@ -285,6 +303,74 @@ fn desktop_dnd(desktop: &str, read: impl Fn(&str, &[&str]) -> Option<String>) ->
     None
 }
 
+/// Seconds since the last keyboard or mouse input, for the away card's idle
+/// threshold (#215), where Windows asks `GetLastInputInfo`: the X server's
+/// screen saver extension on X11; on Wayland GNOME's idle monitor, else
+/// logind's idle hint, which the desktops set after their own idle delay.
+pub fn idle_seconds() -> Option<f64> {
+    let session = || Builder::session().and_then(|b| b.build()).ok();
+    let system = || Builder::system().and_then(|b| b.build()).ok();
+    if !crate::linux::wm::native_wayland()
+        && let Some(seconds) = x11_idle()
+    {
+        return Some(seconds);
+    }
+    session()
+        .as_ref()
+        .and_then(mutter_idle)
+        .or_else(|| system().as_ref().and_then(logind_idle))
+}
+
+fn x11_idle() -> Option<f64> {
+    use x11rb::connection::Connection as _;
+    use x11rb::protocol::screensaver::ConnectionExt as _;
+    let (connection, screen) = x11rb::connect(None).ok()?;
+    let root = connection.setup().roots.get(screen)?.root;
+    let info = connection.screensaver_query_info(root).ok()?.reply().ok()?;
+    Some(f64::from(info.ms_since_user_input) / 1000.0)
+}
+
+/// GNOME's own count (Mutter), in milliseconds.
+fn mutter_idle(connection: &Connection) -> Option<f64> {
+    Proxy::new(
+        connection,
+        "org.gnome.Mutter.IdleMonitor",
+        "/org/gnome/Mutter/IdleMonitor/Core",
+        "org.gnome.Mutter.IdleMonitor",
+    )
+    .ok()?
+    .call::<_, _, u64>("GetIdletime", &())
+    .ok()
+    .map(|ms| ms as f64 / 1000.0)
+}
+
+/// logind's hint for this session: idle since a moment (microseconds of the
+/// wall clock), or not idle at all.
+fn logind_idle(connection: &Connection) -> Option<f64> {
+    let path = session_path(connection)?;
+    let session = Proxy::new(
+        connection,
+        "org.freedesktop.login1",
+        path,
+        "org.freedesktop.login1.Session",
+    )
+    .ok()?;
+    let idle = session.get_property::<bool>("IdleHint").ok()?;
+    let since = session.get_property::<u64>("IdleSinceHint").ok()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_micros() as u64;
+    Some(hint_seconds(idle, since, now))
+}
+
+fn hint_seconds(idle: bool, since_us: u64, now_us: u64) -> f64 {
+    if !idle || since_us == 0 {
+        return 0.0;
+    }
+    now_us.saturating_sub(since_us) as f64 / 1_000_000.0
+}
+
 pub fn start(app: AppHandle) {
     let notifier = Arc::new(Notifier {
         app,
@@ -301,7 +387,7 @@ pub fn start(app: AppHandle) {
                 if let Ok(connection) = Builder::system().and_then(|b| b.build())
                     && let Some(path) = session_path(&connection)
                 {
-                    watch_logind(&connection, &path, || n.unlocked());
+                    watch_logind(&connection, &path, |locked| n.changed(locked));
                 }
                 std::thread::sleep(Duration::from_secs(30));
             }
@@ -313,7 +399,7 @@ pub fn start(app: AppHandle) {
         Box::new(move || {
             loop {
                 if let Ok(connection) = Builder::session().and_then(|b| b.build()) {
-                    watch_screensaver(&connection, || n.unlocked());
+                    watch_screensaver(&connection, |locked| n.changed(locked));
                 }
                 std::thread::sleep(Duration::from_secs(30));
             }
@@ -327,8 +413,8 @@ pub fn start(app: AppHandle) {
             loop {
                 std::thread::sleep(Duration::from_secs(2));
                 let now = locker_running(proc);
-                if locked && !now {
-                    notifier.unlocked();
+                if locked != now {
+                    notifier.changed(now);
                 }
                 locked = now;
             }
@@ -475,7 +561,7 @@ mod tests {
     }
 
     #[test]
-    fn logind_reports_an_unlock_and_a_locked_hint_that_goes_false() {
+    fn logind_reports_locks_and_unlocks_and_the_locked_hint() {
         let Some(bus) = PrivateBus::start() else {
             eprintln!("skipped: dbus-daemon is not installed");
             return;
@@ -490,38 +576,26 @@ mod tests {
         let listener = client.clone();
         let session = path.clone();
         std::thread::spawn(move || {
-            watch_logind(&listener, &session, || {
-                let _ = tx.send(());
+            watch_logind(&listener, &session, |locked| {
+                let _ = tx.send(locked);
             })
         });
         std::thread::sleep(Duration::from_millis(300));
-        let emit =
-            |interface: &str, member: &str, body: &(dyn zbus::zvariant::DynamicType + Sync)| {
-                let _ = body;
-                (interface.to_string(), member.to_string())
-            };
-        let _ = emit;
-        // Lock: not news. Unlock: news.
-        logind
-            .emit_signal(
-                None::<&str>,
-                path.as_str(),
-                "org.freedesktop.login1.Session",
-                "Lock",
-                &(),
-            )
-            .unwrap();
-        assert!(rx.recv_timeout(Duration::from_millis(400)).is_err());
-        logind
-            .emit_signal(
-                None::<&str>,
-                path.as_str(),
-                "org.freedesktop.login1.Session",
-                "Unlock",
-                &(),
-            )
-            .unwrap();
-        assert!(rx.recv_timeout(Duration::from_secs(2)).is_ok());
+        let signal = |member: &str| {
+            logind
+                .emit_signal(
+                    None::<&str>,
+                    path.as_str(),
+                    "org.freedesktop.login1.Session",
+                    member,
+                    &(),
+                )
+                .unwrap();
+        };
+        signal("Lock");
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)), Ok(true));
+        signal("Unlock");
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)), Ok(false));
         // The hint going true is the lock, false is the unlock.
         let hint = |on: bool| {
             let changed =
@@ -541,13 +615,30 @@ mod tests {
                 .unwrap();
         };
         hint(true);
-        assert!(rx.recv_timeout(Duration::from_millis(400)).is_err());
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)), Ok(true));
         hint(false);
-        assert!(rx.recv_timeout(Duration::from_secs(2)).is_ok());
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)), Ok(false));
+        // Another property changing says nothing.
+        let other =
+            std::collections::HashMap::from([("Active", zbus::zvariant::Value::from(true))]);
+        logind
+            .emit_signal(
+                None::<&str>,
+                path.as_str(),
+                "org.freedesktop.DBus.Properties",
+                "PropertiesChanged",
+                &(
+                    "org.freedesktop.login1.Session",
+                    other,
+                    Vec::<String>::new(),
+                ),
+            )
+            .unwrap();
+        assert!(rx.recv_timeout(Duration::from_millis(400)).is_err());
     }
 
     #[test]
-    fn a_screensaver_that_stops_is_an_unlock_and_one_that_starts_is_not() {
+    fn a_screensaver_that_starts_is_away_and_one_that_stops_is_back() {
         let Some(bus) = PrivateBus::start() else {
             eprintln!("skipped: dbus-daemon is not installed");
             return;
@@ -556,8 +647,8 @@ mod tests {
         let client = bus.connect();
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            watch_screensaver(&client, || {
-                let _ = tx.send(());
+            watch_screensaver(&client, |locked| {
+                let _ = tx.send(locked);
             })
         });
         std::thread::sleep(Duration::from_millis(300));
@@ -573,14 +664,91 @@ mod tests {
                 .unwrap();
         };
         active("org.freedesktop.ScreenSaver", true);
-        assert!(rx.recv_timeout(Duration::from_millis(400)).is_err());
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)), Ok(true));
         active("org.freedesktop.ScreenSaver", false);
-        assert!(rx.recv_timeout(Duration::from_secs(2)).is_ok());
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)), Ok(false));
         // Another desktop's name for the same thing.
         active("org.gnome.ScreenSaver", false);
-        assert!(rx.recv_timeout(Duration::from_secs(2)).is_ok());
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)), Ok(false));
         // A signal of that name from something that is not a screensaver.
         active("org.example.Other", false);
         assert!(rx.recv_timeout(Duration::from_millis(400)).is_err());
+    }
+
+    struct IdleMonitor;
+
+    #[zbus::interface(name = "org.gnome.Mutter.IdleMonitor")]
+    impl IdleMonitor {
+        fn get_idletime(&self) -> u64 {
+            93_500
+        }
+    }
+
+    #[derive(Default)]
+    struct Session;
+
+    #[zbus::interface(name = "org.freedesktop.login1.Session")]
+    impl Session {
+        #[zbus(property)]
+        fn idle_hint(&self) -> bool {
+            true
+        }
+        #[zbus(property)]
+        fn idle_since_hint(&self) -> u64 {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros() as u64
+                - 120_000_000
+        }
+    }
+
+    #[test]
+    fn idle_time_comes_from_gnome_and_from_loginds_hint() {
+        let Some(bus) = PrivateBus::start() else {
+            eprintln!("skipped: dbus-daemon is not installed");
+            return;
+        };
+        let client = bus.connect();
+        assert_eq!(mutter_idle(&client), None);
+        let _mutter = bus.serve("org.gnome.Mutter.IdleMonitor", |b| {
+            b.serve_at("/org/gnome/Mutter/IdleMonitor/Core", IdleMonitor)
+                .unwrap()
+        });
+        assert_eq!(mutter_idle(&client), Some(93.5));
+        let _logind = bus.serve("org.freedesktop.login1", |b| {
+            b.serve_at("/org/freedesktop/login1", Manager)
+                .unwrap()
+                .serve_at("/org/freedesktop/login1/session/_33", Session)
+                .unwrap()
+        });
+        let idle = logind_idle(&client).unwrap();
+        assert!((119.0..125.0).contains(&idle), "{idle}");
+    }
+
+    #[test]
+    fn a_session_that_is_not_idle_has_no_idle_time() {
+        assert_eq!(hint_seconds(false, 5_000_000, 9_000_000), 0.0);
+        assert_eq!(hint_seconds(true, 0, 9_000_000), 0.0);
+        assert_eq!(hint_seconds(true, 5_000_000, 9_000_000), 4.0);
+        // A clock set back never makes a negative time.
+        assert_eq!(hint_seconds(true, 9_000_000, 5_000_000), 0.0);
+    }
+
+    #[test]
+    fn one_change_heard_by_several_signals_is_reported_once() {
+        let start = Instant::now();
+        let at = |ms: u64| start + Duration::from_millis(ms);
+        let mut last = None;
+        assert!(news(&mut last, true, at(0)));
+        // logind's Lock, then its hint, then the screensaver: one lock.
+        assert!(!news(&mut last, true, at(100)));
+        assert!(!news(&mut last, true, at(900)));
+        // The unlock right after is news, and so is a lock again.
+        assert!(news(&mut last, false, at(1_000)));
+        assert!(!news(&mut last, false, at(1_200)));
+        assert!(news(&mut last, true, at(1_500)));
+        // The same report long after is a new lock.
+        assert!(news(&mut last, true, at(10_000)));
     }
 }

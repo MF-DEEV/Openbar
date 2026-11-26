@@ -5,6 +5,7 @@ import englishOverrides from "./overrides/en-US.json";
 import aliases from "./aliases.json";
 import type { CatalogKey } from "./keys";
 import { formatSwift } from "./format";
+import { onLinux } from "../shared/platform";
 import { type Language, type LanguagePreference, isLanguage, systemLanguage } from "./languages";
 export { LANGUAGES, pluralForm, systemLanguage } from "./languages";
 export type { Language, LanguagePreference } from "./languages";
@@ -134,6 +135,11 @@ export function t<N extends keyof typeof englishSource>(
 ): string;
 export function t(key: string, field?: string): string {
   const path = field ? `${key}.${field}` : ((aliases as Record<string, string>)[key] ?? key);
+  // A text that names Windows has its Linux wording under the same key plus "Linux".
+  if (onLinux()) {
+    const linux = table[`${path}Linux`] ?? fallback[`${path}Linux`];
+    if (linux !== undefined) return linux;
+  }
   return table[path] ?? fallback[path] ?? path;
 }
 export function tf(key: StringKey, ...args: (string | number)[]): string;

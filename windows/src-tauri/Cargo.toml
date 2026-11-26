@@ -53,7 +53,7 @@ soup3 = "0.5"
 # Wayland (#252): hears clipboard changes through the data-control protocol (pure Rust, no libwayland).
 wayland-client = "0.31"
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
-x11rb = { version = "0.13", features = ["composite", "dpms", "randr", "shape", "xtest"] }
+x11rb = { version = "0.13", features = ["composite", "dpms", "randr", "screensaver", "shape", "xtest"] }
 zbus = "5"
 
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]

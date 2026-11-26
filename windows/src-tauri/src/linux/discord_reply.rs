@@ -21,8 +21,6 @@ use x11rb::protocol::xproto::{
 };
 use x11rb::protocol::xtest::ConnectionExt as _;
 use x11rb::rust_connection::RustConnection;
-use zbus::blocking::Connection;
-use zbus::zvariant::{OwnedObjectPath, OwnedValue};
 
 use super::{LIMIT, is_blank, matches_target, target};
 use crate::linux::x11;
@@ -40,10 +38,6 @@ const CHUNK: usize = 32;
 const KEY_GAP: Duration = Duration::from_millis(4);
 const XK_RETURN: Keysym = 0xff0d;
 const XK_SHIFT_L: Keysym = 0xffe1;
-// AT-SPI state bits (AtspiStateType).
-const STATE_EDITABLE: u32 = 7;
-const STATE_FOCUSED: u32 = 12;
-const STATE_SHOWING: u32 = 25;
 
 struct Display {
     connection: RustConnection,
@@ -134,114 +128,9 @@ impl Display {
     }
 }
 
-/// One object on the accessibility bus.
-type Node = (String, OwnedObjectPath);
-
-struct Accessibility {
-    bus: Connection,
-}
+use crate::linux::atspi::{Accessibility, Node, STATE_EDITABLE, STATE_FOCUSED, STATE_SHOWING};
 
 impl Accessibility {
-    fn open() -> Option<Self> {
-        let session = Connection::session().ok()?;
-        let address: String = session
-            .call_method(
-                Some("org.a11y.Bus"),
-                "/org/a11y/bus",
-                Some("org.a11y.Bus"),
-                "GetAddress",
-                &(),
-            )
-            .ok()?
-            .body()
-            .deserialize()
-            .ok()?;
-        let bus = zbus::blocking::connection::Builder::address(address.as_str())
-            .ok()?
-            .build()
-            .ok()?;
-        Some(Self { bus })
-    }
-
-    fn call<B>(&self, node: &Node, interface: &str, method: &str, body: &B) -> Option<zbus::Message>
-    where
-        B: serde::Serialize + zbus::zvariant::DynamicType,
-    {
-        self.bus
-            .call_method(
-                Some(node.0.as_str()),
-                node.1.as_str(),
-                Some(interface),
-                method,
-                body,
-            )
-            .ok()
-    }
-
-    fn children(&self, node: &Node) -> Vec<Node> {
-        self.call(node, "org.a11y.atspi.Accessible", "GetChildren", &())
-            .and_then(|reply| reply.body().deserialize().ok())
-            .unwrap_or_default()
-    }
-
-    fn name(&self, node: &Node) -> String {
-        self.call(
-            node,
-            "org.freedesktop.DBus.Properties",
-            "Get",
-            &("org.a11y.atspi.Accessible", "Name"),
-        )
-        .and_then(|reply| reply.body().deserialize::<OwnedValue>().ok())
-        .and_then(|value| String::try_from(value).ok())
-        .unwrap_or_default()
-    }
-
-    fn states(&self, node: &Node) -> u64 {
-        let words: Vec<u32> = self
-            .call(node, "org.a11y.atspi.Accessible", "GetState", &())
-            .and_then(|reply| reply.body().deserialize().ok())
-            .unwrap_or_default();
-        words
-            .iter()
-            .take(2)
-            .enumerate()
-            .fold(0, |bits, (i, word)| bits | (u64::from(*word) << (32 * i)))
-    }
-
-    fn text(&self, node: &Node) -> Option<String> {
-        self.call(node, "org.a11y.atspi.Text", "GetText", &(0i32, -1i32))?
-            .body()
-            .deserialize()
-            .ok()
-    }
-
-    fn grab_focus(&self, node: &Node) -> bool {
-        self.call(node, "org.a11y.atspi.Component", "GrabFocus", &())
-            .and_then(|reply| reply.body().deserialize::<bool>().ok())
-            .unwrap_or(false)
-    }
-
-    /// The application object of the process that owns Discord's window.
-    fn application(&self, pid: u32) -> Option<Node> {
-        let root: Node = (
-            "org.a11y.atspi.Registry".into(),
-            OwnedObjectPath::try_from("/org/a11y/atspi/accessible/root").ok()?,
-        );
-        self.children(&root).into_iter().find(|app| {
-            self.bus
-                .call_method(
-                    Some("org.freedesktop.DBus"),
-                    "/org/freedesktop/DBus",
-                    Some("org.freedesktop.DBus"),
-                    "GetConnectionUnixProcessID",
-                    &(app.0.as_str(),),
-                )
-                .ok()
-                .and_then(|reply| reply.body().deserialize::<u32>().ok())
-                == Some(pid)
-        })
-    }
-
     /// The showing, editable object whose label `fits`: Discord's message box.
     fn composer(&self, app: &Node, fits: impl Fn(&str) -> bool) -> Option<(Node, String)> {
         let mut queue = VecDeque::from([app.clone()]);

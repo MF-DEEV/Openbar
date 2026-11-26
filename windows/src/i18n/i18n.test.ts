@@ -119,3 +119,20 @@ it("starts when the system reports a language tag Intl rejects, as a C locale do
     vi.unstubAllGlobals();
   }
 });
+
+it("names Linux, not Windows, on Linux where a text has Linux wording (#190)", async () => {
+  await applyLanguage("de");
+  expect(t("windows.settings.general.login")).toBe("Mit Windows starten");
+  vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)" });
+  try {
+    expect(t("windows.settings.general.login")).toBe("Bei der Anmeldung starten");
+    expect(t("windows.settings.brand")).toBe("Dynamische Insel für Linux");
+    // A text without Linux wording stays as it is.
+    expect(t("windows.hooks.showInFiles")).toBe("In Dateien zeigen");
+    await applyLanguage("en-US");
+    expect(t("windows.system.openTaskManager")).toBe("Open System Monitor");
+  } finally {
+    vi.unstubAllGlobals();
+  }
+  expect(t("windows.system.openTaskManager")).toBe("Open Task Manager");
+});

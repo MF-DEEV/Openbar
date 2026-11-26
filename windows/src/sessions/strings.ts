@@ -16,7 +16,6 @@ import {
   type SessionOrigin,
 } from "./types";
 import { t, tf } from "../i18n";
-import { onLinux } from "../shared/platform";
 import { EXPAND_STEP } from "./diffGaps";
 
 export const S = {
@@ -162,7 +161,7 @@ export const S = {
     return t("notchClaudeSessions.emptyTitle");
   },
   get emptyDetail() {
-    return onLinux() ? t("windows.sessions.emptyDetailLinux") : t("windows.sessions.emptyDetail");
+    return t("windows.sessions.emptyDetail");
   },
   get generating() {
     return t("notchLockScreen.working");

@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Linux: Discord's own mute and deafen show in the microphone indicator, as on Windows. They are read from the Mute and Deafen buttons in Discord's window, through the desktop's accessibility bus, so Discord has to be started with accessibility on (as for answering it from a notification).
+- Linux: the System page's network list shows which apps use the network. It counts the TCP connections of your own apps, which needs no privileges. UDP (QUIC in a browser) and other users' apps are left out.
+- Linux: the "while you were away" card (#215). The island now hears the screen lock (logind, the desktop's screensaver or a locker such as i3lock) and the minutes without input (the X server, GNOME's idle monitor or logind).
+- Linux: clicking an event from the system's calendars opens it in the desktop's calendar app. GNOME Calendar opens right on an event from Evolution's calendars.
+- Linux: Open Settings next to a voice reply's microphone problem opens the desktop's sound settings, or PulseAudio's volume control.
+
+### Fixed
+
+- Linux: Settings, the Files menu and the System page named Windows ("Start with Windows", "Show in File Explorer", "Open Task Manager", Windows memory terms). They now name Linux and its own tools, in every language (#190).
+- Linux: the island opened itself over whatever app you were using. As on Windows, it now waits until the desktop is in front, and a session page collapses when you go to an app.
+- Linux: Save as file in the Scratchpad wrote to `~/Desktop` without asking, and failed where that folder is missing. It now shows the save dialog.
+- Linux: Open folder on a session's worktree did nothing on Fedora and Arch, which have no `open` command. It now opens the folder in the desktop's file manager.
+- Linux: turning the display off could be lost on its way to the X server (#190). Share is no longer offered on Linux, which has no Share sheet.
+
 ## [3.6.0] - 2026-11-26
 
 Released together with Openbar for Windows 1.3.0 and Openbar for Linux 1.1.0.

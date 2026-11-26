@@ -11,9 +11,10 @@ use tauri::AppHandle;
 #[cfg(any(windows, target_os = "linux"))]
 pub const EVENT: &str = "session://unlocked";
 
-/// The session was locked (WTS_SESSION_LOCK): the person stepped away, and
+/// The session was locked (WTS_SESSION_LOCK; on Linux logind's lock, a
+/// screensaver starting or a locker program): the person stepped away, and
 /// the island notes how its sessions stand for the card on return (#215).
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub const LOCKED: &str = "session://locked";
 
 /// Seconds since the last keyboard or mouse input in this session, for the
@@ -34,7 +35,9 @@ pub fn session_idle_seconds() -> Option<f64> {
         // Both count milliseconds since boot and wrap together after 49 days.
         Some(GetTickCount().wrapping_sub(info.dwTime) as f64 / 1000.0)
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    return crate::linux::session_lock::idle_seconds();
+    #[cfg(not(any(windows, target_os = "linux")))]
     None
 }
 

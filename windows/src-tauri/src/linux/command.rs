@@ -88,6 +88,27 @@ pub(super) fn fake_program(dir: &std::path::Path, name: &str, body: &str) -> std
     program
 }
 
+/// Starts `program` with `args`, detached from the app's streams; false when
+/// it could not be started (not installed). Reaped when it ends, so it does
+/// not linger as a zombie.
+#[cfg(target_os = "linux")]
+pub fn spawn(program: &str, args: &[&str]) -> bool {
+    use std::process::{Command, Stdio};
+    match Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(mut child) => {
+            std::thread::spawn(move || child.wait());
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
