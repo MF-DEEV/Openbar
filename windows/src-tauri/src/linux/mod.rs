@@ -32,6 +32,7 @@ pub mod kwin;
 pub mod layer;
 pub mod locale;
 pub mod net;
+pub mod net_process;
 pub mod ocr;
 pub mod paths;
 pub mod process;

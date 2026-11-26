@@ -407,6 +407,7 @@ pub struct Sampler {
     last: Instant,
     processes: HashMap<Key, u64>,
     names: HashMap<String, (Option<String>, String)>,
+    net_rates: crate::linux::net_process::Rates,
     devices: Option<Vec<Device>>,
     tick: u64,
     processors: u32,
@@ -450,6 +451,7 @@ impl Sampler {
             last: Instant::now(),
             processes: HashMap::new(),
             names: HashMap::new(),
+            net_rates: Default::default(),
             devices: None,
             tick: 0,
             processors: std::thread::available_parallelism()
@@ -576,8 +578,13 @@ impl Sampler {
                 snapshot.process_status = status;
                 rows
             }
-            Some(Detail::Network | Detail::Power) => {
-                // Traffic and power by process need privileges, or a trace.
+            Some(Detail::Network) => {
+                let (status, rows) = self.network_rows();
+                snapshot.process_status = status;
+                rows
+            }
+            Some(Detail::Power) => {
+                // Power by process needs privileges (RAPL is root's), or a trace.
                 snapshot.process_status = ProcessStatus::Unavailable;
                 Vec::new()
             }
@@ -648,6 +655,40 @@ impl Sampler {
             .map(|(image, (bytes, pid, _))| self.row(&image, pid, bytes as f64))
             .collect();
         top_rows(rows, PROCESS_ROWS)
+    }
+
+    /// Traffic by program, from the TCP connections of the person's own
+    /// processes (`net_process.rs`).
+    fn network_rows(&mut self) -> (ProcessStatus, Vec<ProcessRow>) {
+        use crate::linux::net_process::Sample;
+        let rates = match self.net_rates.sample(&self.proc) {
+            Sample::Ready(rates) => rates,
+            Sample::Measuring => return (ProcessStatus::Measuring, Vec::new()),
+            Sample::Unavailable => return (ProcessStatus::Unavailable, Vec::new()),
+        };
+        let images: HashMap<u32, String> = read_processes(&self.proc, false)
+            .into_iter()
+            .map(|e| (e.pid, e.image))
+            .collect();
+        let mut by_image: HashMap<String, (f64, f64, u32)> = HashMap::new();
+        for (pid, (down, up)) in rates {
+            let Some(image) = images.get(&pid) else {
+                continue;
+            };
+            let slot = by_image.entry(image.clone()).or_insert((0.0, 0.0, pid));
+            slot.0 += down;
+            slot.1 += up;
+        }
+        let rows = by_image
+            .into_iter()
+            .map(|(image, (down, up, pid))| {
+                let mut row = self.row(&image, pid, down + up);
+                row.net_down = Some(down);
+                row.net_up = Some(up);
+                row
+            })
+            .collect();
+        (ProcessStatus::Ready, top_rows(rows, PROCESS_ROWS))
     }
 
     fn gpu_rows(&mut self) -> (ProcessStatus, Vec<ProcessRow>) {
@@ -1005,10 +1046,16 @@ mod tests {
         assert_eq!(snapshot.uptime_seconds, 12345);
         assert_eq!(snapshot.processes_for, Some(Detail::Memory));
         assert_eq!(snapshot.process_status, ProcessStatus::Ready);
-        // Traffic by process is not available, and says so.
+        // Traffic by process starts measuring (or says the kernel won't tell);
+        // power by process is not available, and says so.
         let network = sampler.sample(Some(Detail::Network), 2);
-        assert_eq!(network.process_status, ProcessStatus::Unavailable);
+        assert!(matches!(
+            network.process_status,
+            ProcessStatus::Measuring | ProcessStatus::Unavailable
+        ));
         assert!(network.processes.is_empty());
+        let power = sampler.sample(Some(Detail::Power), 2);
+        assert_eq!(power.process_status, ProcessStatus::Unavailable);
         std::fs::remove_dir_all(root).unwrap();
     }
 
