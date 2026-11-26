@@ -595,6 +595,9 @@
     "saving": "保存中…",
     "settingsCaption": "バージョン、フックの状態、ログを1つのファイルに保存して、不具合報告に添付できます。",
     "settingsTitle": "診断",
+    "statsCaption": "1日に1回、ランダムなID、アプリとシステムのバージョン、使ったセッション・ターミナル・セクションの数を送信します。プロンプト、ファイル、名前は送信しません。",
+    "statsDetails": "送信される内容",
+    "statsTitle": "匿名の使用統計を共有",
     "systemCaption": "Openbarのバージョン、アップデートチャンネル、システムのバージョン、CPUの種類、ディスプレイ",
     "systemTitle": "アプリとシステム",
     "windowTitle": "診断情報を書き出す"
@@ -1912,6 +1915,8 @@
     "voiceBody": "返信を入力する代わりに話せるようにします。",
     "voiceTitle": "音声で返信",
     "welcomeBody": "Claude Code や Codex などへの許可・回答・返信を、ターミナルに切り替えずに行えます。",
+    "welcomeStats": "Openbarは1日に1回、匿名の使用統計を送信します。",
+    "welcomeStatsLink": "設定でオフにする",
     "welcomeTitle": "エージェントをノッチに",
     "welcomeToolkit": "必要ならメニューバーのツールキットも使えます。"
   },

@@ -218,6 +218,7 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
     crate::audio::apply_prefs(app, value);
     // Also applies Show in screenshots, which a watched display region overrides.
     crate::watch::apply_prefs(app);
+    crate::usage_stats::apply_prefs(app, value);
 }
 
 /// The hook agents whose switch is off (`/sessions/agentGemini` and the rest).

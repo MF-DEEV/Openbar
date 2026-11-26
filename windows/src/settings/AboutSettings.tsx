@@ -9,7 +9,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Bug, ExternalLink, FileArchive, Lightbulb, Paperclip } from "lucide-react";
+import { Bug, ChartColumn, ExternalLink, FileArchive, Lightbulb, Paperclip } from "lucide-react";
 import { useEffect, useState } from "react";
 import { t, useLocale } from "../i18n";
 import { baseName, issueUrl, REPOSITORY } from "../diagnostics/diagnostics";
@@ -21,6 +21,9 @@ import { Button, Group, Page, Row, Toggle } from "./ui";
 
 const COPYRIGHT = "© 2026 MF DEV, Adrian and the Openbar contributors. Based on Vorssaint, © 2026 Vorssaint.";
 
+/** Every field the usage ping sends, in the privacy notes. */
+export const USAGE_STATS_DETAILS = "https://github.com/MF-DEEV/Openbar/blob/main/docs/PRIVACY.md#network-connections";
+
 function open(url: string) {
   if (inTauri) void openUrl(url);
   else window.open(url, "_blank", "noopener");
@@ -29,6 +32,7 @@ function open(url: string) {
 export function AboutSettings() {
   useLocale();
   const attach = useSettings((s) => s.prefs.island.feedbackAttachDiagnostics);
+  const share = useSettings((s) => s.prefs.island.shareUsageStats);
   const set = useSettings((s) => s.island);
   const [version, setVersion] = useState("0.4.0");
   const [system, setSystem] = useState("");
@@ -76,6 +80,13 @@ export function AboutSettings() {
             checked={attach}
             onChange={(on) => set("feedbackAttachDiagnostics", on)}
           />
+        </Row>
+        {/* The daily anonymous ping (#333); off deletes its id and counts. */}
+        <Row icon={ChartColumn} title={t("diagnostics.statsTitle")} caption={t("diagnostics.statsCaption")}>
+          <button type="button" className="st-text-link" onClick={() => open(USAGE_STATS_DETAILS)}>
+            {t("diagnostics.statsDetails")}
+          </button>
+          <Toggle label={t("diagnostics.statsTitle")} checked={share} onChange={(on) => set("shareUsageStats", on)} />
         </Row>
         <Row icon={Lightbulb} title={t("feedback.commandFeature")}>
           <Button onClick={() => open(issueUrl("feature", details()))}>{t("feedback.commandFeature")}</Button>

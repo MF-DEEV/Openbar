@@ -595,6 +595,9 @@
     "saving": "Ukladá sa…",
     "settingsCaption": "Uložte jeden súbor s verziami, stavom hookov a záznamami a priložte ho k hláseniu chyby.",
     "settingsTitle": "Diagnostika",
+    "statsCaption": "Raz denne odošle náhodné ID, verziu aplikácie a systému a počty použitých relácií, terminálov a sekcií. Prompty, súbory ani názvy sa nikdy neodosielajú.",
+    "statsDetails": "Čo sa odosiela",
+    "statsTitle": "Zdieľať anonymné štatistiky používania",
     "systemCaption": "Verzia Openbaru, kanál aktualizácií, verzia systému, typ procesora a displeje",
     "systemTitle": "Aplikácia a systém",
     "windowTitle": "Exportovať diagnostiku"
@@ -1912,6 +1915,8 @@
     "voiceBody": "Aby si mohol odpoveď povedať namiesto písania.",
     "voiceTitle": "Hlasové odpovede",
     "welcomeBody": "Povoľuj, odpovedaj a píš Claude Code, Codexu a ďalším bez prepínania do terminálu.",
+    "welcomeStats": "Openbar raz denne odosiela anonymné štatistiky používania.",
+    "welcomeStatsLink": "Vypnúť v Nastaveniach",
     "welcomeTitle": "Tvoji agenti vo výreze",
     "welcomeToolkit": "Ak chceš, je tu aj sada nástrojov na lište menu."
   },

@@ -1930,3 +1930,30 @@ select {
   max-height: 160px;
   overflow-y: auto;
 }
+
+/* An inline text link beside a row's control (the usage stats' "What's sent"). */
+.st-text-link {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: var(--st-text-2);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-decoration-color: var(--st-text-3);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.st-text-link:hover {
+  color: var(--st-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-text-link {
+    transition: none;
+  }
+}

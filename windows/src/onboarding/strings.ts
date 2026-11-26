@@ -19,6 +19,12 @@ export const O = {
   get welcomeBody() {
     return t("onboarding.welcomeBody");
   },
+  get welcomeStats() {
+    return t("onboarding.welcomeStats");
+  },
+  get welcomeStatsLink() {
+    return t("onboarding.welcomeStatsLink");
+  },
   get setupAgentsName() {
     return t("onboarding.setupAgentsName");
   },

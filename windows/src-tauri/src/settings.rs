@@ -34,6 +34,33 @@ fn show<R: Runtime>(app: &AppHandle<R>) {
 }
 
 #[tauri::command]
-pub async fn open_settings<R: Runtime>(app: AppHandle<R>) {
-    show(&app);
+pub async fn open_settings<R: Runtime>(app: AppHandle<R>, page: Option<String>) {
+    match page.filter(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_lowercase())) {
+        Some(page) => show_page(&app, &page),
+        None => show(&app),
+    }
+}
+
+/// Opens the settings window on one page, as onboarding's link to the
+/// usage stats switch in About does (#333).
+fn show_page<R: Runtime>(app: &AppHandle<R>, page: &str) {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        let _ = window.eval(format!(
+            "window.dispatchEvent(new CustomEvent('openbar:settings-page', {{ detail: '{page}' }}))"
+        ));
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
+        .initialization_script(format!("if (!location.hash) location.hash = '#{page}';"))
+        .title(format!(
+            "Openbar — {}",
+            crate::locale::text(app, "settings").trim_end_matches('…')
+        ))
+        .inner_size(860.0, 620.0)
+        .min_inner_size(720.0, 480.0)
+        .center()
+        .build();
 }

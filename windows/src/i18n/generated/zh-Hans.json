@@ -595,6 +595,9 @@
     "saving": "正在存储…",
     "settingsCaption": "把版本、钩子状态和日志存成一个文件，附到问题报告中。",
     "settingsTitle": "诊断",
+    "statsCaption": "每天一次，发送一个随机 ID、App 与系统版本，以及你使用的会话、终端和栏目数量。绝不发送提示、文件或名称。",
+    "statsDetails": "发送的内容",
+    "statsTitle": "共享匿名使用统计",
     "systemCaption": "Openbar 版本、更新渠道、系统版本、CPU 类型和显示器",
     "systemTitle": "应用和系统",
     "windowTitle": "导出诊断信息"
@@ -1912,6 +1915,8 @@
     "voiceBody": "可以说出回复，而不必打字。",
     "voiceTitle": "语音回复",
     "welcomeBody": "无需切换到终端，就能允许、回答和回复 Claude Code、Codex 等智能体。",
+    "welcomeStats": "Openbar 每天发送一次匿名使用统计。",
+    "welcomeStatsLink": "在设置中关闭",
     "welcomeTitle": "你的智能体，就在刘海里",
     "welcomeToolkit": "需要的话，菜单栏还有一套工具。"
   },

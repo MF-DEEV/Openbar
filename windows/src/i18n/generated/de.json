@@ -595,6 +595,9 @@
     "saving": "Wird gesichert…",
     "settingsCaption": "Sichere eine Datei mit Versionen, Hook-Zuständen und Protokollen für einen Fehlerbericht.",
     "settingsTitle": "Diagnose",
+    "statsCaption": "Sendet einmal am Tag eine zufällige ID, die App- und Systemversion und wie viele Sitzungen, Terminals und Bereiche du genutzt hast. Prompts, Dateien und Namen werden nie gesendet.",
+    "statsDetails": "Was gesendet wird",
+    "statsTitle": "Anonyme Nutzungsstatistiken teilen",
     "systemCaption": "Openbar-Version, Update-Kanal, Systemversion, CPU-Typ und Bildschirme",
     "systemTitle": "App und System",
     "windowTitle": "Diagnose exportieren"
@@ -1912,6 +1915,8 @@
     "voiceBody": "Damit du eine Antwort sagen kannst, statt sie zu tippen.",
     "voiceTitle": "Antworten per Sprache",
     "welcomeBody": "Erlaube, beantworte und schreib Claude Code, Codex und anderen, ohne ins Terminal zu wechseln.",
+    "welcomeStats": "Openbar sendet einmal am Tag anonyme Nutzungsstatistiken.",
+    "welcomeStatsLink": "In den Einstellungen ausschalten",
     "welcomeTitle": "Deine Agenten in der Notch",
     "welcomeToolkit": "Dazu gibt es Werkzeuge in der Menüleiste, wenn du sie willst."
   },

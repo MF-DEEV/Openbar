@@ -22,6 +22,7 @@ import {
 } from "./geometry";
 import type { Size } from "./motion";
 import { type ModuleId, moduleInfo, visibleModules } from "./modules";
+import { noteSectionOpened } from "./usageStats";
 import {
   DEFAULT_SETTINGS,
   hoverExpands,
@@ -144,7 +145,11 @@ export interface IslandState {
   setHeld(held: boolean): void;
 
   setScreen(screen: Size, devicePixelRatio: number): void;
-  open(module?: ModuleId, opts?: { takeFocus?: boolean; sections?: boolean; byHover?: boolean }): void;
+  /** `automatic` marks the island opening by itself (a session asking): the usage stats count only the person's visits. */
+  open(
+    module?: ModuleId,
+    opts?: { takeFocus?: boolean; sections?: boolean; byHover?: boolean; automatic?: boolean },
+  ): void;
   collapse(): void;
   toggle(): void;
   clickClosed(): void;
@@ -280,6 +285,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
     if (!modules.includes(selected)) selected = modules[0] ?? "controls";
     const sections =
       opts.sections ?? (!module && !s.expanded && s.settings.returnHome && s.settings.homeModule === "explore");
+    const visits = !opts.automatic && !sections && (!s.expanded || s.selected !== selected || s.showingSections);
     set({
       expanded: true,
       capturePreview: null,
@@ -297,6 +303,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
       sessionsEnlarged: selected === "sessions" ? s.sessionsEnlarged : false,
       focusRequest: opts.takeFocus === false ? s.focusRequest : s.focusRequest + 1,
     });
+    if (visits) noteSectionOpened(selected);
   },
 
   collapse() {
@@ -468,6 +475,8 @@ export const useIsland = create<IslandState>()((set, get) => ({
   },
 
   select(module) {
+    const s = get();
+    if (s.expanded && (s.selected !== module || s.showingSections)) noteSectionOpened(module);
     set({
       selected: module,
       capturePreview: null,

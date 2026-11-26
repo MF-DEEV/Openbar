@@ -1536,6 +1536,7 @@ impl Service {
                 ));
             }
         }
+        crate::usage_stats::note_sessions(&sessions);
         inner.sessions = sessions;
         busy
     }
