@@ -12,7 +12,6 @@ import { bridge, type VoiceProblem } from "../shared/bridge";
 import { isWaiting, type ReplyFailure, type Session } from "./types";
 import { useSessions } from "./store";
 import { getLanguage } from "../i18n";
-import { voiceHeard } from "../shared/platform";
 
 export type VoiceEnding = "stopped" | "silence" | "cap" | "cancelled" | "sessionGone" | "islandClosed";
 export type VoicePhase =
@@ -24,8 +23,8 @@ export const CAP = 60;
 export const SPEECH_LEVEL = 0.35;
 export const QUIET_LEVEL = 0.2;
 
-/** Whether voice replies are on: chosen in Settings, and heard on this PC. */
-export const voiceWanted = (prefs: { voiceReplies: boolean }) => voiceHeard() && prefs.voiceReplies;
+/** Whether voice replies are on: chosen in Settings. */
+export const voiceWanted = (prefs: { voiceReplies: boolean }) => prefs.voiceReplies;
 
 /** Whether "Send when I stop talking" may send what was heard. */
 export const sends = (ending: VoiceEnding) => ending === "stopped" || ending === "silence";

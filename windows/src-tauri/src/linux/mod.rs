@@ -46,6 +46,7 @@ pub mod sqlite;
 pub mod testbus;
 pub mod tmux;
 pub mod toggles;
+pub mod voice;
 pub mod wezterm;
 pub mod wl_clipboard;
 pub mod wm;

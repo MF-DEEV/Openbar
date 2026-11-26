@@ -190,12 +190,7 @@ describe("voice replies", () => {
     expect(showsMicrophone(recent, false)).toBe(false);
   });
 
-  it("is off on Linux, which cannot listen yet, whatever Settings says", () => {
-    vi.stubGlobal("navigator", {
-      userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)",
-    });
-    expect(voiceWanted({ voiceReplies: true })).toBe(false);
-    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0.0.0" });
+  it("follows Settings alone, on every platform", () => {
     expect(voiceWanted({ voiceReplies: true })).toBe(true);
     expect(voiceWanted({ voiceReplies: false })).toBe(false);
   });

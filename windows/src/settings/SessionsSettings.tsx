@@ -15,7 +15,6 @@ import { openSettingsPage } from "./navigation";
 import { ProviderMark } from "../sessions/glyphs";
 import type { ClaudeAccountSetting, Grouping, ProgressStyle, SessionPrefs } from "../shared/prefs";
 import { Eye, EyeOff, MinusCircle } from "lucide-react";
-import { voiceHeard } from "../shared/platform";
 
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
@@ -891,7 +890,7 @@ export function SessionsOptions() {
           />
         </SubRow>
       ) : null}
-      {voiceHeard() ? <VoiceReplies prefs={prefs} set={set} /> : null}
+      <VoiceReplies prefs={prefs} set={set} />
       <RemoteHosts />
       <DiagnosticsSubRow />
     </>

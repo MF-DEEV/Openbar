@@ -17,10 +17,10 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 pub const FILE: &str = "ggml-base-q5_1.bin";
 pub const SIZE: u64 = 59_707_625;
 pub const SHA256: &str = "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898";
-#[cfg_attr(not(windows), allow(dead_code))]
-const HOST: &str = "huggingface.co";
-#[cfg_attr(not(windows), allow(dead_code))]
-const PATH: &str = "/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin";
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+pub const HOST: &str = "huggingface.co";
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+pub const PATH: &str = "/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -331,9 +331,14 @@ fn fetch(part: &Path, progress: &mut dyn FnMut(u64)) -> Result<(), String> {
     out.flush().map_err(|e| e.to_string())
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn fetch(part: &Path, progress: &mut dyn FnMut(u64)) -> Result<(), String> {
+    crate::linux::voice::fetch(&format!("https://{HOST}{PATH}"), part, progress)
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn fetch(_part: &Path, _progress: &mut dyn FnMut(u64)) -> Result<(), String> {
-    Err("the model is downloaded on Windows".into())
+    Err("the model is downloaded on Windows and Linux".into())
 }
 
 #[cfg(test)]
