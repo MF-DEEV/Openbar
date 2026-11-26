@@ -12,7 +12,7 @@ Openbar is free and open source, looked after on a best-effort basis. There's no
 ## Documentation
 
 - [README](README.md): what Openbar does and how to get it
-- [Privacy](docs/PRIVACY.md): what is read, what is kept, what never leaves your machine
+- [Privacy](docs/PRIVACY.md): what the app reads and keeps, and what its daily anonymous ping sends
 - [Permissions](docs/PERMISSIONS.md): every macOS permission, in plain words
 - [Troubleshooting](docs/TROUBLESHOOTING.md): the common fixes
 - [Windows](windows/README.md): the Windows island, its installer and how to build it
