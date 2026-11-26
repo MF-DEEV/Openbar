@@ -21,7 +21,7 @@ WORK="${WORK:-/build}"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends \
-  build-essential ca-certificates curl file git pkg-config unzip xz-utils \
+  build-essential ca-certificates cmake curl file git libclang-dev pkg-config unzip xz-utils \
   libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
   libssl-dev libxdo-dev libfuse2 >/dev/null
 

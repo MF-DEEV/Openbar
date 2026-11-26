@@ -27,14 +27,15 @@ Facts found while building it:
 - The prompt takes focus and closes the island; the press waits for the answer and the island comes back on the session.
 - `--voice-reply-file <wav>` replays a file in place of the microphone through the same recognizer, for end-to-end runs.
 
-## Windows: whisper.cpp, not Windows' dictation
+## Windows and Linux: whisper.cpp, not Windows' dictation
 
 **Decision.** `Windows.Media.SpeechRecognition` free dictation (`SpeechRecognitionTopicConstraint`) is a web-service grammar. It needs Settings → Privacy → Speech → Online speech recognition, and sends the audio to Microsoft. Only list and SRGS grammars run on the device, and they can't take free dictation. The older SAPI desktop dictation is deprecated and covers only a few of the app's 15 languages. Neither keeps the promise, so voice replies use **whisper.cpp** through `whisper-rs`, linked into the app.
 
 - Model: whisper.cpp's multilingual base model, quantized (`ggml-base-q5_1.bin`, 60 MB, SHA-256 `422f1ae4…8898`). It is downloaded once, when the person presses Download in Settings (the size is shown first), from `huggingface.co/ggerganov/whisper.cpp`. It is checked against its hash before it is kept, saved to `%APPDATA%\com.openbar.island\models\`, and can be deleted from Settings. No audio is ever sent.
-- Capture: WASAPI shared mode on the default communications input, converted by Windows to 16 kHz mono float.
+- Capture: WASAPI shared mode on the default communications input, converted by Windows to 16 kHz mono float. On Linux `parec` reads the sound server's default input at 16 kHz mono float (`windows/src-tauri/src/linux/voice.rs`), and the model is downloaded through libsoup into `~/.config/com.openbar.island/models/`.
 - While recording, what was heard is transcribed again about every 1.2 s for live text, and once more on stop. Audio quieter than about -44 dBFS is never transcribed, because whisper makes words up from a quiet room. A hard cap of 75 s on the Rust side backs up the island's 60 s.
 - On an ARM64 VM with 8 cores, a 3.7 s sentence takes about 0.8 s.
+- Linux: no input device (`parec` ends at once) says so; there are no privacy or sound pages to open, so the message has no button. Checked on this laptop: the microphone and the download, and the recognizer through `--voice-probe` on a spoken sample (1.6 s for 11 s of audio on a laptop CPU).
 - Microphone privacy off for desktop apps (`E_ACCESSDENIED`) opens `ms-settings:privacy-microphone`; no input device opens `ms-settings:sound`.
 - `Openbar.exe --voice-probe <wav> <out> [language]` runs the recognizer on a 16 kHz WAV. `--voice-reply-file <wav>` replays a file in place of the microphone, as on the Mac.
 
