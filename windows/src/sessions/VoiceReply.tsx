@@ -8,6 +8,7 @@ import { Loader2, Mic, MicOff, Square } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { t } from "../i18n";
 import { bridge } from "../shared/bridge";
+import { onLinux } from "../shared/platform";
 import { S } from "./strings";
 import type { Session } from "./types";
 import { isActive, useVoice, type VoiceIssue } from "./voice";
@@ -78,6 +79,8 @@ function message(issue: VoiceIssue): string {
 }
 
 function fix(issue: VoiceIssue): (() => void) | null {
+  // Windows' privacy and sound pages have no Linux counterpart to open.
+  if (onLinux() && issue !== "modelMissing") return null;
   if (issue === "microphoneDenied") return () => void bridge.voice.openWindowsSettings("microphone");
   if (issue === "noMicrophone") return () => void bridge.voice.openWindowsSettings("sound");
   if (issue === "modelMissing") return () => void bridge.openSettings();
