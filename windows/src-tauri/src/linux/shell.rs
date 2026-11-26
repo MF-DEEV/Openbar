@@ -183,22 +183,9 @@ pub fn type_name(path: &str) -> Option<String> {
 
 /// The desktop's system monitor, started; false when there is none.
 pub fn open_task_manager() -> bool {
-    use std::process::{Command, Stdio};
-    TASK_MANAGERS.iter().any(|program| {
-        match Command::new(program)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-        {
-            Ok(mut child) => {
-                // Reaped when it ends, so it does not linger as a zombie.
-                std::thread::spawn(move || child.wait());
-                true
-            }
-            Err(_) => false,
-        }
-    })
+    TASK_MANAGERS
+        .iter()
+        .any(|program| crate::linux::command::spawn(program, &[]))
 }
 
 #[cfg(test)]

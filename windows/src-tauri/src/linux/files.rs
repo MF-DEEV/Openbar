@@ -24,6 +24,13 @@ pub fn open(paths: &[String]) {
     }
 }
 
+/// Opens a folder in the desktop's file manager (its default app for
+/// folders); false when nothing could be started. Not `open`: only Debian's
+/// alternatives make that `xdg-open`, Fedora and Arch have none (#190).
+pub fn open_folder(path: &str) -> bool {
+    gio::AppInfo::launch_default_for_uri(&uri(path), gio::AppLaunchContext::NONE).is_ok()
+}
+
 fn content_type(path: &str) -> Option<String> {
     gio::File::for_path(path)
         .query_info(

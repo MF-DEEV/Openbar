@@ -4349,7 +4349,11 @@ pub async fn sessions_worktree_open(
                 .spawn()
                 .is_ok()
         }
-        #[cfg(not(windows))]
+        #[cfg(target_os = "linux")]
+        {
+            crate::linux::files::open_folder(&folder)
+        }
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             std::process::Command::new("open")
                 .arg(&folder)
