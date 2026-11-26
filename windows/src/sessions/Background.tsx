@@ -649,10 +649,15 @@ function ChoiceMenu({
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
 
-  // A page shorter than the list (New session's steps) scrolls to show all of it.
+  // A page shorter than the list (New session's steps) scrolls to show all
+  // of it, and the list to show the entry picked.
+  const reveal = () => list.current?.querySelector(".s-model-option.is-active")?.scrollIntoView({ block: "nearest" });
   useEffect(() => {
     if (!open) return;
-    const frame = requestAnimationFrame(() => list.current?.scrollIntoView({ block: "nearest" }));
+    const frame = requestAnimationFrame(() => {
+      list.current?.scrollIntoView({ block: "nearest" });
+      reveal();
+    });
     return () => cancelAnimationFrame(frame);
   }, [open]);
 
@@ -700,6 +705,7 @@ function ChoiceMenu({
           event.preventDefault();
           const step = event.key === "ArrowDown" ? 1 : -1;
           setActive((current) => (current + step + items.length) % items.length);
+          requestAnimationFrame(reveal);
         } else if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           if (items[active]) pick(items[active].key);
