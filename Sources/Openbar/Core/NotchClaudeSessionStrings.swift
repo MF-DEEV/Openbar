@@ -451,7 +451,7 @@ extension NotchClaudeSessionStrings {
     static let enUS = NotchClaudeSessionStrings(
         title: "Sessions",
         summary: "Running Claude Code and Codex sessions, and what each one needs from you.",
-        settingsDescription: "Reads the state Claude Code and Codex keep for each running session on this Mac. Prompts and replies stay unread unless you turn on previews, and nothing leaves your Mac.",
+        settingsDescription: "Reads the state Claude Code and Codex keep for each running session on this Mac. Prompts and replies stay unread unless you turn on previews, and they never leave your Mac.",
         emptyTitle: "No sessions running",
         emptyDetail: "Start Claude Code or Codex in a terminal or an editor and it shows up here.",
         generating: "Working",

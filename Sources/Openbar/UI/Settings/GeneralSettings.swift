@@ -18,6 +18,7 @@ struct GeneralSettings: View {
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
     @AppStorage(DefaultsKey.feedbackAttachDiagnostics) private var attachDiagnostics = false
+    @AppStorage(DefaultsKey.shareUsageStats) private var shareUsageStats = true
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -160,6 +161,18 @@ struct GeneralSettings: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.small)
+            }
+            // The daily anonymous ping (#333); off deletes its id and counts.
+            SettingsRow(symbol: "chart.bar.xaxis", title: diagnostics.statsTitle, caption: diagnostics.statsCaption) {
+                HStack(spacing: 10) {
+                    Link(diagnostics.statsDetails, destination: UsageStatsSupport.detailsURL)
+                        .font(.caption)
+                    Toggle(diagnostics.statsTitle, isOn: $shareUsageStats)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .onChange(of: shareUsageStats) { _, on in UsageStatsService.shared.settingChanged(on) }
+                }
             }
         }
     }

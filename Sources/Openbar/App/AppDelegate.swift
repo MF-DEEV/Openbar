@@ -168,6 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             MaxCapacityProbe.shared.refreshIfStale()
         }
         UpdateService.shared.startAutomaticChecks()
+        UsageStatsService.shared.start()
         if UserDefaults.standard.bool(forKey: DefaultsKey.updateReopenSettings) {
             // An update quit the app while Settings was open: bring it back.
             UserDefaults.standard.removeObject(forKey: DefaultsKey.updateReopenSettings)

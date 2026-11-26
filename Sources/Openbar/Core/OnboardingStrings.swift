@@ -47,6 +47,8 @@ struct OnboardingStrings {
     let doneMenuBar: String
     let doneNotch: String
     let skip: String
+    let welcomeStats: String
+    let welcomeStatsLink: String
 }
 
 extension FeatureStrings {
@@ -112,7 +114,9 @@ extension OnboardingStrings {
         doneBody: "Sessions show up in the notch. The helmet in the menu bar has everything else.",
         doneMenuBar: "Menu bar",
         doneNotch: "Notch",
-        skip: "Skip"
+        skip: "Skip",
+        welcomeStats: "Openbar sends anonymous usage stats once a day.",
+        welcomeStatsLink: "Turn it off in Settings"
     )
 
     static let ptBR = OnboardingStrings(
@@ -155,7 +159,9 @@ extension OnboardingStrings {
         doneBody: "As sessões aparecem no notch. O capacete na barra de menus tem todo o resto.",
         doneMenuBar: "Barra de menus",
         doneNotch: "Notch",
-        skip: "Pular"
+        skip: "Pular",
+        welcomeStats: "O Openbar envia estatísticas de uso anônimas uma vez por dia.",
+        welcomeStatsLink: "Desative em Ajustes"
     )
 
     static let tr = OnboardingStrings(
@@ -198,7 +204,9 @@ extension OnboardingStrings {
         doneBody: "Oturumlar çentikte görünür. Menü çubuğundaki kask geri kalan her şeyi içerir.",
         doneMenuBar: "Menü çubuğu",
         doneNotch: "Çentik",
-        skip: "Atla"
+        skip: "Atla",
+        welcomeStats: "Openbar günde bir kez anonim kullanım istatistikleri gönderir.",
+        welcomeStatsLink: "Ayarlar’dan kapatın"
     )
 
     static let ru = OnboardingStrings(
@@ -241,7 +249,9 @@ extension OnboardingStrings {
         doneBody: "Сессии появляются в вырезе экрана. Всё остальное найдёте под шлемом в строке меню.",
         doneMenuBar: "Строка меню",
         doneNotch: "Вырез",
-        skip: "Пропустить"
+        skip: "Пропустить",
+        welcomeStats: "Openbar раз в день отправляет анонимную статистику использования.",
+        welcomeStatsLink: "Отключить в Настройках"
     )
 
     static let es = OnboardingStrings(
@@ -284,7 +294,9 @@ extension OnboardingStrings {
         doneBody: "Las sesiones aparecen en el notch. El casco de la barra de menús tiene todo lo demás.",
         doneMenuBar: "Barra de menús",
         doneNotch: "Notch",
-        skip: "Omitir"
+        skip: "Omitir",
+        welcomeStats: "Openbar envía estadísticas de uso anónimas una vez al día.",
+        welcomeStatsLink: "Desactívalo en Ajustes"
     )
 
     static let sk = OnboardingStrings(
@@ -327,7 +339,9 @@ extension OnboardingStrings {
         doneBody: "Relácie sa zobrazia vo výreze. Prilba na lište menu má všetko ostatné.",
         doneMenuBar: "Lišta menu",
         doneNotch: "Výrez",
-        skip: "Preskočiť"
+        skip: "Preskočiť",
+        welcomeStats: "Openbar raz denne odosiela anonymné štatistiky používania.",
+        welcomeStatsLink: "Vypnúť v Nastaveniach"
     )
 
     static let de = OnboardingStrings(
@@ -370,7 +384,9 @@ extension OnboardingStrings {
         doneBody: "Sitzungen erscheinen in der Notch. Der Helm in der Menüleiste hat alles andere.",
         doneMenuBar: "Menüleiste",
         doneNotch: "Notch",
-        skip: "Überspringen"
+        skip: "Überspringen",
+        welcomeStats: "Openbar sendet einmal am Tag anonyme Nutzungsstatistiken.",
+        welcomeStatsLink: "In den Einstellungen ausschalten"
     )
 
     static let fr = OnboardingStrings(
@@ -413,7 +429,9 @@ extension OnboardingStrings {
         doneBody: "Les sessions apparaissent dans l’encoche. Le casque de la barre des menus a tout le reste.",
         doneMenuBar: "Barre des menus",
         doneNotch: "Encoche",
-        skip: "Passer"
+        skip: "Passer",
+        welcomeStats: "Openbar envoie des statistiques d’usage anonymes une fois par jour.",
+        welcomeStatsLink: "Désactiver dans les Réglages"
     )
 
     static let it = OnboardingStrings(
@@ -456,7 +474,9 @@ extension OnboardingStrings {
         doneBody: "Le sessioni compaiono nel notch. Il casco nella barra dei menu ha tutto il resto.",
         doneMenuBar: "Barra dei menu",
         doneNotch: "Notch",
-        skip: "Salta"
+        skip: "Salta",
+        welcomeStats: "Openbar invia statistiche d’uso anonime una volta al giorno.",
+        welcomeStatsLink: "Disattiva nelle Impostazioni"
     )
 
     static let ja = OnboardingStrings(
@@ -499,7 +519,9 @@ extension OnboardingStrings {
         doneBody: "セッションはノッチに表示されます。それ以外はメニューバーのヘルメットから。",
         doneMenuBar: "メニューバー",
         doneNotch: "ノッチ",
-        skip: "スキップ"
+        skip: "スキップ",
+        welcomeStats: "Openbarは1日に1回、匿名の使用統計を送信します。",
+        welcomeStatsLink: "設定でオフにする"
     )
 
     static let ko = OnboardingStrings(
@@ -542,7 +564,9 @@ extension OnboardingStrings {
         doneBody: "세션은 노치에 나타납니다. 나머지는 메뉴 막대의 헬멧에 있습니다.",
         doneMenuBar: "메뉴 막대",
         doneNotch: "노치",
-        skip: "건너뛰기"
+        skip: "건너뛰기",
+        welcomeStats: "Openbar는 하루에 한 번 익명 사용 통계를 보냅니다.",
+        welcomeStatsLink: "설정에서 끄기"
     )
 
     static let uk = OnboardingStrings(
@@ -585,7 +609,9 @@ extension OnboardingStrings {
         doneBody: "Сесії з’являються у вирізі екрана. Усе інше знайдете під шоломом у рядку меню.",
         doneMenuBar: "Рядок меню",
         doneNotch: "Виріз",
-        skip: "Пропустити"
+        skip: "Пропустити",
+        welcomeStats: "Openbar раз на день надсилає анонімну статистику використання.",
+        welcomeStatsLink: "Вимкнути в Параметрах"
     )
 
     static let zhHans = OnboardingStrings(
@@ -628,7 +654,9 @@ extension OnboardingStrings {
         doneBody: "会话会显示在刘海里。其他一切都在菜单栏的头盔里。",
         doneMenuBar: "菜单栏",
         doneNotch: "刘海",
-        skip: "跳过"
+        skip: "跳过",
+        welcomeStats: "Openbar 每天发送一次匿名使用统计。",
+        welcomeStatsLink: "在设置中关闭"
     )
 
     static let zhTW = OnboardingStrings(
@@ -671,7 +699,9 @@ extension OnboardingStrings {
         doneBody: "工作階段會出現在瀏海裡。其他一切都在選單列的頭盔裡。",
         doneMenuBar: "選單列",
         doneNotch: "瀏海",
-        skip: "略過"
+        skip: "略過",
+        welcomeStats: "Openbar 每天傳送一次匿名使用統計。",
+        welcomeStatsLink: "在設定中關閉"
     )
 
     static let zhHK = OnboardingStrings(
@@ -714,6 +744,8 @@ extension OnboardingStrings {
         doneBody: "工作階段會出現在凹口裡。其他一切都在選單列的頭盔裡。",
         doneMenuBar: "選單列",
         doneNotch: "凹口",
-        skip: "略過"
+        skip: "略過",
+        welcomeStats: "Openbar 每日傳送一次匿名使用統計。",
+        welcomeStatsLink: "在設定中關閉"
     )
 }

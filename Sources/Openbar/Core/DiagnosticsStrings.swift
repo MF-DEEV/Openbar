@@ -35,6 +35,9 @@ struct DiagnosticsStrings {
     let attachTitle: String
     let attachCaption: String
     let reportHint: String
+    let statsTitle: String
+    let statsCaption: String
+    let statsDetails: String
 }
 
 extension FeatureStrings {
@@ -89,7 +92,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Save one file with versions, hook states and logs to attach to a bug report.",
         attachTitle: "Attach a diagnostics file",
         attachCaption: "Reporting a bug first saves the file and shows it in its folder, so you can drag it into the issue.",
-        reportHint: "After saving, the bug report form opens. Drag the file into it."
+        reportHint: "After saving, the bug report form opens. Drag the file into it.",
+        statsTitle: "Share anonymous usage stats",
+        statsCaption: "Sends a random ID, the app and system versions, and counts of the sessions, terminals and sections you used, once a day. Prompts, files and names are never sent.",
+        statsDetails: "What’s sent"
     )
 
     static let ptBR = DiagnosticsStrings(
@@ -121,7 +127,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Salve um arquivo com versões, estado dos hooks e logs para anexar a um relato de bug.",
         attachTitle: "Anexar um arquivo de diagnóstico",
         attachCaption: "Ao relatar um bug, o arquivo é salvo antes e mostrado na pasta, para você arrastá-lo para a issue.",
-        reportHint: "Depois de salvar, o formulário de bug abre. Arraste o arquivo para ele."
+        reportHint: "Depois de salvar, o formulário de bug abre. Arraste o arquivo para ele.",
+        statsTitle: "Compartilhar estatísticas de uso anônimas",
+        statsCaption: "Uma vez por dia, envia um ID aleatório, as versões do app e do sistema e quantas sessões, terminais e seções você usou. Prompts, arquivos e nomes nunca são enviados.",
+        statsDetails: "O que é enviado"
     )
 
     static let tr = DiagnosticsStrings(
@@ -153,7 +162,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Hata bildirimine eklemek için sürümleri, hook durumlarını ve günlükleri tek dosyaya kaydedin.",
         attachTitle: "Tanılama dosyası ekle",
         attachCaption: "Hata bildirirken önce dosya kaydedilir ve klasöründe gösterilir; onu kayda sürükleyebilirsiniz.",
-        reportHint: "Kaydettikten sonra hata bildirim formu açılır. Dosyayı içine sürükleyin."
+        reportHint: "Kaydettikten sonra hata bildirim formu açılır. Dosyayı içine sürükleyin.",
+        statsTitle: "Anonim kullanım istatistiklerini paylaş",
+        statsCaption: "Günde bir kez rastgele bir kimlik, uygulama ve sistem sürümleri ile kullandığınız oturum, terminal ve bölüm sayılarını gönderir. İstemler, dosyalar ve adlar asla gönderilmez.",
+        statsDetails: "Neler gönderilir"
     )
 
     static let ru = DiagnosticsStrings(
@@ -185,7 +197,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Сохраните один файл с версиями, состоянием хуков и журналами, чтобы приложить его к отчёту об ошибке.",
         attachTitle: "Приложить файл диагностики",
         attachCaption: "При отчёте об ошибке файл сначала сохраняется и показывается в папке, чтобы перетащить его в issue.",
-        reportHint: "После сохранения откроется форма отчёта. Перетащите в неё файл."
+        reportHint: "После сохранения откроется форма отчёта. Перетащите в неё файл.",
+        statsTitle: "Отправлять анонимную статистику",
+        statsCaption: "Раз в день отправляет случайный ID, версии приложения и системы и число использованных сеансов, терминалов и разделов. Запросы, файлы и имена не отправляются никогда.",
+        statsDetails: "Что отправляется"
     )
 
     static let es = DiagnosticsStrings(
@@ -217,7 +232,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Guarda un archivo con versiones, estado de los hooks y registros para adjuntarlo a un informe de error.",
         attachTitle: "Adjuntar un archivo de diagnóstico",
         attachCaption: "Al informar de un error, primero se guarda el archivo y se muestra en su carpeta para que lo arrastres a la incidencia.",
-        reportHint: "Al guardar se abre el formulario del informe. Arrastra el archivo dentro."
+        reportHint: "Al guardar se abre el formulario del informe. Arrastra el archivo dentro.",
+        statsTitle: "Compartir estadísticas de uso anónimas",
+        statsCaption: "Una vez al día envía un ID aleatorio, las versiones de la app y del sistema, y cuántas sesiones, terminales y secciones usaste. Nunca envía instrucciones, archivos ni nombres.",
+        statsDetails: "Qué se envía"
     )
 
     static let sk = DiagnosticsStrings(
@@ -249,7 +267,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Uložte jeden súbor s verziami, stavom hookov a záznamami a priložte ho k hláseniu chyby.",
         attachTitle: "Priložiť súbor diagnostiky",
         attachCaption: "Pri hlásení chyby sa súbor najprv uloží a zobrazí v priečinku, aby ste ho mohli pretiahnuť do issue.",
-        reportHint: "Po uložení sa otvorí formulár hlásenia. Pretiahnite doň súbor."
+        reportHint: "Po uložení sa otvorí formulár hlásenia. Pretiahnite doň súbor.",
+        statsTitle: "Zdieľať anonymné štatistiky používania",
+        statsCaption: "Raz denne odošle náhodné ID, verziu aplikácie a systému a počty použitých relácií, terminálov a sekcií. Prompty, súbory ani názvy sa nikdy neodosielajú.",
+        statsDetails: "Čo sa odosiela"
     )
 
     static let de = DiagnosticsStrings(
@@ -281,7 +302,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Sichere eine Datei mit Versionen, Hook-Zuständen und Protokollen für einen Fehlerbericht.",
         attachTitle: "Diagnosedatei anhängen",
         attachCaption: "Beim Melden eines Fehlers wird die Datei zuerst gesichert und in ihrem Ordner gezeigt, damit du sie ins Issue ziehen kannst.",
-        reportHint: "Nach dem Sichern öffnet sich das Formular für den Fehlerbericht. Zieh die Datei hinein."
+        reportHint: "Nach dem Sichern öffnet sich das Formular für den Fehlerbericht. Zieh die Datei hinein.",
+        statsTitle: "Anonyme Nutzungsstatistiken teilen",
+        statsCaption: "Sendet einmal am Tag eine zufällige ID, die App- und Systemversion und wie viele Sitzungen, Terminals und Bereiche du genutzt hast. Prompts, Dateien und Namen werden nie gesendet.",
+        statsDetails: "Was gesendet wird"
     )
 
     static let fr = DiagnosticsStrings(
@@ -313,7 +337,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Enregistrez un fichier avec les versions, l’état des hooks et les journaux pour un rapport de bug.",
         attachTitle: "Joindre un fichier de diagnostic",
         attachCaption: "Signaler un bug enregistre d’abord le fichier et l’affiche dans son dossier, pour le glisser dans l’issue.",
-        reportHint: "Après l’enregistrement, le formulaire de bug s’ouvre. Glissez-y le fichier."
+        reportHint: "Après l’enregistrement, le formulaire de bug s’ouvre. Glissez-y le fichier.",
+        statsTitle: "Partager des statistiques d’usage anonymes",
+        statsCaption: "Une fois par jour, envoie un identifiant aléatoire, les versions de l’app et du système, et le nombre de sessions, terminaux et sections utilisés. Jamais de requêtes, de fichiers ni de noms.",
+        statsDetails: "Ce qui est envoyé"
     )
 
     static let it = DiagnosticsStrings(
@@ -345,7 +372,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Salva un file con versioni, stato degli hook e log da allegare a una segnalazione di bug.",
         attachTitle: "Allega un file di diagnostica",
         attachCaption: "Segnalando un bug, il file viene prima salvato e mostrato nella sua cartella, così puoi trascinarlo nella issue.",
-        reportHint: "Dopo il salvataggio si apre il modulo della segnalazione. Trascinaci il file."
+        reportHint: "Dopo il salvataggio si apre il modulo della segnalazione. Trascinaci il file.",
+        statsTitle: "Condividi statistiche d’uso anonime",
+        statsCaption: "Una volta al giorno invia un ID casuale, le versioni dell’app e del sistema e quante sessioni, terminali e sezioni hai usato. Prompt, file e nomi non vengono mai inviati.",
+        statsDetails: "Cosa viene inviato"
     )
 
     static let ja = DiagnosticsStrings(
@@ -377,7 +407,10 @@ extension DiagnosticsStrings {
         settingsCaption: "バージョン、フックの状態、ログを1つのファイルに保存して、不具合報告に添付できます。",
         attachTitle: "診断ファイルを添付",
         attachCaption: "不具合を報告するとき、先にファイルを保存してフォルダで表示します。Issueにドラッグしてください。",
-        reportHint: "保存すると不具合報告のフォームが開きます。ファイルをそこへドラッグしてください。"
+        reportHint: "保存すると不具合報告のフォームが開きます。ファイルをそこへドラッグしてください。",
+        statsTitle: "匿名の使用統計を共有",
+        statsCaption: "1日に1回、ランダムなID、アプリとシステムのバージョン、使ったセッション・ターミナル・セクションの数を送信します。プロンプト、ファイル、名前は送信しません。",
+        statsDetails: "送信される内容"
     )
 
     static let ko = DiagnosticsStrings(
@@ -409,7 +442,10 @@ extension DiagnosticsStrings {
         settingsCaption: "버전, 훅 상태, 로그를 파일 하나로 저장해 버그 보고에 첨부합니다.",
         attachTitle: "진단 파일 첨부",
         attachCaption: "버그를 보고할 때 먼저 파일을 저장하고 폴더에서 보여 줍니다. 이슈로 끌어다 놓으세요.",
-        reportHint: "저장하면 버그 보고 양식이 열립니다. 파일을 그곳으로 끌어다 놓으세요."
+        reportHint: "저장하면 버그 보고 양식이 열립니다. 파일을 그곳으로 끌어다 놓으세요.",
+        statsTitle: "익명 사용 통계 공유",
+        statsCaption: "하루에 한 번 무작위 ID, 앱과 시스템 버전, 사용한 세션·터미널·섹션 수를 보냅니다. 프롬프트, 파일, 이름은 보내지 않습니다.",
+        statsDetails: "보내는 정보"
     )
 
     static let uk = DiagnosticsStrings(
@@ -441,7 +477,10 @@ extension DiagnosticsStrings {
         settingsCaption: "Збережіть один файл з версіями, станом хуків і журналами, щоб додати його до звіту про помилку.",
         attachTitle: "Додати файл діагностики",
         attachCaption: "Під час звіту про помилку файл спершу зберігається й показується в папці, щоб перетягнути його в issue.",
-        reportHint: "Після збереження відкриється форма звіту. Перетягніть у неї файл."
+        reportHint: "Після збереження відкриється форма звіту. Перетягніть у неї файл.",
+        statsTitle: "Надсилати анонімну статистику",
+        statsCaption: "Раз на день надсилає випадковий ID, версії програми й системи та кількість використаних сеансів, терміналів і розділів. Запити, файли й імена не надсилаються ніколи.",
+        statsDetails: "Що надсилається"
     )
 
     static let zhHans = DiagnosticsStrings(
@@ -473,7 +512,10 @@ extension DiagnosticsStrings {
         settingsCaption: "把版本、钩子状态和日志存成一个文件，附到问题报告中。",
         attachTitle: "附加诊断文件",
         attachCaption: "报告问题时会先存储文件并在其文件夹中显示，方便你把它拖进 issue。",
-        reportHint: "存储后会打开问题报告表单。把文件拖进去即可。"
+        reportHint: "存储后会打开问题报告表单。把文件拖进去即可。",
+        statsTitle: "共享匿名使用统计",
+        statsCaption: "每天一次，发送一个随机 ID、App 与系统版本，以及你使用的会话、终端和栏目数量。绝不发送提示、文件或名称。",
+        statsDetails: "发送的内容"
     )
 
     static let zhTW = DiagnosticsStrings(
@@ -505,7 +547,10 @@ extension DiagnosticsStrings {
         settingsCaption: "把版本、掛鉤狀態與記錄存成一個檔案，附加到問題回報中。",
         attachTitle: "附加診斷檔案",
         attachCaption: "回報問題時會先儲存檔案並在其資料夾中顯示，方便你把它拖進 issue。",
-        reportHint: "儲存後會開啟問題回報表單。把檔案拖進去即可。"
+        reportHint: "儲存後會開啟問題回報表單。把檔案拖進去即可。",
+        statsTitle: "分享匿名使用統計",
+        statsCaption: "每天一次，傳送一個隨機 ID、App 與系統版本，以及你使用的工作階段、終端機和區塊數量。絕不傳送提示、檔案或名稱。",
+        statsDetails: "傳送的內容"
     )
 
     static let zhHK = DiagnosticsStrings(
@@ -537,6 +582,9 @@ extension DiagnosticsStrings {
         settingsCaption: "把版本、掛鈎狀態與記錄存成一個檔案，附加到問題報告中。",
         attachTitle: "附加診斷檔案",
         attachCaption: "報告問題時會先儲存檔案並在其資料夾中顯示，方便你把它拖進 issue。",
-        reportHint: "儲存後會開啟問題報告表單。把檔案拖進去即可。"
+        reportHint: "儲存後會開啟問題報告表單。把檔案拖進去即可。",
+        statsTitle: "分享匿名使用統計",
+        statsCaption: "每日一次，傳送一個隨機 ID、App 與系統版本，以及你使用的工作階段、終端機和區塊數量。絕不傳送提示、檔案或名稱。",
+        statsDetails: "傳送的內容"
     )
 }

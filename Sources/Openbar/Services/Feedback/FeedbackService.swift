@@ -23,7 +23,7 @@ struct FeedbackDiagnostics: Codable {
         let channel = AppInfo.isDeveloperBuild ? "developer" : (isBeta ? "beta" : (UpdateService.shared.includeBetaUpdates ? "beta-opt-in" : "stable"))
         return FeedbackDiagnostics(
             appVersion: AppInfo.version,
-            appBuild: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0",
+            appBuild: AppInfo.build ?? "0",
             macOS: "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",
             macModel: modelIdentifier,
             language: L10n.shared.language.rawValue,

@@ -1520,8 +1520,11 @@ final class NotchService: ObservableObject {
         if !expanded || selected != .calendar || showingSections || showingAppPanel { calendar.revealing = nil }
     }
 
+    /// `automatic` marks an island that opens by itself (a session asking, a
+    /// capture preview): the usage stats count only the person's own visits.
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,
-              appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false) {
+              appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false,
+              automatic: Bool = false) {
         guard NotchSupport.isEnabled(), !suspended else { return }
         // The capture controls cover the open page and hold collapsing off, so
         // an island opened now would wait behind them and open by itself once
@@ -1564,6 +1567,8 @@ final class NotchService: ObservableObject {
         // or a capture preview under the pointer can be told the pointer left.
         // An open page is followed again only from an exit report.
         if !expanded { removeHoverExitMonitors() }
+        let entersSection = !automatic && !appPanel && !sections
+            && (!expanded || selected != destination || showingSections || showingAppPanel)
         mutatePresentation(transitionContent: changesPresentation ? (expanded ? .replace : .reveal) : .none) {
             showingCommandBar = false
             showingAppPanel = appPanel
@@ -1578,6 +1583,7 @@ final class NotchService: ObservableObject {
             // the message; a held one must not reappear after collapsing.
             if notice?.notificationID != nil { noticeWork?.cancel(); noticeWork = nil; notice = nil; noticeExpanded = false }
         }
+        if entersSection { UsageStatsService.shared.noteOpened(destination) }
         inside = windowHost?.containsHover(NSEvent.mouseLocation) == true
         installEventMonitors()
         syncVisibleConsumers()
@@ -2766,7 +2772,7 @@ final class NotchService: ObservableObject {
         captureHover = hover
         captureClosesOnCollapse = closeOnCollapse
         open(.captures, pinned: keepOpen,
-             takeFocus: takeFocus, feedback: false)
+             takeFocus: takeFocus, feedback: false, automatic: true)
         captureHover?(inside)
         return true
     }
@@ -4667,7 +4673,7 @@ final class NotchService: ObservableObject {
            service.focusedID == nil || (waits.count == 1 && service.focusedID == waits[0].session) { return }
         // Another page open is the person at work: a notice, not a jump.
         if sessionsMayPresent, NotchClaudeSessionsSupport.autoExpands(), !expanded {
-            open(.sessions, takeFocus: false)
+            open(.sessions, takeFocus: false, automatic: true)
             service.focus(waits.count == 1 ? waits[0].session : nil)
             return
         }
@@ -4719,7 +4725,7 @@ final class NotchService: ObservableObject {
         guard let session = sessions.sessions.first(where: { $0.id == id }) else { return }
         if NotchClaudeSessionsSupport.shouldAutoExpand(event, enabled: NotchClaudeSessionsSupport.autoExpands(),
                                                        expanded: expanded, suspended: suspended || hiddenInFullscreen) {
-            open(.sessions, takeFocus: false)
+            open(.sessions, takeFocus: false, automatic: true)
             // More than one ask waiting opens on the queue, not on one of them (#269).
             sessions.focus(NotchPermissionQueue(sessions.sessions).shows ? nil : id)
             return

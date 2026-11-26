@@ -1039,6 +1039,12 @@ enum DefaultsKey {
     static let hooksMadeFolders = "hooksMadeFolders"
     /// Reporting a bug first saves a diagnostics file to attach (#230).
     static let feedbackAttachDiagnostics = "feedbackAttachDiagnostics"
+    /// Anonymous usage stats sent once a day (#333). On by default.
+    static let shareUsageStats = "shareUsageStats"
+    /// The random id the usage ping carries; deleted when stats are switched off.
+    static let usageStatsInstallId = "usageStatsInstallId"
+    /// The usage counters since the last ping, and when it was sent (JSON).
+    static let usageStatsState = "usageStatsState"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.
@@ -1366,6 +1372,7 @@ enum Defaults {
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
         DefaultsKey.hotkeyEnabled: true,
+        DefaultsKey.shareUsageStats: true,
         DefaultsKey.launchAtLoginWanted: false,
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,

@@ -168,6 +168,19 @@ enum NotchDestinationContract {
         focus.collapse()
         focus.open(.controls, takeFocus: false)
         suite.expect(!focus.showsKeyboardFocus, "hover opening starts without an automatic focus indicator")
+        // Usage stats count the person's visits to a section, never the
+        // island opening by itself (#333).
+        let visits = Service()
+        visits.open(.controls)
+        visits.open(.music)
+        visits.open(.music)
+        visits.collapse()
+        visits.open(.music, takeFocus: false)
+        visits.open(.system, sections: true)
+        visits.collapse()
+        visits.open(.timer, takeFocus: false, automatic: true)
+        suite.expect(visits.sectionVisits == [.controls, .music, .music],
+                     "a visit counts on opening or switching, never twice in place, never automatic: \(visits.sectionVisits)")
         scratchpadContracts(defaults: defaults, suite: suite)
         reopeningContracts(defaults: defaults, suite: suite)
         countdownContracts(defaults: defaults, suite: suite)
