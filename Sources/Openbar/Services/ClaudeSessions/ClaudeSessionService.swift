@@ -1706,7 +1706,9 @@ final class ClaudeSessionService: ObservableObject {
         }
         // The agent is the process above the hook's shells; OpenCode's plugin
         // writes from inside it.
-        let pid = decoded.fromProxy ? 0 : AgentHookProcess.agent(fromHook: connection.peer, hint: decoded.pid)
+        var pid = decoded.fromProxy ? 0 : AgentHookProcess.agent(fromHook: connection.peer, hint: decoded.pid)
+        // Kiro CLI's hooks run in its agent server, which has no terminal: its terminal UI has (#238).
+        if decoded.provider == .kiro, pid > 1 { pid = AgentKiro.terminalProcess(of: pid) }
         if let attached = decoded.attached {
             proxied[AgentHookEvent.id(decoded.provider, attached)] = connection.peer
             return connection.finish()

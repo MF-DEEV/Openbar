@@ -156,6 +156,13 @@ enum KiroAgentTests {
     // MARK: Keys
 
     static func keys(_ suite: TestSuite) {
+        // node (no terminal) under bun (the terminal UI, on ttys199) under kiro-cli.
+        let ttys: [Int32: String] = [48958: "/dev/ttys199", 48917: "/dev/ttys199"]
+        let parents: [Int32: Int32] = [48969: 48958, 48958: 48917, 48917: 48915]
+        suite.expect(AgentKiro.terminalProcess(of: 48969, tty: { ttys[$0] }, parent: { parents[$0] }) == 48958
+                     && AgentKiro.terminalProcess(of: 48958, tty: { ttys[$0] }, parent: { parents[$0] }) == 48958
+                     && AgentKiro.terminalProcess(of: 7, tty: { _ in nil }, parent: { _ in nil }) == 7,
+                     "the session is the terminal UI above Kiro's agent server, or the server when none has a terminal")
         suite.expect(AgentKiro.keys(.allow) == [.enter] && AgentKiro.keys(.deny) == [.keys([.down]), .enter]
                      && AgentKiro.keys(.allowAlways) == nil && AgentKiro.keys(.answer([:])) == nil,
                      "its dialog takes Return for Allow once and Down, Return for Deny once")

@@ -93,6 +93,22 @@ enum AgentKiro {
         }
     }
 
+    // MARK: Process
+
+    /// The process the session's terminal shows: Kiro's hooks run in its
+    /// agent server, a `node` its terminal UI starts without a terminal of
+    /// its own, so the first process above it that has one. It lives as
+    /// long as the session and tells the terminal, its tmux pane too.
+    static func terminalProcess(of agent: Int32, tty: (Int32) -> String? = ClaudeSessionHosts.tty(of:),
+                                parent: (Int32) -> Int32? = AgentHookProcess.parent(of:)) -> Int32 {
+        var pid = agent
+        for _ in 0..<3 {
+            guard pid > 1, tty(pid) == nil, let up = parent(pid) else { break }
+            pid = up
+        }
+        return pid > 1 && tty(pid) != nil ? pid : agent
+    }
+
     // MARK: Tools
 
     /// A tool's input in Claude Code's words, so the card, the list and a
