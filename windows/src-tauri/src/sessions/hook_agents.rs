@@ -40,7 +40,7 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 15] = [
+    pub const HOOK_AGENTS: [Provider; 16] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -56,11 +56,12 @@ impl Provider {
         Provider::Droid,
         Provider::Cline,
         Provider::Kimi,
+        Provider::Kiro,
     ];
 
     /// The hook agents the island puts hooks or a plugin into. Cline is read
     /// from its own session store instead, and gets nothing (#241).
-    pub const INSTALLED_AGENTS: [Provider; 14] = [
+    pub const INSTALLED_AGENTS: [Provider; 15] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -75,6 +76,7 @@ impl Provider {
         Provider::Qwen,
         Provider::Droid,
         Provider::Kimi,
+        Provider::Kiro,
     ];
 
     /// Whether the island puts hooks or a plugin into the agent.
@@ -139,6 +141,7 @@ impl Provider {
             Provider::Droid => "droid",
             Provider::Cline => "cline",
             Provider::Kimi => "kimi",
+            Provider::Kiro => "kiro",
             Provider::Custom => "custom",
         }
     }
@@ -168,6 +171,7 @@ impl Provider {
             Provider::Droid,
             Provider::Cline,
             Provider::Kimi,
+            Provider::Kiro,
             Provider::Custom,
         ]
         .into_iter()
@@ -389,6 +393,9 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
         Provider::Qwen => qwen(&hook, event, pid, now, policy, &mut decoded),
         Provider::Droid => droid(&hook, event, pid, now, policy, &mut decoded),
         Provider::Kimi => decoded.events = kimi(&hook, event, pid, now, policy),
+        Provider::Kiro => {
+            decoded.events = claude_style(Provider::Kiro, &hook, event, pid, now, policy, None)
+        }
         Provider::Hermes => decoded.events = hermes(&hook, event, pid, now, policy),
         Provider::Grok => {
             decoded.events = grok(&hook, event, pid, now, policy);
@@ -2623,6 +2630,19 @@ pub fn name(provider: Provider, tool: &str) -> String {
             ("agents_spawn", "Task"),
             ("ask_user_question", "AskUserQuestion"),
         ],
+        Provider::Kiro => &[
+            ("execute_bash", "Bash"),
+            ("shell", "Bash"),
+            ("fs_read", "Read"),
+            ("read", "Read"),
+            ("fs_write", "Write"),
+            ("write", "Write"),
+            ("edit", "Edit"),
+            ("grep", "Grep"),
+            ("glob", "Glob"),
+            ("web_fetch", "WebFetch"),
+            ("web_search", "WebSearch"),
+        ],
         Provider::Devin => &[
             ("exec", "Bash"),
             ("read", "Read"),
@@ -3501,6 +3521,7 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Droid => Some("droid"),
         Provider::Cline => Some("cline"),
         Provider::Kimi => Some("kimi"),
+        Provider::Kiro => Some("kiro-cli"),
         Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
 }
@@ -3554,6 +3575,8 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         Provider::Devin | Provider::Grok | Provider::Droid => vec!["--".into(), prompt.into()],
         // On a terminal, `hermes chat -q` opens the session with it as the first turn.
         Provider::Hermes => vec!["chat".into(), "-q".into(), prompt.into()],
+        // `kiro-cli chat <question>` opens its terminal UI with the question as the first turn.
+        Provider::Kiro => vec!["chat".into(), prompt.into()],
         // A prompt alone runs Cline headless; `--tui` keeps its terminal UI with it as the first turn.
         Provider::Cline => vec!["--tui".into(), prompt.into()],
         Provider::Zcode
@@ -3731,6 +3754,17 @@ pub mod installer {
         "StopCancelled",
     ];
 
+    /// Kiro CLI's triggers (kiro.dev/docs/hooks/types), named as Claude Code's
+    /// are. Each only tells: Kiro goes on whatever the hook answers.
+    pub const KIRO_EVENTS: [&str; 6] = [
+        "SessionStart",
+        "SessionEnd",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "Stop",
+    ];
+
     /// ZCode's events (its hooks guide, zcode.z.ai/en/docs/hooks), every one
     /// it has: its config refuses any other name. They sit under
     /// `hooks.events` in its CLI config, which also says `hooks.enabled`.
@@ -3879,6 +3913,19 @@ pub mod installer {
         env_dir("GROK_HOME").unwrap_or_else(|| home.join(".grok"))
     }
 
+    /// Kiro CLI's folder: `KIRO_HOME`, or `~/.kiro` (`%USERPROFILE%\.kiro`). The
+    /// Kiro IDE keeps its files there too, so only its command says it is here.
+    pub fn kiro_folder(home: &Path) -> PathBuf {
+        env_dir("KIRO_HOME").unwrap_or_else(|| home.join(".kiro"))
+    }
+
+    /// The island's own hooks file in Kiro CLI's global `hooks` folder.
+    pub fn kiro_hooks(home: &Path, app: &str) -> PathBuf {
+        kiro_folder(home)
+            .join("hooks")
+            .join(format!("{}.json", own_name(app)))
+    }
+
     pub fn grok_hooks(home: &Path, app: &str) -> PathBuf {
         grok_folder(home)
             .join("hooks")
@@ -3958,6 +4005,7 @@ pub mod installer {
             Provider::Droid => super::super::droid::folder(home),
             Provider::Cline => super::super::cline::folder(home),
             Provider::Kimi => super::super::kimi::folder(home),
+            Provider::Kiro => kiro_folder(home),
             Provider::Claude | Provider::Custom => return None,
         })
     }
@@ -4359,6 +4407,36 @@ pub mod installer {
         data
     }
 
+    /// Kiro CLI's hooks file of the island's own, in its standalone hook
+    /// format (kiro.dev/docs/hooks): a hook for each event, which tells and
+    /// never answers, so Kiro asks in its terminal as it always did. Tool
+    /// events carry the matcher that takes every tool.
+    pub fn kiro_file(exe: &Path, app: &str) -> Vec<u8> {
+        let hooks: Vec<Value> = KIRO_EVENTS
+            .iter()
+            .map(|event| {
+                let mut hook = json!({
+                    "name": format!("{}-{event}", own_name(app)),
+                    "trigger": event,
+                    "action": {
+                        "type": "command",
+                        "command": portable_command(Provider::Kiro, event, exe, app),
+                    },
+                    "timeout": EVENT_TIMEOUT,
+                    "enabled": true,
+                });
+                if matches!(*event, "PreToolUse" | "PostToolUse") {
+                    hook["matcher"] = json!("*");
+                }
+                hook
+            })
+            .collect();
+        let mut data = serde_json::to_vec_pretty(&json!({ "version": "v1", "hooks": hooks }))
+            .unwrap_or_default();
+        data.push(b'\n');
+        data
+    }
+
     pub fn opencode_file(endpoint: &str, app: &str) -> Vec<u8> {
         let literal = serde_json::to_string(endpoint).unwrap_or_else(|_| "\"\"".into());
         PLUGIN
@@ -4662,6 +4740,7 @@ pub mod installer {
             },
             Provider::Copilot => own_state(&path, &copilot_file(exe, app)),
             Provider::Grok => own_state(&path, &grok_file(exe, app)),
+            Provider::Kiro => own_state(&path, &kiro_file(exe, app)),
             Provider::Opencode => own_state(&path, &opencode_file(endpoint, app)),
             Provider::Pi => own_state(&path, &pi_file(endpoint, app)),
             Provider::Vibe => match vibe_text(&path) {
@@ -4897,6 +4976,7 @@ pub mod installer {
             }
             Provider::Copilot => write_own(&path, &copilot_file(exe, app), app),
             Provider::Grok => write_own(&path, &grok_file(exe, app), app),
+            Provider::Kiro => write_own(&path, &kiro_file(exe, app), app),
             Provider::Opencode => write_own(&path, &opencode_file(endpoint, app), app),
             Provider::Pi => write_own(&path, &pi_file(endpoint, app), app),
             Provider::Vibe => {
@@ -4976,9 +5056,11 @@ pub mod installer {
         };
         let failure = |e: claude::Failure| e.to_string();
         match provider {
-            Provider::Copilot | Provider::Opencode | Provider::Pi | Provider::Grok => {
-                remove_own(&path, app)
-            }
+            Provider::Copilot
+            | Provider::Opencode
+            | Provider::Pi
+            | Provider::Grok
+            | Provider::Kiro => remove_own(&path, app),
             // Its hooks.json may hold the island's entries without a settings.json.
             Provider::Droid => match path.parent() {
                 Some(folder) => super::super::droid::remove(folder, app).map_err(failure),
@@ -7347,6 +7429,83 @@ mod tests {
         assert_eq!(grok_session_pid_in(b"{}", "a"), None);
     }
 
+    // MARK: Kiro CLI (#238)
+
+    fn kiro_event(hook: &str, extra: Value) -> Vec<u8> {
+        let mut event = json!({
+            "session_id": "f2946a26-3735-4b08-8d05-c928010302d5",
+            "cwd": "/w/rocket", "hook_event_name": hook,
+        });
+        for (k, v) in extra.as_object().unwrap() {
+            event[k] = v.clone();
+        }
+        envelope("kiro", hook, event)
+    }
+
+    #[test]
+    fn kiro_sessions_come_through_hooks_and_end_with_the_turn() {
+        let mut tracker = Tracker::default();
+        feed(&mut tracker, &kiro_event("SessionStart", json!({})), ON);
+        feed(
+            &mut tracker,
+            &kiro_event("UserPromptSubmit", json!({"prompt": "add a retry"})),
+            ON,
+        );
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].id, "kiro:f2946a26-3735-4b08-8d05-c928010302d5");
+        assert_eq!(sessions[0].provider, Provider::Kiro);
+        assert_eq!(sessions[0].phase, SessionPhase::Generating);
+        feed(
+            &mut tracker,
+            &kiro_event(
+                "PreToolUse",
+                json!({"tool_name": "execute_bash", "tool_input": {"command": "cargo test"}}),
+            ),
+            ON,
+        );
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].phase, SessionPhase::RunningTool);
+        feed(&mut tracker, &kiro_event("Stop", json!({})), ON);
+        let (sessions, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(sessions[0].phase, SessionPhase::Finished);
+        feed(&mut tracker, &kiro_event("SessionEnd", json!({})), ON);
+        assert!(snap(&mut tracker, NOW, true).0.is_empty());
+        assert_eq!(name(Provider::Kiro, "execute_bash"), "Bash");
+        assert_eq!(name(Provider::Kiro, "fs_read"), "Read");
+        assert_eq!(Provider::from_key("kiro"), Some(Provider::Kiro));
+    }
+
+    #[test]
+    fn kiro_hooks_are_a_file_of_the_islands_own_and_never_answer() {
+        let exe = Path::new("C:/Openbar/Openbar.exe");
+        let file: Value = serde_json::from_slice(&installer::kiro_file(exe, "app")).unwrap();
+        assert_eq!(file["version"], "v1");
+        let hooks = file["hooks"].as_array().unwrap();
+        assert_eq!(hooks.len(), installer::KIRO_EVENTS.len());
+        let pre = hooks.iter().find(|h| h["trigger"] == "PreToolUse").unwrap();
+        assert_eq!(pre["matcher"], "*");
+        assert_eq!(pre["enabled"], true);
+        assert_eq!(pre["name"], "openbar-app-PreToolUse");
+        assert_eq!(pre["timeout"], installer::EVENT_TIMEOUT);
+        let command = pre["action"]["command"].as_str().unwrap();
+        assert!(
+            command.starts_with("C:/Openbar/Openbar.exe --hook --agent kiro --event PreToolUse")
+        );
+        let stop = hooks.iter().find(|h| h["trigger"] == "Stop").unwrap();
+        assert!(stop.get("matcher").is_none());
+        assert!(
+            installer::kiro_hooks(Path::new("/h"), "app").ends_with("hooks/openbar-app.json")
+                || std::env::var_os("KIRO_HOME").is_some()
+        );
+        assert_eq!(command_name(Provider::Kiro), Some("kiro-cli"));
+        assert_eq!(
+            start_arguments(Provider::Kiro, "fix it"),
+            vec!["chat", "fix it"]
+        );
+        assert!(!Provider::Kiro.answers_permissions());
+        assert!(Provider::HOOK_AGENTS.contains(&Provider::Kiro) && Provider::Kiro.installs_hooks());
+    }
+
     // MARK: ZCode (#245)
 
     fn zcode(event: &str, extra: Value) -> Vec<u8> {
@@ -7519,7 +7678,8 @@ mod tests {
             Provider::Hermes,
             Provider::Qwen,
             Provider::Droid,
-            Provider::Kimi
+            Provider::Kimi,
+            Provider::Kiro
         ]));
         assert_eq!(Provider::from_key("zcode"), Some(Provider::Zcode));
     }
