@@ -182,7 +182,9 @@ enum ContainerOpen {
     static func attachLine(engine: String, container: ContainerInfo, pane: RemoteTmuxPane) -> String {
         var words = [engine, "exec", "-it"]
         if let user = container.user { words += ["-u", user] }
-        words += [container.id, "tmux", "-S", pane.socket, "attach-session", "-t", pane.pane]
+        // `-u`: `docker exec` carries no UTF-8 locale, and tmux would draw
+        // every non-ASCII character as "_" without it.
+        words += [container.id, "tmux", "-u", "-S", pane.socket, "attach-session", "-t", pane.pane]
         return words.map(RemoteHookInstaller.quoted).joined(separator: " ")
     }
 }

@@ -82,7 +82,7 @@ enum ContainerPrefs {
 
     static func save(_ targets: [ContainerTarget], in defaults: UserDefaults = .standard) {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let data = (try? encoder.encode(targets)) ?? Data("[]".utf8)
         defaults.set(String(decoding: data, as: UTF8.self), forKey: DefaultsKey.notchSessionsContainers)
     }

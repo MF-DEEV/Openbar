@@ -134,6 +134,7 @@ struct MetricsTests {
                 NotchPermissionQueueTests.run(suite)
                 SessionsMenuBarTests.run(suite)
                 RemoteHostTests.run(suite)
+                ContainerTests.run(suite)
                 ClaudeAccountTests.run(suite)
                 ClawdCostumeTests.run(suite)
                 NotchClawdSpriteTests.run(suite)
