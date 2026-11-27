@@ -3222,6 +3222,7 @@ impl Service {
             if inner.remote.links.contains_key(&alias) {
                 continue;
             }
+            crate::diagnostics::log::info("remote", &format!("container {} added", target.title()));
             let snapshots = Arc::downgrade(self);
             let states = Arc::downgrade(self);
             let hooks_to = Arc::downgrade(self);
@@ -3239,6 +3240,7 @@ impl Service {
                     }
                 },
                 move |alias, state| {
+                    crate::diagnostics::log::info("remote", &format!("container {} {}", containers::title_of(alias), state_kind(state)));
                     if let Some(service) = states.upgrade() {
                         if !matches!(state, remote::State::Connected { .. }) {
                             let mut inner = service.inner.lock().unwrap();
@@ -3573,6 +3575,15 @@ pub async fn sessions_containers_change(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// A link's state in a word or two, for the log; why it is down, too.
+fn state_kind(state: &remote::State) -> String {
+    match state {
+        remote::State::Connecting => "connecting".into(),
+        remote::State::Connected { .. } => "connected".into(),
+        remote::State::Disconnected { reason } => format!("disconnected: {reason}"),
+    }
 }
 
 pub type Shared = Arc<Service>;
