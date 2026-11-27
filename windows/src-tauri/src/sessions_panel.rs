@@ -36,6 +36,16 @@ const SETTLE: Duration = Duration::from_millis(600);
 /// key is down and gives it back: that is not the person leaving either.
 const BLUR_GRACE: Duration = Duration::from_millis(300);
 
+/// The panel's own size in a window larger than it, and the edge it hangs
+/// from: a Wayland layer surface keeps one size (see `position`).
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Frame {
+    pub width: f64,
+    pub height: f64,
+    pub bottom: bool,
+}
+
 /// The session to open on, sent to the panel's page.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -150,6 +160,9 @@ struct State {
     hidden_at: Option<Instant>,
     /// The icon the panel opened from, kept to place it again as it resizes.
     icon: Option<Area>,
+    /// The panel's rectangle in a window that keeps one size, None where
+    /// the window is the panel.
+    frame: Option<Frame>,
 }
 
 fn state() -> &'static Mutex<State> {
@@ -222,6 +235,35 @@ fn position<R: Runtime>(window: &WebviewWindow<R>) {
     let (x, y) = place(physical, icon, work, edge, MARGIN * scale);
     let width = physical.0.min(work.width - MARGIN * scale * 2.0);
     let height = physical.1.min(work.height - MARGIN * scale * 2.0);
+    // A layer surface keeps one size, room for the larger panel: resized,
+    // it loses the keyboard on wlroots compositors (sway gives it back to
+    // the window below). The page draws the panel in its corner, and only
+    // the panel's own rectangle takes the pointer.
+    #[cfg(target_os = "linux")]
+    if crate::linux::sessions_panel::layered() {
+        let room = (
+            ENLARGED.0.min(work.width / scale - MARGIN * 2.0),
+            ENLARGED.1.min(work.height / scale - MARGIN * 2.0),
+        );
+        let frame = Frame {
+            width: (width / scale).min(room.0),
+            height: (height / scale).min(room.1),
+            bottom: default_edge() == Edge::Bottom,
+        };
+        crate::linux::sessions_panel::set_frame(window, room, &frame);
+        let changed = state()
+            .lock()
+            .map(|mut s| {
+                let changed = s.frame.as_ref() != Some(&frame);
+                s.frame = Some(frame.clone());
+                changed
+            })
+            .unwrap_or(false);
+        if changed {
+            let _ = window.emit_to(LABEL, "sessions-panel://frame", Some(frame));
+        }
+        return;
+    }
     let _ = window.set_size(PhysicalSize::new(
         width.round() as u32,
         height.round() as u32,
@@ -397,6 +439,7 @@ pub fn toggle_from_tray<R: Runtime>(app: &AppHandle<R>, rect: tauri::Rect) {
 pub struct Current {
     pub visible: bool,
     pub focus: Option<Focus>,
+    pub frame: Option<Frame>,
 }
 
 #[tauri::command]
@@ -406,6 +449,7 @@ pub fn sessions_panel_current() -> Current {
         .map(|s| Current {
             visible: s.visible,
             focus: s.focus.clone(),
+            frame: s.frame.clone(),
         })
         .unwrap_or_default()
 }

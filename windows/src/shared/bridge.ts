@@ -82,6 +82,16 @@ export interface TraySessionsModel {
 export type TraySessionsAction =
   { kind: "open" } | { kind: "allow" | "deny" | "openAsk"; session: string; request: string };
 
+/**
+ * The panel's own size in a window larger than it, and the edge it hangs
+ * from: a Wayland layer surface keeps one size (sessions_panel.rs).
+ */
+export interface SessionsPanelFrame {
+  width: number;
+  height: number;
+  bottom: boolean;
+}
+
 /** The tray panel shown or hidden, and the session its page shows, for the island (#331). */
 export interface SessionsPanelState {
   visible: boolean;
@@ -591,7 +601,11 @@ export const bridge = {
   sessionsPanel: {
     /** Whether it shows and on which session, asked as its page loads after the window's first showing. */
     current: () =>
-      call<{ visible: boolean; focus: { session: string; request: string | null } | null }>("sessions_panel_current"),
+      call<{
+        visible: boolean;
+        focus: { session: string; request: string | null } | null;
+        frame: SessionsPanelFrame | null;
+      }>("sessions_panel_current"),
     /** Opens it, on a session's page when `focus` names one. */
     show: (focus: { session: string; request: string | null } | null, takeFocus = true) =>
       call<void>("sessions_panel_show", { focus, takeFocus }),
@@ -611,6 +625,11 @@ export const bridge = {
       return listen<{ session: string; request: string | null } | null>("sessions-panel://focus", (e) =>
         handler(e.payload),
       );
+    },
+    /** Where the panel draws itself in a window larger than it (Wayland). */
+    onFrame(handler: (frame: SessionsPanelFrame | null) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<SessionsPanelFrame | null>("sessions-panel://frame", (e) => handler(e.payload));
     },
     /** The panel tells the island what it shows. */
     report: (state: SessionsPanelState) => (inTauri ? emit("sessions-panel://state", state) : Promise.resolve()),

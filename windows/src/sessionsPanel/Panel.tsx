@@ -7,6 +7,7 @@
 // panel shows, so the page's cards, keys and pictures work unchanged.
 
 import { useEffect, useRef, useState } from "react";
+import { create } from "zustand";
 import { useLocale } from "../i18n";
 import { closeTopLayer } from "../island/pageLayer";
 import { useIsland } from "../island/store";
@@ -16,7 +17,7 @@ import { startSharedState } from "../sessions/sharedState";
 import { subscribeSessions, useSessions } from "../sessions/store";
 import { S } from "../sessions/strings";
 import { useVoice } from "../sessions/voice";
-import { bridge, inTauri } from "../shared/bridge";
+import { bridge, inTauri, type SessionsPanelFrame } from "../shared/bridge";
 import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
 
 /** The page inside, as the island lays out a page with a top row. */
@@ -66,6 +67,9 @@ function applyPrefs(prefs: Prefs) {
   useSessions.setState({ prefs: prefs.sessions });
 }
 
+/** The panel's rectangle where its window is larger than it (Wayland); null where the window is the panel. */
+const usePanelFrame = create<{ frame: SessionsPanelFrame | null }>(() => ({ frame: null }));
+
 /** What runs as the window starts, before anything is drawn. */
 export function startPanel() {
   useIsland.setState({ selected: "sessions", expanded: false, showingSections: false });
@@ -87,9 +91,11 @@ export function startPanel() {
   void bridge.sessionsPanel.onFocus((focus) => {
     if (focus) useSessions.getState().focus(focus.session, focus.request);
   });
+  void bridge.sessionsPanel.onFrame((frame) => usePanelFrame.setState({ frame }));
   // The window's first showing went by while this page loaded.
   void bridge.sessionsPanel.current().then((current) => {
     if (!current) return;
+    if (current.frame) usePanelFrame.setState({ frame: current.frame });
     showing(current.visible);
     if (current.visible && current.focus) useSessions.getState().focus(current.focus.session, current.focus.request);
   });
@@ -138,7 +144,11 @@ function useWindowSize() {
 
 export function Panel() {
   useLocale();
-  const { width, height } = useWindowSize();
+  const room = useWindowSize();
+  const frame = usePanelFrame((s) => s.frame);
+  // In a window larger than the panel, it hangs in the corner by the bar.
+  const width = frame ? Math.min(frame.width, room.width) : room.width;
+  const height = frame ? Math.min(frame.height, room.height) : room.height;
   const page = useRef<HTMLDivElement>(null);
   const fillsPanel = useSessions((s) => s.focused !== null || s.composing || s.away !== null);
   const visible = useIsland((s) => s.expanded);
@@ -167,7 +177,14 @@ export function Panel() {
   const contentHeight = Math.max(0, height - PANEL_CHROME);
   const { Page, Leading, Trailing } = sessionsPage;
   return (
-    <div className="sp-surface" role="dialog" aria-label={S.trayName}>
+    <div
+      className="sp-surface"
+      role="dialog"
+      aria-label={S.trayName}
+      style={
+        frame ? { inset: "auto", right: 0, width, height, ...(frame.bottom ? { bottom: 0 } : { top: 0 }) } : undefined
+      }
+    >
       <div className="sp-row">
         <div className="n-row-leading">{Leading ? <Leading /> : null}</div>
         <div className="n-row-trailing">{Trailing ? <Trailing /> : null}</div>
