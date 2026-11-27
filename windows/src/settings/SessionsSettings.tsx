@@ -13,7 +13,7 @@ import { CLAUDE_DESKTOP, type ClaudeAccount, HOOK_AGENTS, type HookAgent, PROVID
 import { type HookRow, linkCaption, summary } from "./hooks";
 import { openSettingsPage } from "./navigation";
 import { ProviderMark } from "../sessions/glyphs";
-import type { ClaudeAccountSetting, Grouping, ProgressStyle, SessionPrefs } from "../shared/prefs";
+import type { ClaudeAccountSetting, Grouping, ProgressStyle, SessionPrefs, SessionsPlacement } from "../shared/prefs";
 import { Eye, EyeOff, MinusCircle } from "lucide-react";
 
 import { invoke } from "@tauri-apps/api/core";
@@ -823,6 +823,34 @@ export function SessionsOptions() {
   return (
     <>
       <p className="st-note">{T.sessions.lead}</p>
+      {/* Where they show comes first, as on the Mac (#331). */}
+      <SubRow
+        title={t("windows.settings.sessions.placement")}
+        caption={t("windows.settings.sessions.placementCaption")}
+      >
+        <Segmented<SessionsPlacement>
+          label={t("windows.settings.sessions.placement")}
+          value={prefs.placement}
+          options={[
+            { value: "island", label: t("windows.settings.sessions.placementIsland") },
+            { value: "tray", label: t("windows.settings.sessions.placementTray") },
+            { value: "both", label: t("windows.settings.sessions.placementBoth") },
+          ]}
+          onChange={(v) => set("placement", v)}
+        />
+      </SubRow>
+      {prefs.placement !== "island" ? (
+        <SubRow
+          title={t("windows.settings.sessions.trayOpensPanel")}
+          caption={t("windows.settings.sessions.trayOpensPanelCaption")}
+        >
+          <Toggle
+            label={t("windows.settings.sessions.trayOpensPanel")}
+            checked={prefs.trayOpensPanel}
+            onChange={(on) => set("trayOpensPanel", on)}
+          />
+        </SubRow>
+      ) : null}
       <HooksLink />
       <ClaudeAccounts />
       <EditorExtensions />
@@ -837,12 +865,17 @@ export function SessionsOptions() {
       </SubRow>
       <MoreAgents />
       <ClaudeDesktopAgent />
-      <SubRow title={T.sessions.live} caption={T.sessions.liveCaption}>
-        <Toggle label={T.sessions.live} checked={prefs.live} onChange={(on) => set("live", on)} />
-      </SubRow>
-      <SubRow title={T.sessions.autoExpand} caption={T.sessions.autoExpandCaption}>
-        <Toggle label={T.sessions.autoExpand} checked={prefs.autoExpand} onChange={(on) => set("autoExpand", on)} />
-      </SubRow>
+      {/* The strip and opening by itself are the island's alone (#331). */}
+      {prefs.placement !== "tray" ? (
+        <>
+          <SubRow title={T.sessions.live} caption={T.sessions.liveCaption}>
+            <Toggle label={T.sessions.live} checked={prefs.live} onChange={(on) => set("live", on)} />
+          </SubRow>
+          <SubRow title={T.sessions.autoExpand} caption={T.sessions.autoExpandCaption}>
+            <Toggle label={T.sessions.autoExpand} checked={prefs.autoExpand} onChange={(on) => set("autoExpand", on)} />
+          </SubRow>
+        </>
+      ) : null}
       <SessionSounds prefs={prefs} set={set} />
       <SessionReminders prefs={prefs} set={set} />
       <SessionAutoMode prefs={prefs} set={set} />

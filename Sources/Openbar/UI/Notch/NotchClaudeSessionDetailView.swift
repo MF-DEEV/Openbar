@@ -12,6 +12,8 @@ struct NotchClaudeSessionDetailView: View {
     @ObservedObject private var service = ClaudeSessionService.shared
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var notch = NotchService.shared
+    @ObservedObject private var menuBar = SessionsMenuBar.shared
+    @Environment(\.notchSessionsInPanel) private var inPanel
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @State private var openFailed = false
     /// The line that attaches the session's tmux or zellij, after Open found
@@ -24,6 +26,8 @@ struct NotchClaudeSessionDetailView: View {
     @State private var showingLogs = false
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
+    /// Grown around the page, in the island or in the menu bar's panel.
+    private var enlarged: Bool { inPanel ? menuBar.enlarged : notch.sessionsEnlarged }
     /// Working subagents come first, then the latest done.
     static let shownSubagents = 4
 
@@ -38,7 +42,7 @@ struct NotchClaudeSessionDetailView: View {
             }
             if showingLogs, session.background != nil {
                 NotchClaudeBackgroundLogsView(session: session, text: text)
-            } else if notch.sessionsEnlarged {
+            } else if enlarged {
                 NotchClaudeSessionLargeView(session: session, text: text, open: open, detached: detachedLine != nil)
             } else {
                 VStack(spacing: 8) {
@@ -225,17 +229,17 @@ struct NotchClaudeSessionDetailView: View {
     /// Grows the island around the page, to read and write in comfortably.
     private var expandButton: some View {
         Button {
-            notch.setSessionsEnlarged(!notch.sessionsEnlarged)
+            NotchSessionsHost.setEnlarged(!enlarged, inPanel: inPanel)
         } label: {
-            Image(systemName: notch.sessionsEnlarged ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+            Image(systemName: enlarged ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
                 .frame(width: 28, height: 28)
                 .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 9))
-        .help(notch.sessionsEnlarged ? text.shrink : text.enlarge)
-        .accessibilityLabel(notch.sessionsEnlarged ? text.shrink : text.enlarge)
+        .help(enlarged ? text.shrink : text.enlarge)
+        .accessibilityLabel(enlarged ? text.shrink : text.enlarge)
     }
 
     private var openButton: some View {

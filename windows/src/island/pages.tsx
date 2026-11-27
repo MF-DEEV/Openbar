@@ -60,6 +60,9 @@ import "../watch/register";
 import "../screenshot-preview/register";
 import { startMascot } from "../mascot/register";
 import { subscribeVoiceShortcut, watchVoice } from "../sessions/voice";
+import { applyPlacement, islandSettings, sessionsFollowed, usePlacement } from "../sessions/placement";
+import { followTraySessions, openPanelByItself, panelShows, panelVisible, pulseTray } from "../sessions/traySessions";
+import { startSharedState } from "../sessions/sharedState";
 
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();
@@ -69,7 +72,9 @@ followTrayBattery();
 // MARK: Preferences
 
 function applyPrefs(p: Prefs) {
-  useIsland.setState({ settings: p.island });
+  // With the sessions in the tray alone, the island leaves out their section (#331).
+  applyPlacement(p);
+  useIsland.setState({ settings: islandSettings(p) });
   useSessions.setState({ prefs: p.sessions });
 }
 
@@ -115,6 +120,9 @@ void subscribeDownloads();
 activityViews.sessions = SessionsStrip;
 subscribeAutoAllow();
 startAwayWatcher();
+// The sessions' own tray icon and panel (#331), and what the panel shares with the island.
+followTraySessions();
+startSharedState("island");
 
 /** The share the strip was last measured with. */
 let lastLimitShare: string | null = null;
@@ -186,7 +194,16 @@ function presentSessionEvent(event: SessionEvent) {
   if (hidesAutoApproval(session, sessions.autoAllow)) return;
   const island = useIsland.getState();
   const name = displayName(session, sessions.names[session.id]);
-  if (!shown("sessions")) return;
+  if (!shown("sessions")) {
+    // In the tray alone, the icon pulses for the ask (traySessions.ts) and
+    // the panel opens on it by itself where the person turned that on.
+    if (event.kind !== "finished" && usePlacement.getState().inTray)
+      void openPanelByItself(permissionQueue(presentedSnapshot(sessions).sessions).shows ? null : session.id);
+    return;
+  }
+  // The tray's panel open shows the sessions already, and the island opening
+  // on them would close it: the island stays as it is (#331).
+  if (panelVisible()) return;
   if (event.kind !== "finished" && !island.expanded && sessions.prefs.autoExpand) {
     island.open("sessions", { takeFocus: false, automatic: true });
     // More than one ask waiting opens on the queue, not on one of them (#269).
@@ -263,8 +280,9 @@ const soundQueue = new SessionSoundQueue(
     const island = useIsland.getState();
     return {
       prefs: s.prefs,
-      enabled: island.settings.enabled && shown("sessions"),
-      inView: (id: string) => inView(island, s.focused, id),
+      // Wherever the sessions show: the island, the tray, or both (#331).
+      enabled: sessionsFollowed(),
+      inView: (id: string) => inView(island, s.focused, id) || panelShows(id),
       current: (event) => {
         const session = s.snapshot.sessions.find((row) => row.id === event.session);
         if (!session) return false;
@@ -324,6 +342,16 @@ async function presentReminder(waits: ReminderWait[]) {
     (focused === null || (waits.length === 1 && focused === waits[0].session))
   )
     return;
+  // In the tray: the icon pulses, and the panel opens where it may (#331).
+  if (usePlacement.getState().inTray) {
+    pulseTray();
+    // The panel open shows them already.
+    if (panelVisible()) return;
+    if (!shown("sessions")) {
+      void openPanelByItself(waits.length === 1 ? waits[0].session : null);
+      return;
+    }
+  }
   const allowed = await bridge.attention
     .current()
     .then((context) => context.canAutoPresent)
@@ -361,7 +389,7 @@ const reminders = new ReminderRunner({
     return s.snapshot.sessions.filter((session) => !hidesAutoApproval(session, s.autoAllow));
   },
   prefs: () => useSessions.getState().prefs,
-  enabled: () => useIsland.getState().settings.enabled && shown("sessions"),
+  enabled: sessionsFollowed,
   quiet: () => bridge.session.quiet(),
   locked: () => awayState.locked,
   terminalShown: bridge.sessions.terminalShown,

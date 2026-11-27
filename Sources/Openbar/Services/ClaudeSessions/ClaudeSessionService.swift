@@ -792,6 +792,19 @@ final class ClaudeSessionService: ObservableObject {
     private static func shownKey(_ session: String, _ request: String) -> String { session + "\u{1}" + request
     }
 
+    /// Answers a key's request the way its buttons do (⌘Y, ⌘N, ⌘T), in the
+    /// island or in the menu bar's panel. Codex's Always waits the same
+    /// moment as the buttons, so a key meant for the request before cannot
+    /// turn it on.
+    func answerKey(_ decision: ClaudeHookMessage.Decision,
+                   target: (id: String, request: String, provider: ClaudeSessionProvider)) {
+        if decision == .allowAlways, target.provider == .codex {
+            if settled(target.id, request: target.request) { setAutoAllow(target.id) }
+        } else {
+            decide(target.id, request: target.request, decision)
+        }
+    }
+
     /// Always on a Codex session: every request of the turn under way is
     /// allowed as it comes, the one waiting now too, until the turn ends.
     /// With nil it turns over.

@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Каждый запрос, который «Разрешить все» пропустила в очереди, от новых к старым, с полной командой или путями файлов. Запросы, разрешённые по одному, сюда не попадают. Последние 500 хранятся на этом компьютере.",
   "windows.settings.sessions.batchApprovalsEmpty": "Через «Разрешить все» пока ничего не проходило.",
   "windows.settings.sessions.batchApprovalsClear": "Очистить",
-  "windows.settings.sessions.batchApprovalsCount": "Разрешено: %d"
+  "windows.settings.sessions.batchApprovalsCount": "Разрешено: %d",
+  "windows.sessions.trayName": "Сессии Openbar",
+  "windows.sessions.trayNothingWaiting": "Вас ничего не ждёт",
+  "windows.sessions.trayOneWaiting": "1 сессия ждёт вас",
+  "windows.sessions.trayWaitingOne": "%@ сессия ждёт вас",
+  "windows.sessions.trayWaitingFew": "%@ сессии ждут вас",
+  "windows.sessions.trayWaitingMany": "%@ сессий ждут вас",
+  "windows.sessions.trayOpenSessions": "Открыть сессии",
+  "windows.sessions.trayOpenAsk": "Открыть",
+  "windows.sessions.traySettings": "Настройки сессий…",
+  "windows.settings.sessions.placement": "Показывать сессии",
+  "windows.settings.sessions.placementCaption": "Сессии видны на острове, в панели от их собственного значка в трее или и там, и там. Трей работает и при выключенном острове. Сначала Windows может спрятать новый значок под стрелкой ^: перетащите его на панель задач, чтобы он был на виду.",
+  "windows.settings.sessions.placementCaptionLinux": "Сессии видны на острове, в панели от их собственного значка в трее или и там, и там. Трей работает и при выключенном острове. Меню значка открывает панель и показывает ожидающие запросы с кнопками «Разрешить» и «Отказать».",
+  "windows.settings.sessions.placementIsland": "Остров",
+  "windows.settings.sessions.placementTray": "Трей",
+  "windows.settings.sessions.placementBoth": "Оба",
+  "windows.settings.sessions.trayOpensPanel": "Открывать панель, когда сессия ждёт вас",
+  "windows.settings.sessions.trayOpensPanelCaption": "Только когда вы на рабочем столе или в Openbar, как и остров. Иначе значок пульсирует, а запрос ждёт."
 }

@@ -42,6 +42,7 @@ pub mod room;
 pub mod screen;
 pub mod session_lock;
 pub mod sessions;
+pub mod sessions_panel;
 pub mod shelf;
 pub mod sound;
 pub mod sqlite;

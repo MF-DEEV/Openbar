@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Každá žiadosť, ktorú Povoliť všetko pustilo z frontu, od najnovšej, s celým príkazom alebo cestami k súborom. Žiadosti povolené po jednej tu nie sú. Posledných 500 zostáva v tomto počítači.",
   "windows.settings.sessions.batchApprovalsEmpty": "Cez Povoliť všetko zatiaľ nič neprešlo.",
   "windows.settings.sessions.batchApprovalsClear": "Vymazať",
-  "windows.settings.sessions.batchApprovalsCount": "Povolené: %d"
+  "windows.settings.sessions.batchApprovalsCount": "Povolené: %d",
+  "windows.sessions.trayName": "Relácie Openbar",
+  "windows.sessions.trayNothingWaiting": "Nič na vás nečaká",
+  "windows.sessions.trayOneWaiting": "1 relácia na vás čaká",
+  "windows.sessions.trayWaitingOne": "%@ relácia na vás čaká",
+  "windows.sessions.trayWaitingFew": "%@ relácie na vás čakajú",
+  "windows.sessions.trayWaitingMany": "%@ relácií na vás čaká",
+  "windows.sessions.trayOpenSessions": "Otvoriť relácie",
+  "windows.sessions.trayOpenAsk": "Otvoriť",
+  "windows.sessions.traySettings": "Nastavenia relácií…",
+  "windows.settings.sessions.placement": "Zobrazovať relácie v",
+  "windows.settings.sessions.placementCaption": "Relácie sa zobrazujú v ostrove, v paneli z ich vlastnej ikony v oblasti oznámení alebo v oboch. Oblasť oznámení funguje aj s vypnutým ostrovom. Windows môže novú ikonu najprv skryť pod šípku ^: presuňte ju na panel úloh, aby zostala na očiach.",
+  "windows.settings.sessions.placementCaptionLinux": "Relácie sa zobrazujú v ostrove, v paneli z ich vlastnej ikony v oblasti oznámení alebo v oboch. Oblasť oznámení funguje aj s vypnutým ostrovom. Ponuka ikony otvorí panel a vypíše čakajúce žiadosti s tlačidlami Povoliť a Odmietnuť.",
+  "windows.settings.sessions.placementIsland": "Ostrov",
+  "windows.settings.sessions.placementTray": "Lišta",
+  "windows.settings.sessions.placementBoth": "Oboje",
+  "windows.settings.sessions.trayOpensPanel": "Otvoriť panel, keď vás relácia potrebuje",
+  "windows.settings.sessions.trayOpensPanelCaption": "Len keď ste na ploche alebo v Openbar, ako to robí ostrov. Inak ikona pulzuje a žiadosť počká."
 }

@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Chaque demande que Tout autoriser a laissé passer dans la file, de la plus récente à la plus ancienne, avec la commande complète ou les chemins des fichiers. Les demandes autorisées une par une n’y figurent pas. Les 500 dernières restent sur cet ordinateur.",
   "windows.settings.sessions.batchApprovalsEmpty": "Rien n’est encore passé par Tout autoriser.",
   "windows.settings.sessions.batchApprovalsClear": "Effacer",
-  "windows.settings.sessions.batchApprovalsCount": "%d autorisées"
+  "windows.settings.sessions.batchApprovalsCount": "%d autorisées",
+  "windows.sessions.trayName": "Sessions Openbar",
+  "windows.sessions.trayNothingWaiting": "Rien ne vous attend",
+  "windows.sessions.trayOneWaiting": "1 session vous attend",
+  "windows.sessions.trayWaitingOne": "%@ session vous attend",
+  "windows.sessions.trayWaitingFew": "%@ sessions vous attendent",
+  "windows.sessions.trayWaitingMany": "%@ sessions vous attendent",
+  "windows.sessions.trayOpenSessions": "Ouvrir les sessions",
+  "windows.sessions.trayOpenAsk": "Ouvrir",
+  "windows.sessions.traySettings": "Réglages des sessions…",
+  "windows.settings.sessions.placement": "Afficher les sessions dans",
+  "windows.settings.sessions.placementCaption": "Les sessions s’affichent dans l’île, dans un panneau ouvert depuis leur propre icône de la barre d’état, ou dans les deux. La barre d’état fonctionne même avec l’île désactivée. Windows peut d’abord cacher une nouvelle icône sous la flèche ^ : faites-la glisser sur la barre des tâches pour la garder visible.",
+  "windows.settings.sessions.placementCaptionLinux": "Les sessions s’affichent dans l’île, dans un panneau ouvert depuis leur propre icône de la barre d’état, ou dans les deux. La barre d’état fonctionne même avec l’île désactivée. Le menu de l’icône ouvre le panneau et liste les demandes en attente avec Autoriser et Refuser.",
+  "windows.settings.sessions.placementIsland": "Île",
+  "windows.settings.sessions.placementTray": "Barre d’état",
+  "windows.settings.sessions.placementBoth": "Les deux",
+  "windows.settings.sessions.trayOpensPanel": "Ouvrir le panneau quand une session a besoin de vous",
+  "windows.settings.sessions.trayOpensPanelCaption": "Seulement quand vous êtes sur le bureau ou dans Openbar, comme pour l’île. Sinon, l’icône pulse et la demande attend."
 }

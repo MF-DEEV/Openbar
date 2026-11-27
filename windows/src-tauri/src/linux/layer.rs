@@ -53,6 +53,8 @@ struct Library {
     set_monitor: unsafe extern "C" fn(Window, *mut c_void),
     set_anchor: unsafe extern "C" fn(Window, Edge, c_int),
     set_exclusive_zone: unsafe extern "C" fn(Window, c_int),
+    /// Room from an anchored edge; optional, so an island never depends on it.
+    set_margin: Option<unsafe extern "C" fn(Window, Edge, c_int)>,
     /// 0.6 and later; older ones only had keyboard interactivity on or off.
     set_keyboard_mode: Option<unsafe extern "C" fn(Window, Keyboard)>,
     set_keyboard_interactivity: Option<unsafe extern "C" fn(Window, c_int)>,
@@ -84,6 +86,7 @@ fn load() -> Option<Library> {
             set_monitor: function(handle, c"gtk_layer_set_monitor")?,
             set_anchor: function(handle, c"gtk_layer_set_anchor")?,
             set_exclusive_zone: function(handle, c"gtk_layer_set_exclusive_zone")?,
+            set_margin: function(handle, c"gtk_layer_set_margin"),
             set_keyboard_mode: function(handle, c"gtk_layer_set_keyboard_mode"),
             set_keyboard_interactivity: function(handle, c"gtk_layer_set_keyboard_interactivity"),
         })
@@ -168,6 +171,16 @@ pub fn set_exclusive_zone(window: &gtk::Window, zone: i32) {
     let Some(library) = library() else { return };
     // SAFETY: a live window that was made a layer surface.
     unsafe { (library.set_exclusive_zone)(raw(window), zone) };
+}
+
+/// Room kept between the surface and the edge it is anchored to, in logical
+/// pixels, as the sessions' tray panel keeps from the corner (#331).
+pub fn set_margin(window: &gtk::Window, edge: Edge, margin: i32) {
+    let Some(set) = library().and_then(|library| library.set_margin) else {
+        return;
+    };
+    // SAFETY: a live window that was made a layer surface.
+    unsafe { set(raw(window), edge, margin) };
 }
 
 /// Whether the surface may take the keyboard when clicked.

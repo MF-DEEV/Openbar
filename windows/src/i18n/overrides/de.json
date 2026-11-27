@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Jede Anfrage, die „Alle erlauben“ in der Warteschlange durchgelassen hat, die neueste zuerst, mit dem ganzen Befehl oder den Dateipfaden. Einzeln erlaubte Anfragen stehen nicht hier. Die letzten 500 bleiben auf diesem Computer.",
   "windows.settings.sessions.batchApprovalsEmpty": "Über „Alle erlauben“ ist noch nichts durchgegangen.",
   "windows.settings.sessions.batchApprovalsClear": "Leeren",
-  "windows.settings.sessions.batchApprovalsCount": "%d erlaubt"
+  "windows.settings.sessions.batchApprovalsCount": "%d erlaubt",
+  "windows.sessions.trayName": "Openbar-Sitzungen",
+  "windows.sessions.trayNothingWaiting": "Nichts wartet auf dich",
+  "windows.sessions.trayOneWaiting": "1 Sitzung wartet auf dich",
+  "windows.sessions.trayWaitingOne": "%@ Sitzung wartet auf dich",
+  "windows.sessions.trayWaitingFew": "%@ Sitzungen warten auf dich",
+  "windows.sessions.trayWaitingMany": "%@ Sitzungen warten auf dich",
+  "windows.sessions.trayOpenSessions": "Sitzungen öffnen",
+  "windows.sessions.trayOpenAsk": "Öffnen",
+  "windows.sessions.traySettings": "Sitzungseinstellungen…",
+  "windows.settings.sessions.placement": "Sitzungen zeigen in",
+  "windows.settings.sessions.placementCaption": "Sitzungen erscheinen in der Insel, in einem Panel an ihrem eigenen Tray-Symbol oder in beidem. Der Tray funktioniert auch bei ausgeschalteter Insel. Windows versteckt ein neues Symbol anfangs eventuell unter dem Pfeil ^: Zieh es auf die Taskleiste, damit es sichtbar bleibt.",
+  "windows.settings.sessions.placementCaptionLinux": "Sitzungen erscheinen in der Insel, in einem Panel an ihrem eigenen Tray-Symbol oder in beidem. Der Tray funktioniert auch bei ausgeschalteter Insel. Das Menü des Symbols öffnet das Panel und listet die wartenden Anfragen mit Erlauben und Verweigern.",
+  "windows.settings.sessions.placementIsland": "Insel",
+  "windows.settings.sessions.placementTray": "Tray",
+  "windows.settings.sessions.placementBoth": "Beides",
+  "windows.settings.sessions.trayOpensPanel": "Panel öffnen, wenn eine Sitzung dich braucht",
+  "windows.settings.sessions.trayOpensPanelCaption": "Nur wenn du auf dem Schreibtisch oder in Openbar bist, wie bei der Insel. Sonst pulsiert das Symbol und die Anfrage wartet."
 }

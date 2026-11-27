@@ -11,6 +11,7 @@ struct NotchClaudeSessionsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var away = NotchAwayCard.shared
     @Environment(\.notchSettingsPreview) private var preview
+    @Environment(\.notchSessionsInPanel) private var inPanel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
     @AppStorage(DefaultsKey.notchSessionsGrouping) private var groupingRaw = NotchSessionGrouping.none.rawValue
@@ -50,6 +51,7 @@ struct NotchClaudeSessionsView: View {
             } else if service.sessions.isEmpty {
                 NotchEmptyView(symbol: NotchModule.sessions.symbol, message: text.emptyTitle + "\n" + text.emptyDetail)
                     .notchBand(trailing: { newSessionButton })
+                    .preference(key: NotchSessionsListHeightKey.self, value: NotchSessionsListHeightKey.empty)
             } else {
                 list.transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
             }
@@ -63,7 +65,7 @@ struct NotchClaudeSessionsView: View {
         .onChange(of: [focused?.id, dressing?.id, service.composingSession ? "new" : nil], initial: true) { _, _ in
             guard !preview else { return }
             if service.composingSession {
-                NotchService.shared.setPageLayer(.sessions, close: { service.composingSession = false })
+                NotchSessionsHost.setPageLayer(inPanel: inPanel, close: { service.composingSession = false })
                 return
             }
             // Escape steps back from the wardrobe to the page, and from the
@@ -74,7 +76,7 @@ struct NotchClaudeSessionsView: View {
             case .session: close = { service.focus(nil) }
             case nil: close = nil
             }
-            NotchService.shared.setPageLayer(.sessions, close: close)
+            NotchSessionsHost.setPageLayer(inPanel: inPanel, close: close)
         }
         // Clawds turned off take their wardrobe with them, and ⌘Y, ⌘N and
         // ⌘T answer the page again.
@@ -83,9 +85,15 @@ struct NotchClaudeSessionsView: View {
         }
         .onDisappear {
             guard !preview else { return }
+            NotchSessionsHost.setPageLayer(inPanel: inPanel, close: nil)
+            // The other place took the sessions over (#331): the island from
+            // the menu bar's panel, or the panel from the island. Its page
+            // keeps the session and the card open.
+            let notch = NotchService.shared
+            let handedOver = inPanel ? notch.expanded && notch.selected == .sessions : SessionsMenuBar.shared.panelShown
+            guard !handedOver else { return }
             // The card goes with the island: closed, or opened on something else.
             NotchAwayCard.shared.close(collapse: false)
-            NotchService.shared.setPageLayer(.sessions, close: nil)
             // The island opens on the list again; a notice or the strip
             // choose a session after the page appears.
             service.focus(nil)
@@ -97,22 +105,28 @@ struct NotchClaudeSessionsView: View {
         let queue = queue
         return TimelineView(.periodic(from: .now, by: 1)) { context in
             ScrollView {
-                // More than one ask waiting: all of them first, in one queue (#269).
-                if queue.shows, !preview {
-                    NotchPermissionQueueView(queue: queue, text: text)
-                        .padding(.bottom, 4)
-                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
-                }
-                if grouping == .none {
-                    LazyVStack(spacing: 6) {
-                        ForEach(service.sessions) { session in row(session, now: context.date) }
+                VStack {
+                    // More than one ask waiting: all of them first, in one queue (#269).
+                    if queue.shows, !preview {
+                        NotchPermissionQueueView(queue: queue, text: text)
+                            .padding(.bottom, 4)
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
                     }
-                    .padding(.bottom, 4)
-                    .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
-                               value: service.sessions.map(\.id))
-                } else {
-                    grouped(now: context.date)
+                    if grouping == .none {
+                        LazyVStack(spacing: 6) {
+                            ForEach(service.sessions) { session in row(session, now: context.date) }
+                        }
+                        .padding(.bottom, 4)
+                        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
+                                   value: service.sessions.map(\.id))
+                    } else {
+                        grouped(now: context.date)
+                    }
                 }
+                // The menu bar's panel fits itself to the list (#331).
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: NotchSessionsListHeightKey.self, value: proxy.size.height)
+                })
             }
             .scrollIndicators(.automatic)
             .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: queue.shows)

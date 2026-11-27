@@ -246,6 +246,7 @@ export function ContentSettings() {
               title={title}
               caption={T.summaries[id]}
               defaultOpen={id === "sessions"}
+              section={id}
               control={<Toggle label={`${title}: ${T.content.show}`} checked={on} onChange={(v) => setShown(id, v)} />}
             >
               <SubRow title={T.content.position} caption={T.content.positionCaption(index + 1, order.length)}>

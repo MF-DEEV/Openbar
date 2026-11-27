@@ -118,7 +118,16 @@ export interface SessionPrefs extends SessionSoundPrefs {
   grouping: Grouping;
   /** Groups the person folded, by their key (sessions/groups.ts). */
   collapsedGroups: string[];
+  /** Where the sessions show (#331): the island, a panel from their own
+   * tray icon, or both. The tray keeps them with the island turned off. */
+  placement: SessionsPlacement;
+  /** In the tray, the panel opens by itself when a session waits, under
+   * the island's own rule (#167); off by default. */
+  trayOpensPanel: boolean;
 }
+
+export const SESSIONS_PLACEMENTS = ["island", "tray", "both"] as const;
+export type SessionsPlacement = (typeof SESSIONS_PLACEMENTS)[number];
 
 export const GROUPINGS = ["none", "project", "agent"] as const;
 export type Grouping = (typeof GROUPINGS)[number];
@@ -186,6 +195,8 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   alwaysProceedVibe: false,
   grouping: "none",
   collapsedGroups: [],
+  placement: "island",
+  trayOpensPanel: false,
 };
 
 /** What is stored: only what differs from the defaults. */
@@ -209,6 +220,7 @@ export type PrefsPatch = {
 const CHOICES: Partial<Record<keyof IslandSettings | keyof SessionPrefs, readonly string[]>> = {
   progressStyle: PROGRESS_STYLES,
   grouping: GROUPINGS,
+  placement: SESSIONS_PLACEMENTS,
   language: ["auto", ...LANGUAGES.map((language) => language.value)],
   silhouette: ["notch", "capsule"],
   layout: ["compact", "spacious", "custom"],

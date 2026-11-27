@@ -196,6 +196,22 @@ enum NotchDestinationContract {
                      "opening a page in place of the Command Bar closes the bar once")
         barHost.open(.controls)
         suite.expect(barHost.commandBarClosings == 1, "opening a page without the bar leaves the bar alone")
+        // One place shows the sessions at a time (#331): the island opening
+        // on them closes the menu bar's panel, any other page leaves it, and
+        // with the sessions in the menu bar alone it never lands on them.
+        defaults.set(true, forKey: DefaultsKey.notchSessionsEnabled)
+        let sessionsHost = Service()
+        sessionsHost.open(.music)
+        sessionsHost.open(.sessions)
+        suite.expect(sessionsHost.selected == .sessions && sessionsHost.sessionsPanelClosings == 1,
+                     "the island opening on the sessions closes the panel once")
+        defaults.set(NotchSessionsPlacement.menuBar.rawValue, forKey: DefaultsKey.notchSessionsPlacement)
+        let menuBarHost = Service()
+        menuBarHost.open(.sessions)
+        suite.expect(menuBarHost.expanded && menuBarHost.selected != .sessions && menuBarHost.sessionsPanelClosings == 0,
+                     "sessions in the menu bar alone: the island opens elsewhere and leaves the panel be")
+        defaults.removeObject(forKey: DefaultsKey.notchSessionsPlacement)
+        defaults.set(false, forKey: DefaultsKey.notchSessionsEnabled)
         for resting in [NotchIdleContent.none, .music] {
             defaults.set(resting.rawValue, forKey: DefaultsKey.notchIdleContent)
             defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)

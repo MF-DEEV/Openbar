@@ -390,6 +390,50 @@ private struct NotchSettingsPreviewKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct NotchSessionsInPanelKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// The Sessions page drawn in the menu bar's panel rather than in the
+    /// island (#331): Escape and Enlarge go to the panel.
+    var notchSessionsInPanel: Bool {
+        get { self[NotchSessionsInPanelKey.self] }
+        set { self[NotchSessionsInPanelKey.self] = newValue }
+    }
+}
+
+/// How tall the Sessions list stands on its own, so the menu bar's panel
+/// fits itself to a short list (#331); nil while a session's page, New
+/// session or the wardrobe fills the page.
+struct NotchSessionsListHeightKey: PreferenceKey {
+    /// What the empty list's message needs.
+    static let empty: CGFloat = 150
+    static var defaultValue: CGFloat? = nil
+
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        if let next = nextValue() { value = next }
+    }
+}
+
+/// Where the Sessions page is shown, the island or the menu bar's panel
+/// (#331), for what the page asks of its host: its Escape layer and its
+/// larger size.
+enum NotchSessionsHost {
+    static func setPageLayer(inPanel: Bool, close: (() -> Void)?) {
+        if inPanel { SessionsMenuBar.shared.setPageLayer(close) }
+        else { NotchService.shared.setPageLayer(.sessions, close: close) }
+    }
+
+    static func enlarged(inPanel: Bool) -> Bool {
+        inPanel ? SessionsMenuBar.shared.enlarged : NotchService.shared.sessionsEnlarged
+    }
+
+    static func setEnlarged(_ on: Bool, inPanel: Bool) {
+        if inPanel { SessionsMenuBar.shared.setEnlarged(on) } else { NotchService.shared.setSessionsEnlarged(on) }
+    }
+}
+
 private struct NotchBandEnvironmentKey: EnvironmentKey {
     static let defaultValue = NotchBand()
 }

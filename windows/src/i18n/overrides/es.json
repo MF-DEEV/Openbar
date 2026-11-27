@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Cada solicitud que Permitir todo dejó pasar en la cola, de la más reciente a la más antigua, con el comando completo o las rutas de archivo. Las que permitiste una a una no aparecen. Las últimas 500 se guardan en este equipo.",
   "windows.settings.sessions.batchApprovalsEmpty": "Todavía no ha pasado nada por Permitir todo.",
   "windows.settings.sessions.batchApprovalsClear": "Borrar",
-  "windows.settings.sessions.batchApprovalsCount": "%d permitidas"
+  "windows.settings.sessions.batchApprovalsCount": "%d permitidas",
+  "windows.sessions.trayName": "Sesiones de Openbar",
+  "windows.sessions.trayNothingWaiting": "Nada te está esperando",
+  "windows.sessions.trayOneWaiting": "1 sesión te está esperando",
+  "windows.sessions.trayWaitingOne": "%@ sesión te está esperando",
+  "windows.sessions.trayWaitingFew": "%@ sesiones te están esperando",
+  "windows.sessions.trayWaitingMany": "%@ sesiones te están esperando",
+  "windows.sessions.trayOpenSessions": "Abrir sesiones",
+  "windows.sessions.trayOpenAsk": "Abrir",
+  "windows.sessions.traySettings": "Ajustes de sesiones…",
+  "windows.settings.sessions.placement": "Mostrar sesiones en",
+  "windows.settings.sessions.placementCaption": "Las sesiones aparecen en la isla, en un panel desde su propio icono de la bandeja o en ambos. La bandeja funciona aunque la isla esté desactivada. Al principio, Windows puede ocultar un icono nuevo bajo la flecha ^: arrástralo a la barra de tareas para tenerlo a la vista.",
+  "windows.settings.sessions.placementCaptionLinux": "Las sesiones aparecen en la isla, en un panel desde su propio icono de la bandeja o en ambos. La bandeja funciona aunque la isla esté desactivada. El menú del icono abre el panel y muestra las solicitudes pendientes con Permitir y Negar.",
+  "windows.settings.sessions.placementIsland": "Isla",
+  "windows.settings.sessions.placementTray": "Bandeja",
+  "windows.settings.sessions.placementBoth": "Ambos",
+  "windows.settings.sessions.trayOpensPanel": "Abrir el panel cuando una sesión te necesite",
+  "windows.settings.sessions.trayOpensPanelCaption": "Solo cuando estés en el escritorio o en Openbar, como hace la isla. Si no, el icono late y la solicitud espera."
 }

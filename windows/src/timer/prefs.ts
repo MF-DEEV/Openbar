@@ -8,6 +8,7 @@
 
 import { create } from "zustand";
 import { useIsland } from "../island/store";
+import { islandSettings } from "../sessions/placement";
 import type { IslandSettings } from "../island/settings";
 import { setPrefs } from "../shared/prefs";
 
@@ -41,7 +42,7 @@ export function setTimerPref<K extends TimerPref>(key: K, value: IslandSettings[
       // them now lets the draft go without showing the old value between.
       void setPrefs({ island: { [key]: value } })
         .then(
-          (prefs) => useIsland.setState({ settings: prefs.island }),
+          (prefs) => useIsland.setState({ settings: islandSettings(prefs) }),
           () => undefined,
         )
         .finally(() => clearDraft(key, value));

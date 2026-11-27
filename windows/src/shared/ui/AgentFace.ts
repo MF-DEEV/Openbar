@@ -8,14 +8,17 @@
 
 import { createLucideIcon } from "lucide-react";
 
+/** The face on a 24-unit grid, filled even-odd so the eyes are holes; the tray draws it too (#331). */
+export const AGENT_FACE_PATH =
+  "M7.5 4.5h9a4.5 4.5 0 0 1 4.5 4.5v6a4.5 4.5 0 0 1-4.5 4.5h-9A4.5 4.5 0 0 1 3 15V9a4.5 4.5 0 0 1 4.5-4.5Z" +
+  "M9.2 9a1.2 1.2 0 0 1 1.2 1.2v3.1a1.2 1.2 0 0 1-2.4 0v-3.1A1.2 1.2 0 0 1 9.2 9Z" +
+  "M14.8 9a1.2 1.2 0 0 1 1.2 1.2v3.1a1.2 1.2 0 0 1-2.4 0v-3.1a1.2 1.2 0 0 1 1.2-1.2Z";
+
 export const AgentFace = createLucideIcon("agent-face", [
   [
     "path",
     {
-      d:
-        "M7.5 4.5h9a4.5 4.5 0 0 1 4.5 4.5v6a4.5 4.5 0 0 1-4.5 4.5h-9A4.5 4.5 0 0 1 3 15V9a4.5 4.5 0 0 1 4.5-4.5Z" +
-        "M9.2 9a1.2 1.2 0 0 1 1.2 1.2v3.1a1.2 1.2 0 0 1-2.4 0v-3.1A1.2 1.2 0 0 1 9.2 9Z" +
-        "M14.8 9a1.2 1.2 0 0 1 1.2 1.2v3.1a1.2 1.2 0 0 1-2.4 0v-3.1a1.2 1.2 0 0 1 1.2-1.2Z",
+      d: AGENT_FACE_PATH,
       fill: "currentColor",
       fillRule: "evenodd",
       stroke: "none",

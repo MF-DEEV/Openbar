@@ -15,7 +15,7 @@ import {
   type Session,
   type SessionOrigin,
 } from "./types";
-import { t, tf } from "../i18n";
+import { getLanguage, pluralForm, t, tf } from "../i18n";
 import { EXPAND_STEP } from "./diffGaps";
 
 export const S = {
@@ -612,6 +612,33 @@ export const S = {
     return t("windows.sessions.reminderStill");
   },
   reminderTitle: (n: number) => tf("windows.sessions.reminderTitle", n),
+  // #331: the sessions' own tray icon and its menu.
+  get trayName() {
+    return t("windows.sessions.trayName");
+  },
+  /** What waits, as the icon's tooltip and its menu's first line say it. */
+  trayWaiting: (n: number) => {
+    if (n <= 0) return t("windows.sessions.trayNothingWaiting");
+    if (n === 1) return t("windows.sessions.trayOneWaiting");
+    const form = pluralForm(getLanguage(), n);
+    return tf(
+      form === "one"
+        ? "windows.sessions.trayWaitingOne"
+        : form === "few"
+          ? "windows.sessions.trayWaitingFew"
+          : "windows.sessions.trayWaitingMany",
+      n,
+    );
+  },
+  get trayOpenSessions() {
+    return t("windows.sessions.trayOpenSessions");
+  },
+  get trayOpenAsk() {
+    return t("windows.sessions.trayOpenAsk");
+  },
+  get traySettings() {
+    return t("windows.sessions.traySettings");
+  },
   // #269: every waiting ask in one queue.
   queueTitle: (n: number) => tf("windows.sessions.queueTitle", n),
   get allowAll() {

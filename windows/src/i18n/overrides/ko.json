@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "대기열에서 모두 허용으로 통과한 모든 요청을 최신순으로, 전체 명령이나 파일 경로와 함께 보여 줍니다. 하나씩 허용한 요청은 여기에 없습니다. 최근 500개가 이 컴퓨터에 보관됩니다.",
   "windows.settings.sessions.batchApprovalsEmpty": "아직 모두 허용으로 통과한 요청이 없습니다.",
   "windows.settings.sessions.batchApprovalsClear": "지우기",
-  "windows.settings.sessions.batchApprovalsCount": "%d개 허용됨"
+  "windows.settings.sessions.batchApprovalsCount": "%d개 허용됨",
+  "windows.sessions.trayName": "Openbar 세션",
+  "windows.sessions.trayNothingWaiting": "기다리는 항목이 없습니다",
+  "windows.sessions.trayOneWaiting": "세션 1개가 기다리고 있습니다",
+  "windows.sessions.trayWaitingOne": "세션 %@개가 기다리고 있습니다",
+  "windows.sessions.trayWaitingFew": "세션 %@개가 기다리고 있습니다",
+  "windows.sessions.trayWaitingMany": "세션 %@개가 기다리고 있습니다",
+  "windows.sessions.trayOpenSessions": "세션 열기",
+  "windows.sessions.trayOpenAsk": "열기",
+  "windows.sessions.traySettings": "세션 설정…",
+  "windows.settings.sessions.placement": "세션 표시 위치",
+  "windows.settings.sessions.placementCaption": "세션은 섬, 전용 트레이 아이콘에서 여는 패널, 또는 둘 다에 표시됩니다. 트레이는 섬을 꺼도 동작합니다. 처음에는 Windows가 새 아이콘을 ^ 화살표 아래에 숨길 수 있습니다. 계속 보이게 하려면 작업 표시줄로 끌어다 놓으세요.",
+  "windows.settings.sessions.placementCaptionLinux": "세션은 섬, 전용 트레이 아이콘에서 여는 패널, 또는 둘 다에 표시됩니다. 트레이는 섬을 꺼도 동작합니다. 아이콘 메뉴에서 패널을 열고 대기 중인 요청을 허용하거나 거부할 수 있습니다.",
+  "windows.settings.sessions.placementIsland": "섬",
+  "windows.settings.sessions.placementTray": "트레이",
+  "windows.settings.sessions.placementBoth": "둘 다",
+  "windows.settings.sessions.trayOpensPanel": "세션이 필요할 때 패널 열기",
+  "windows.settings.sessions.trayOpensPanelCaption": "섬과 마찬가지로 바탕 화면이나 Openbar에 있을 때만 열립니다. 그 외에는 아이콘이 깜박이고 요청이 대기합니다."
 }

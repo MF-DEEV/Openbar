@@ -36,17 +36,36 @@ fn show<R: Runtime>(app: &AppHandle<R>) {
 #[tauri::command]
 pub async fn open_settings<R: Runtime>(app: AppHandle<R>, page: Option<String>) {
     match page.filter(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_lowercase())) {
-        Some(page) => show_page(&app, &page),
+        Some(page) => show_page(&app, &page, None),
         None => show(&app),
+    }
+}
+
+/// Opens the settings window on one section of a page from outside a
+/// command, as the sessions' tray menu does for theirs (#331).
+pub fn open_section<R: Runtime>(app: &AppHandle<R>, page: &'static str, section: &'static str) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { show_page(&app, page, Some(section)) });
+}
+
+/// What the settings page runs to bring a section into view: asked for
+/// before the page is drawn, and told to a page already showing it.
+fn section_script(section: Option<&str>) -> String {
+    match section {
+        Some(section) => format!(
+            "window.__openbarSection = '{section}'; window.dispatchEvent(new CustomEvent('openbar:settings-section', {{ detail: '{section}' }}));"
+        ),
+        None => String::new(),
     }
 }
 
 /// Opens the settings window on one page, as onboarding's link to the
 /// usage stats switch in About does (#333).
-fn show_page<R: Runtime>(app: &AppHandle<R>, page: &str) {
+fn show_page<R: Runtime>(app: &AppHandle<R>, page: &str, section: Option<&str>) {
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.eval(format!(
-            "window.dispatchEvent(new CustomEvent('openbar:settings-page', {{ detail: '{page}' }}))"
+            "window.dispatchEvent(new CustomEvent('openbar:settings-page', {{ detail: '{page}' }})); {}",
+            section_script(section)
         ));
         let _ = window.unminimize();
         let _ = window.show();
@@ -54,7 +73,12 @@ fn show_page<R: Runtime>(app: &AppHandle<R>, page: &str) {
         return;
     }
     let _ = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
-        .initialization_script(format!("if (!location.hash) location.hash = '#{page}';"))
+        .initialization_script(format!(
+            "if (!location.hash) location.hash = '#{page}'; {}",
+            section
+                .map(|section| format!("window.__openbarSection = '{section}';"))
+                .unwrap_or_default()
+        ))
         .title(format!(
             "Openbar — {}",
             crate::locale::text(app, "settings").trim_end_matches('…')

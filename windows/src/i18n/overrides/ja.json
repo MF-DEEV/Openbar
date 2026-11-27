@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "キューで「すべて許可」が通したリクエストを、新しい順に、コマンド全体またはファイルパスとともに表示します。1件ずつ許可したものは含まれません。直近500件がこのコンピューターに保存されます。",
   "windows.settings.sessions.batchApprovalsEmpty": "「すべて許可」で通したものはまだありません。",
   "windows.settings.sessions.batchApprovalsClear": "消去",
-  "windows.settings.sessions.batchApprovalsCount": "%d件を許可"
+  "windows.settings.sessions.batchApprovalsCount": "%d件を許可",
+  "windows.sessions.trayName": "Openbar セッション",
+  "windows.sessions.trayNothingWaiting": "待機中のものはありません",
+  "windows.sessions.trayOneWaiting": "1件のセッションがあなたを待っています",
+  "windows.sessions.trayWaitingOne": "%@件のセッションがあなたを待っています",
+  "windows.sessions.trayWaitingFew": "%@件のセッションがあなたを待っています",
+  "windows.sessions.trayWaitingMany": "%@件のセッションがあなたを待っています",
+  "windows.sessions.trayOpenSessions": "セッションを開く",
+  "windows.sessions.trayOpenAsk": "開く",
+  "windows.sessions.traySettings": "セッションの設定…",
+  "windows.settings.sessions.placement": "セッションの表示先",
+  "windows.settings.sessions.placementCaption": "セッションは島、専用のトレイアイコンから開くパネル、またはその両方に表示されます。トレイは島をオフにしても動作します。最初は新しいアイコンが ^ の矢印の下に隠れることがあります。常に表示するには、タスクバーにドラッグしてください。",
+  "windows.settings.sessions.placementCaptionLinux": "セッションは島、専用のトレイアイコンから開くパネル、またはその両方に表示されます。トレイは島をオフにしても動作します。アイコンのメニューからパネルを開いたり、待機中のリクエストを許可または拒否したりできます。",
+  "windows.settings.sessions.placementIsland": "島",
+  "windows.settings.sessions.placementTray": "トレイ",
+  "windows.settings.sessions.placementBoth": "両方",
+  "windows.settings.sessions.trayOpensPanel": "セッションに対応が必要なときにパネルを開く",
+  "windows.settings.sessions.trayOpensPanelCaption": "島と同じく、デスクトップか Openbar を表示しているときだけ開きます。それ以外はアイコンが点滅し、リクエストは待機します。"
 }

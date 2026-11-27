@@ -26,6 +26,8 @@ struct NotchClaudeSessionsSettingsControls: View {
     @AppStorage(DefaultsKey.notchSessionsVoiceLanguage) private var voiceLanguage = ""
     @AppStorage(DefaultsKey.notchSessionsVoiceSendOnStop) private var voiceSendOnStop = false
     @AppStorage(DefaultsKey.notchSessionsVoiceShortcutEnabled) private var voiceShortcut = false
+    @AppStorage(DefaultsKey.notchSessionsPlacement) private var placementRaw = NotchSessionsPlacement.island.rawValue
+    @AppStorage(DefaultsKey.notchSessionsMenuBarOpens) private var menuBarOpens = false
     @State private var voiceLanguages: [VoiceReplyLanguage] = []
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
@@ -36,8 +38,12 @@ struct NotchClaudeSessionsSettingsControls: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            switchRow("waveform.path.ecg", text.liveActivity, isOn: $liveActivity)
-            switchRow("rectangle.expand.vertical", text.autoExpand, caption: text.autoExpandHint, isOn: $autoExpand)
+            placementRows
+            // The strip and opening by itself are the island's alone.
+            if placement.inIsland {
+                switchRow("waveform.path.ecg", text.liveActivity, isOn: $liveActivity)
+                switchRow("rectangle.expand.vertical", text.autoExpand, caption: text.autoExpandHint, isOn: $autoExpand)
+            }
             SessionSoundsSettings()
             reminders
             SessionAutoModeSettings()
@@ -61,6 +67,32 @@ struct NotchClaudeSessionsSettingsControls: View {
             service.checkAgentHooks()
             service.checkHookTargets()
             service.checkBridge()
+        }
+    }
+
+    private var placement: NotchSessionsPlacement {
+        NotchSessionsPlacement(rawValue: placementRaw) ?? .island
+    }
+
+    /// Where the sessions show (#331): the island, a panel under their own
+    /// menu bar item, or both, and whether that panel opens by itself.
+    private var placementRows: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsChoiceRow(symbol: "menubar.arrow.down.rectangle", title: text.placementSetting,
+                              selection: Binding(get: { placement }, set: { placementRaw = $0.rawValue })) {
+                Text(text.placementIsland).tag(NotchSessionsPlacement.island)
+                Text(text.placementMenuBar).tag(NotchSessionsPlacement.menuBar)
+                Text(text.placementBoth).tag(NotchSessionsPlacement.both)
+            }
+            Text(text.placementSettingHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
+            if placement.inMenuBar {
+                switchRow("rectangle.portrait.topthird.inset.filled", text.menuBarOpens, caption: text.menuBarOpensHint,
+                          isOn: $menuBarOpens)
+            }
         }
     }
 

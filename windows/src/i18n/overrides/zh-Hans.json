@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "队列中经“全部允许”放行的每个请求，按时间从新到旧，附完整命令或文件路径。逐个允许的请求不会列出。最近 500 条保存在这台电脑上。",
   "windows.settings.sessions.batchApprovalsEmpty": "还没有请求经“全部允许”放行。",
   "windows.settings.sessions.batchApprovalsClear": "清除",
-  "windows.settings.sessions.batchApprovalsCount": "已允许 %d 个"
+  "windows.settings.sessions.batchApprovalsCount": "已允许 %d 个",
+  "windows.sessions.trayName": "Openbar 会话",
+  "windows.sessions.trayNothingWaiting": "没有等待你的内容",
+  "windows.sessions.trayOneWaiting": "1 个会话正在等你",
+  "windows.sessions.trayWaitingOne": "%@ 个会话正在等你",
+  "windows.sessions.trayWaitingFew": "%@ 个会话正在等你",
+  "windows.sessions.trayWaitingMany": "%@ 个会话正在等你",
+  "windows.sessions.trayOpenSessions": "打开会话",
+  "windows.sessions.trayOpenAsk": "打开",
+  "windows.sessions.traySettings": "会话设置…",
+  "windows.settings.sessions.placement": "会话显示位置",
+  "windows.settings.sessions.placementCaption": "会话可以显示在小岛、从专属托盘图标打开的面板中，或两处都显示。即使关闭小岛，托盘也能正常使用。Windows 起初可能会把新图标藏在 ^ 箭头下：把它拖到任务栏上即可一直看到。",
+  "windows.settings.sessions.placementCaptionLinux": "会话可以显示在小岛、从专属托盘图标打开的面板中，或两处都显示。即使关闭小岛，托盘也能正常使用。图标菜单可以打开面板，并列出等待中的请求，可直接允许或拒绝。",
+  "windows.settings.sessions.placementIsland": "小岛",
+  "windows.settings.sessions.placementTray": "托盘",
+  "windows.settings.sessions.placementBoth": "两者",
+  "windows.settings.sessions.trayOpensPanel": "会话需要你时打开面板",
+  "windows.settings.sessions.trayOpensPanelCaption": "仅当你在桌面或 Openbar 中时打开，与小岛相同。否则图标会闪烁，请求会继续等待。"
 }

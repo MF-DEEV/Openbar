@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Ogni richiesta che Consenti tutto ha lasciato passare nella coda, dalla più recente, con il comando completo o i percorsi dei file. Le richieste consentite una alla volta non compaiono. Le ultime 500 restano su questo computer.",
   "windows.settings.sessions.batchApprovalsEmpty": "Ancora nulla è passato da Consenti tutto.",
   "windows.settings.sessions.batchApprovalsClear": "Cancella",
-  "windows.settings.sessions.batchApprovalsCount": "%d consentite"
+  "windows.settings.sessions.batchApprovalsCount": "%d consentite",
+  "windows.sessions.trayName": "Sessioni di Openbar",
+  "windows.sessions.trayNothingWaiting": "Niente ti sta aspettando",
+  "windows.sessions.trayOneWaiting": "1 sessione ti sta aspettando",
+  "windows.sessions.trayWaitingOne": "%@ sessione ti sta aspettando",
+  "windows.sessions.trayWaitingFew": "%@ sessioni ti stanno aspettando",
+  "windows.sessions.trayWaitingMany": "%@ sessioni ti stanno aspettando",
+  "windows.sessions.trayOpenSessions": "Apri sessioni",
+  "windows.sessions.trayOpenAsk": "Apri",
+  "windows.sessions.traySettings": "Impostazioni sessioni…",
+  "windows.settings.sessions.placement": "Mostra le sessioni in",
+  "windows.settings.sessions.placementCaption": "Le sessioni compaiono nell’isola, in un pannello aperto dalla loro icona nell’area di notifica o in entrambi. L’area di notifica funziona anche con l’isola disattivata. All’inizio Windows può nascondere una nuova icona sotto la freccia ^: trascinala sulla barra delle applicazioni per tenerla in vista.",
+  "windows.settings.sessions.placementCaptionLinux": "Le sessioni compaiono nell’isola, in un pannello aperto dalla loro icona nell’area di notifica o in entrambi. L’area di notifica funziona anche con l’isola disattivata. Il menu dell’icona apre il pannello ed elenca le richieste in attesa con Consenti e Nega.",
+  "windows.settings.sessions.placementIsland": "Isola",
+  "windows.settings.sessions.placementTray": "Tray",
+  "windows.settings.sessions.placementBoth": "Entrambi",
+  "windows.settings.sessions.trayOpensPanel": "Apri il pannello quando una sessione ha bisogno di te",
+  "windows.settings.sessions.trayOpensPanelCaption": "Solo quando sei sul desktop o in Openbar, come fa l’isola. Altrimenti l’icona pulsa e la richiesta aspetta."
 }
