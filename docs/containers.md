@@ -49,13 +49,13 @@ docker exec -i [-u <remoteUser>] -- <container> sh -c 'IFS= read -r s; eval "$(p
 Openbar sends [`Resources/remote-agent.sh`](../Resources/remote-agent.sh) as
 one base64 line, then a mode:
 
-- **probe**, at each (re)connect: the home folder, the system, tmux, Codex's
+- `probe`, at each (re)connect: the home folder, the system, tmux, Codex's
   socket, and whether the hooks are set up. The probe of a container looks
   for its own marker (below).
-- **agent**, which stays: the same snapshot, paste, enter and focus requests
+- `agent`, which stays: the same snapshot, paste, enter and focus requests
   as on an SSH host. Sessions, transcripts, the model, tokens and cost come
   through it every 1.5 seconds.
-- **relay**, which stays too and carries the hooks.
+- `relay`, which stays too and carries the hooks.
 
 In a devcontainer Openbar runs as the user VS Code runs as: the last
 `remoteUser` in the `devcontainer.metadata` label. Any other container runs as
@@ -65,7 +65,7 @@ its own user.
 
 `docker exec` can't forward a socket the way `ssh -R` does, and Docker Desktop
 runs containers in a VM, so a host socket can't be mounted into one either.
-So nothing listens anywhere. The relay mode, plain POSIX `sh`, makes a FIFO in
+Instead, the relay mode (plain POSIX `sh`) uses no socket at all. It makes a FIFO in
 `~/.openbar` (mode 700) and writes a small hook script next to it,
 `~/.openbar/<app>.hook`. Each hook Claude Code runs is:
 
