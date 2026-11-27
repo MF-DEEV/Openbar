@@ -254,8 +254,7 @@ pub fn remote_user(metadata: Option<&str>) -> Option<String> {
     entries
         .iter()
         .filter_map(|e| e.get("remoteUser").and_then(Value::as_str))
-        .filter(|u| !u.is_empty() && !u.starts_with('-') && !u.contains(char::is_whitespace))
-        .last()
+        .rfind(|u| !u.is_empty() && !u.starts_with('-') && !u.contains(char::is_whitespace))
         .map(str::to_string)
 }
 

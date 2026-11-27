@@ -3240,7 +3240,14 @@ impl Service {
                     }
                 },
                 move |alias, state| {
-                    crate::diagnostics::log::info("remote", &format!("container {} {}", containers::title_of(alias), state_kind(state)));
+                    crate::diagnostics::log::info(
+                        "remote",
+                        &format!(
+                            "container {} {}",
+                            containers::title_of(alias),
+                            state_kind(state)
+                        ),
+                    );
                     if let Some(service) = states.upgrade() {
                         if !matches!(state, remote::State::Connected { .. }) {
                             let mut inner = service.inner.lock().unwrap();
