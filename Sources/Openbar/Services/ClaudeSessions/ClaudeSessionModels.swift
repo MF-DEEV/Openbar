@@ -290,6 +290,9 @@ enum ClaudeSessionHost: Equatable {
     /// VS Code, Cursor, Windsurf), with the port of the IDE connection when
     /// the session has one.
     case ide(bundle: String, port: Int?)
+    /// The terminal of a JetBrains IDE (#329), by the IDE's identifier and,
+    /// once found, its process, which the JetBrains bridge plugin listens in.
+    case jetbrains(bundle: String, ide: Int32?)
     /// Any other app, by bundle identifier.
     case app(String)
     /// No terminal at all: a background session, known by its job.
@@ -308,6 +311,8 @@ enum ClaudeSessionHost: Equatable {
         // kitty only takes keys from outside with remote control on.
         case .kitty(_, let socket): return socket != nil
         case .remote(_, let tmux): return tmux
+        // Only through the bridge plugin, once the IDE has loaded it.
+        case .jetbrains(_, let ide): return ide.map { ClaudeJetBrains.listening(ide: $0) } ?? false
         case .app, .unknown: return false
         }
     }
@@ -320,7 +325,7 @@ enum ClaudeSessionHost: Equatable {
         case .ghostty: return ClaudeTerminalApps.ghostty
         case .wezterm: return ClaudeTerminalApps.wezterm
         case .kitty: return ClaudeTerminalApps.kitty
-        case .ide(let bundle, _), .app(let bundle): return bundle
+        case .ide(let bundle, _), .jetbrains(let bundle, _), .app(let bundle): return bundle
         case .tmux, .zellij, .background, .remote, .unknown: return nil
         }
     }

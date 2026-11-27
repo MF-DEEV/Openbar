@@ -982,6 +982,7 @@ struct NotchClaudeSessionReplyField: View {
                     .transition(.opacity)
             }
             NotchVoiceReplyProblemLabel(session: session, text: text, fontSize: 10)
+            NotchJetBrainsBridgeLink(session: session, text: text, fontSize: 10)
         }
         .onChange(of: session.id) { _, _ in problem = nil }
     }

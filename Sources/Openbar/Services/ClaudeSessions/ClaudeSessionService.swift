@@ -61,6 +61,10 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var bridges: [ClaudeBridgeStatus]?
     /// Why the last install into an editor failed, by its bundle identifier.
     @Published private(set) var bridgeFailures: [String: String] = [:]
+    /// The JetBrains IDEs on this Mac and the bridge plugin in each (#329); nil until checked.
+    @Published private(set) var jetbrains: [ClaudeJetBrainsStatus]?
+    /// What the last change in an IDE needs or why it failed, by the IDE's id.
+    @Published private(set) var jetbrainsNotes: [String: ClaudeJetBrainsNote] = [:]
     /// Whether the island hears Codex, for its row in Settings.
     @Published private(set) var codexStatus: CodexStatus?
     /// Whether Gemini CLI, Copilot CLI, OpenCode and Cursor hold the island's
@@ -314,6 +318,10 @@ final class ClaudeSessionService: ObservableObject {
             for ide in ClaudeBridgeInstaller.editors()
             where ClaudeBridgeInstaller.isInstalled(ide, home: home) && ClaudeBridgeInstaller.isOutdated(ide, home: home) {
                 _ = ClaudeBridgeInstaller.install(ide, home: home)
+            }
+            // The JetBrains plugin too; each IDE loads the new one when it restarts (#329).
+            for ide in ClaudeJetBrains.installed(home: home) where ClaudeJetBrains.state(ide, home: home) == .outdated {
+                _ = ClaudeJetBrains.install(ide, home: home)
             }
         }
         checkHooks()
@@ -1634,6 +1642,37 @@ final class ClaudeSessionService: ObservableObject {
         }
     }
 
+    func checkJetBrains() {
+        let home = home
+        actions.async {
+            let found = ClaudeJetBrains.installed(home: home).map { ide in
+                ClaudeJetBrainsStatus(ide: ide, state: ClaudeJetBrains.state(ide, home: home))
+            }
+            DispatchQueue.main.async { self.jetbrains = found }
+        }
+    }
+
+    /// Puts the bridge plugin into a JetBrains IDE, or takes it out (#329).
+    func changeJetBrains(_ ide: ClaudeJetBrainsIDE, install: Bool) {
+        let home = home
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        actions.async {
+            let failure = install ? ClaudeJetBrains.install(ide, home: home) : ClaudeJetBrains.remove(ide, home: home)
+            let note: ClaudeJetBrainsNote? = switch failure {
+            case nil where ClaudeJetBrains.isRunning(ide):
+                .restart(install ? text.jetbrainsRestart(ide.name) : text.jetbrainsRestartRemoved(ide.name))
+            case nil: nil
+            case .missing?: .failed(text.jetbrainsMissing)
+            case .other(let reason)?: .failed(reason)
+            }
+            DiagnosticsLog.info("hooks", "JetBrains bridge \(install ? "install" : "removal") in \(ide.plugin): \(failure.map { "\($0)" } ?? "done")")
+            DispatchQueue.main.async {
+                self.jetbrainsNotes[ide.id] = note
+                self.checkJetBrains()
+            }
+        }
+    }
+
     func installBridge(_ ide: ClaudeIDE) {
         let home = home
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
@@ -2778,9 +2817,15 @@ extension ClaudeSessionHosts {
         let bundle = environment["__CFBundleIdentifier"]
         // Only asked for when the environment leaves the app open.
         let owner = bundle == nil || environment["TERM_PROGRAM"] == "vscode"
+            || environment["TERMINAL_EMULATOR"] == ClaudeJetBrains.terminalEmulator
             ? ResponsibleProcess.regularAppOwner(of: pid)?.bundleIdentifier : nil
         let port = environment["CLAUDE_CODE_SSE_PORT"].flatMap(Int.init)
         var host = classify(bundle: bundle, tty: device, port: port, environment: environment, owner: owner)
+        // The IDE process, which the bridge plugin listens in and Claude
+        // Code's lock files name (#329).
+        if case .jetbrains(let app, nil) = host {
+            return .jetbrains(bundle: app, ide: ClaudeJetBrains.process(above: pid, bundle: app))
+        }
         // zellij's variables reach everything started in its panes too, a
         // tmux run in one among them; only a process zellij's server runs
         // under is in its pane.
@@ -2906,6 +2951,8 @@ enum ClaudeHostFocus {
                 _ = ClaudeTerminalBridge.focus(shell: shell, folder: ClaudeTerminalBridge.folder())
             }
             return activated || raised
+        case .jetbrains(let bundle, let ide):
+            return focusJetBrains(bundle, ide: ide, pid: pid, cwd: cwd, homes: homes)
         case .app(let bundle):
             return activate(bundle, window: nil)
         case .background, .remote:
@@ -2914,6 +2961,65 @@ enum ClaudeHostFocus {
         case .unknown:
             return false
         }
+    }
+
+    /// A JetBrains IDE (#329): the IDE comes forward, then the bridge plugin
+    /// raises the tab's project window and selects the tab in it. Without
+    /// the plugin, the project window holding the session's folder: the one
+    /// Claude Code's JetBrains plugin says is open, which the IDE brings
+    /// forward when asked to open it (an open project is never opened
+    /// twice), else the window whose title names that folder.
+    private static func focusJetBrains(_ bundle: String, ide: Int32?, pid: Int32, cwd: String, homes: [URL]) -> Bool {
+        let app = ide.flatMap { NSRunningApplication(processIdentifier: $0) }
+            ?? NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first
+        guard let app else { return false }
+        let activated = DispatchQueue.main.sync { app.activate() }
+        if let shell = ClaudeTerminalBridge.shell(of: pid),
+           ClaudeTerminalBridge.focus(shell: shell, folder: ClaudeTerminalBridge.folder()) {
+            return true
+        }
+        if let ide, let project = ClaudeJetBrains.openProject(cwd: cwd, ide: ide, homes: homes),
+           let url = app.bundleURL, openProject(project, in: url) {
+            return true
+        }
+        return raiseWindow(of: app) { ClaudeJetBrains.window(for: cwd, titles: $0) } || activated
+    }
+
+    /// Asks the IDE to open a project it has open, which brings its window forward.
+    private static func openProject(_ folder: String, in app: URL) -> Bool {
+        var directory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: folder, isDirectory: &directory), directory.boolValue else { return false }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-a", app.path, folder]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return false }
+        process.waitUntilExit()
+        return process.terminationStatus == 0
+    }
+
+    /// Raises the app's window `pick` chooses among their titles, when
+    /// Accessibility allows.
+    private static func raiseWindow(of app: NSRunningApplication, pick: ([String]) -> Int?) -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+        let element = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(element, 0.5)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else { return false }
+        let titles = windows.map { window -> String in
+            var title: CFTypeRef?
+            AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title)
+            return title as? String ?? ""
+        }
+        guard let index = pick(titles) else { return false }
+        let match = windows[index]
+        AXUIElementSetAttributeValue(match, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+        AXUIElementSetAttributeValue(match, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementPerformAction(match, kAXRaiseAction as CFString)
+        AXUIElementSetAttributeValue(element, kAXFocusedWindowAttribute as CFString, match)
+        return true
     }
 
     /// Runs a script that finds the session's own tab; without Automation,
@@ -3001,6 +3107,10 @@ enum ClaudeTerminalReply {
             return ClaudeWezTerm.send(steps, pane: pane, socket: socket, tty: ClaudeSessionHosts.tty(of: session.pid))
         case .kitty(let window, let socket?):
             return ClaudeKitty.send(steps, window: window, pid: session.pid, socket: socket)
+        case .jetbrains:
+            // The plugin types the steps as they are, a hook agent's later return included.
+            guard let shell = ClaudeTerminalBridge.shell(of: session.pid) else { return .unreachable }
+            return ClaudeTerminalBridge.steps(steps, shell: shell, folder: bridge) ? nil : .unreachable
         case .ide:
             guard let shell = ClaudeTerminalBridge.shell(of: session.pid) else { return .unreachable }
             if paths.isEmpty { return ClaudeTerminalBridge.send(text, shell: shell, folder: bridge) ? nil : .unreachable }
@@ -3029,6 +3139,9 @@ enum ClaudeTerminalReply {
             return ClaudeWezTerm.send(steps, pane: pane, socket: socket, tty: ClaudeSessionHosts.tty(of: session.pid))
         case .kitty(let window, let socket?):
             return ClaudeKitty.send(steps, window: window, pid: session.pid, socket: socket)
+        case .jetbrains:
+            guard let shell = ClaudeTerminalBridge.shell(of: session.pid) else { return .unreachable }
+            return ClaudeTerminalBridge.steps(steps, shell: shell, folder: ClaudeTerminalBridge.folder()) ? nil : .unreachable
         default:
             return .unreachable
         }
@@ -3041,6 +3154,19 @@ enum ClaudeTerminalReply {
         let result = AppleScriptRunner.run(script)
         return result.ok && result.output == "sent" ? nil : .unreachable
     }
+}
+
+/// A JetBrains IDE on this Mac and the bridge plugin in it (#329).
+struct ClaudeJetBrainsStatus: Equatable, Identifiable {
+    let ide: ClaudeJetBrainsIDE
+    let state: ClaudeJetBrains.State
+    var id: String { ide.id }
+}
+
+/// What Settings says under an IDE after a change.
+enum ClaudeJetBrainsNote: Equatable {
+    case restart(String)
+    case failed(String)
 }
 
 /// An editor on this Mac and the state of the extension in it.
@@ -3190,6 +3316,7 @@ enum ClaudeSessionCleanup {
         }
         guard others.isEmpty else { return (hooks, false) }
         ClaudeBridgeInstaller.uninstall(home: home)
+        ClaudeJetBrains.removeAll(home: home)
         try? FileManager.default.removeItem(at: folder)
         return (hooks, true)
     }

@@ -59,6 +59,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             codex
             agents
             bridge
+            jetbrains
             RemoteHostsSettings()
         }
         .onAppear {
@@ -67,6 +68,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             service.checkAgentHooks()
             service.checkHookTargets()
             service.checkBridge()
+            service.checkJetBrains()
         }
     }
 
@@ -314,6 +316,59 @@ struct NotchClaudeSessionsSettingsControls: View {
                 .padding(.leading, settingsRowTextInset)
             }
             Text(text.bridgeHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
+        }
+    }
+
+    /// One row per JetBrains IDE on this Mac, each with its own plugins
+    /// folder, so the bridge goes into each on its own (#329).
+    private var jetbrains: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SettingsRow(symbol: "terminal.fill", title: text.jetbrainsTitle,
+                        caption: service.jetbrains?.isEmpty == true ? text.jetbrainsNone : nil) {
+                if service.jetbrains == nil { ProgressView().controlSize(.small) }
+            }
+            ForEach(service.jetbrains ?? []) { status in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(status.ide.plugin)
+                            .font(.callout)
+                        Text(status.state == .missing ? text.hooksMissing : text.hooksInstalled)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        if status.state != .current {
+                            Button(status.state == .outdated ? text.updatePlugin : text.installPlugin) {
+                                service.changeJetBrains(status.ide, install: true)
+                            }
+                            .controlSize(.small)
+                            .fixedSize()
+                        }
+                        if status.state != .missing {
+                            Button(text.removeBridge) { service.changeJetBrains(status.ide, install: false) }
+                                .controlSize(.small)
+                                .fixedSize()
+                        }
+                    }
+                    switch service.jetbrainsNotes[status.id] {
+                    case .restart(let note)?:
+                        Label(note, systemImage: "arrow.clockwise")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    case .failed(let reason)?:
+                        Label(reason, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    case nil:
+                        EmptyView()
+                    }
+                }
+                .padding(.leading, settingsRowTextInset)
+            }
+            Text(text.jetbrainsHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

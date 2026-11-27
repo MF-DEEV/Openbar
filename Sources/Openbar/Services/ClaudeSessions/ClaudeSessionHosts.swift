@@ -58,6 +58,14 @@ enum ClaudeSessionHosts {
         }
         if term == "alacritty" { return .app(ClaudeTerminalApps.alacritty) }
         if term == "xterm-ghostty" { return tty.map { .ghostty(tty: $0) } ?? .app(ClaudeTerminalApps.ghostty) }
+        // A JetBrains IDE's terminal (#329). Whatever is started from it
+        // keeps the variable, so the app responsible for the process decides,
+        // as for editors below, and a terminal naming itself comes first.
+        if environment["TERMINAL_EMULATOR"] == ClaudeJetBrains.terminalEmulator,
+           program == nil || (program != "vscode" && ClaudeTerminalApps.bundle(program: program) == nil),
+           let app = owner ?? bundle, ClaudeJetBrains.isIDE(app) {
+            return .jetbrains(bundle: app, ide: nil)
+        }
         if program == "vscode" {
             // An editor started from a terminal, or from another editor's
             // terminal, inherits that one's identifier; the app responsible
@@ -76,6 +84,7 @@ enum ClaudeSessionHosts {
             guard let pane = environment["WEZTERM_PANE"].flatMap(Int.init) else { return .app(ClaudeTerminalApps.wezterm) }
             return .wezterm(pane: pane, socket: environment["WEZTERM_UNIX_SOCKET"].flatMap { $0.isEmpty ? nil : $0 })
         case let bundle? where ClaudeIDE.find(bundle) != nil: return .ide(bundle: bundle, port: port)
+        case let bundle? where ClaudeJetBrains.isIDE(bundle): return .jetbrains(bundle: bundle, ide: nil)
         case let bundle?: return .app(bundle)
         case nil: return .unknown
         }
@@ -139,7 +148,7 @@ enum ClaudeSessionHosts {
     /// The keys of a session's environment that tell where it runs. Nothing
     /// else in it is kept.
     static let hostKeys: Set<String> = [
-        "__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT", "TERM", "TERM_PROGRAM", "TMUX", "TMUX_PANE",
+        "__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT", "TERM", "TERM_PROGRAM", "TERMINAL_EMULATOR", "TMUX", "TMUX_PANE",
         "ZELLIJ", "ZELLIJ_SESSION_NAME", "ZELLIJ_PANE_ID",
         "WEZTERM_PANE", "WEZTERM_UNIX_SOCKET", "KITTY_WINDOW_ID", "KITTY_LISTEN_ON",
     ]
@@ -209,17 +218,44 @@ enum ClaudeTerminalScripts {
     }
 }
 
-/// Where an Antigravity session's window is: the IDE connection's lock file
+/// What the island takes from a lock file Claude Code's IDE integrations
+/// keep in `<config>/ide/<port>.lock`. The file also holds the token of
+/// Claude's own connection to the IDE; this type has no field for it, so it
+/// is never kept, passed on or used (#329).
+struct ClaudeIDELockFile: Decodable, Equatable {
+    /// The IDE's process.
+    let pid: Int?
+    let ideName: String?
+    let workspaceFolders: [String]?
+    let transport: String?
+
+    static func decode(_ data: Data) -> ClaudeIDELockFile? {
+        guard data.count < 1 << 16 else { return nil }
+        return try? JSONDecoder().decode(ClaudeIDELockFile.self, from: data)
+    }
+}
+
+/// Where an editor session's window is: the IDE connection's lock file
 /// names the folders that window has open.
 enum ClaudeIDELock {
     static func folders(port: Int, homes: [URL]) -> [String] {
         for home in homes {
             let path = home.appending(path: "ide/\(port).lock").path
-            guard let data = FileManager.default.contents(atPath: path), data.count < 1 << 16,
-                  let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { continue }
-            return json["workspaceFolders"] as? [String] ?? []
+            guard let data = FileManager.default.contents(atPath: path), let lock = ClaudeIDELockFile.decode(data) else { continue }
+            return lock.workspaceFolders ?? []
         }
         return []
+    }
+
+    /// Every lock file in these homes.
+    static func all(homes: [URL]) -> [ClaudeIDELockFile] {
+        homes.flatMap { home -> [ClaudeIDELockFile] in
+            let folder = home.appending(path: "ide", directoryHint: .isDirectory)
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+            return names.filter { $0.hasSuffix(".lock") }.compactMap { name in
+                FileManager.default.contents(atPath: folder.appending(path: name).path).flatMap(ClaudeIDELockFile.decode)
+            }
+        }
     }
 
     /// The folder open in the session's window that holds the session's
@@ -372,6 +408,20 @@ enum ClaudeTerminalBridge {
         if replies.contains(where: { $0["ok"] as? Bool == true }) { return nil }
         guard replies.contains(where: { $0["error"] as? String == "unknown" }) else { return .unreachable }
         return send(naming(named ?? images, in: text), shell: shell, folder: folder) ? nil : .unreachable
+    }
+
+    /// Any run of pastes, keys, pauses and returns, in one request: the
+    /// JetBrains bridge (#329) and the VS Code one both take it.
+    static func steps(_ steps: [ClaudeTypingStep], shell: Int32, folder: URL) -> Bool {
+        ask(["command": "steps", "shellPid": Int(shell), "steps": steps.map(\.bridgeStep)], folder: folder,
+            timeout: 4 + ClaudeTyping.duration(steps))
+    }
+
+    /// Whether the session's tab is the one in front in its IDE window, when
+    /// a bridge holding it can tell (#210); nil when none can.
+    static func shown(shell: Int32, folder: URL, timeout: TimeInterval = 1) -> Bool? {
+        answers(["command": "shown", "shellPid": Int(shell)], folder: folder, timeout: timeout)
+            .first { $0["ok"] as? Bool == true }?["shown"] as? Bool
     }
 
     /// A reply that names its images' files instead of attaching them.

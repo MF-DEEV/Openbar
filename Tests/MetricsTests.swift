@@ -129,6 +129,7 @@ struct MetricsTests {
                 SessionLimitsTests.run(suite)
                 ClaudeSessionReaderTests.run(suite)
                 ClaudeHookTests.run(suite)
+                JetBrainsHostTests.run(suite)
                 PermissionInspectionTests.run(suite)
                 PermissionRiskTests.run(suite)
                 NotchPermissionQueueTests.run(suite)
