@@ -15,6 +15,7 @@ import { checkAutoAllow } from "./auto-allow-cases.mjs";
 import { checkMusicLyrics } from "./music-lyrics-cases.mjs";
 import { checkSessionNotice } from "./session-notice-cases.mjs";
 import { checkPermissionQueue } from "./permission-queue-cases.mjs";
+import { checkCardReveal } from "./card-reveal-cases.mjs";
 import { checkNotificationPreview } from "./notification-preview-cases.mjs";
 import { checkAllDisplays } from "./all-displays-cases.mjs";
 import { checkDownloads } from "./downloads-cases.mjs";
@@ -115,6 +116,8 @@ try {
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
   if (process.argv.includes("--permission-queue")) {
     await checkPermissionQueue({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--card-reveal")) {
+    await checkCardReveal({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--calendar")) {
     await checkCalendar({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--music-queue-artwork")) {

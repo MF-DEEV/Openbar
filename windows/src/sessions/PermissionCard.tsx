@@ -37,6 +37,7 @@ import { subscribeGlobalPermissionKeys } from "./globalPermissionKeys";
 import { AutoAllowButton } from "./AutoAllowButton";
 import { FileDiffView } from "./FileDiffView";
 import { HandFill } from "./glyphs";
+import { keepCardInSight } from "./cardReveal";
 
 /** The tool Claude Code calls to have its plan approved (ClaudeToolSummary.planTool). */
 export const PLAN_TOOL = "ExitPlanMode";
@@ -72,9 +73,14 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
         session.currentTool?.name ??
         (session.waitingFor === "terminal" ? undefined : session.waitingFor) ??
         S[session.phase]);
+  // Each new ask brings its buttons into sight, however far down the page was.
+  const card = useRef<HTMLDivElement>(null);
+  const ask = p?.requestId;
+  useEffect(() => (card.current ? keepCardInSight(card.current) : undefined), [ask]);
 
   return (
     <div
+      ref={card}
       className="s-card"
       style={{
         background: `color-mix(in srgb, ${tint} 8%, transparent)`,
