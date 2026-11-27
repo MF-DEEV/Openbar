@@ -9,8 +9,9 @@
 import { t, useLocale } from "../i18n";
 
 import { ChevronDown, type LucideIcon } from "lucide-react";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Collapse, SlidingHighlight } from "../shared/ui/motionKit";
+import { onSection, takeSection } from "./navigation";
 import type { Option } from "./Select";
 export { Select } from "./Select";
 export type { Option } from "./Select";
@@ -74,14 +75,31 @@ export function Expander(props: {
   caption?: ReactNode;
   control?: ReactNode;
   defaultOpen?: boolean;
+  /** Its name for a link from outside the window, which opens it and scrolls to it. */
+  section?: string;
   children: ReactNode;
 }) {
   useLocale();
   const [open, setOpen] = useState(props.defaultOpen ?? false);
   const bodyId = useId();
+  const ref = useRef<HTMLDivElement>(null);
+  const { section } = props;
+  useEffect(() => {
+    if (!section) return;
+    const reveal = () => {
+      setOpen(true);
+      // After the page's own scroll to the top, which runs once this is drawn.
+      requestAnimationFrame(() => {
+        const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        ref.current?.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+      });
+    };
+    if (takeSection(section)) reveal();
+    return onSection(section, reveal);
+  }, [section]);
   const Icon = props.icon;
   return (
-    <div className={`st-expander${open ? " is-open" : ""}`}>
+    <div ref={ref} className={`st-expander${open ? " is-open" : ""}`}>
       <div className="st-card st-expander-head">
         <button
           type="button"

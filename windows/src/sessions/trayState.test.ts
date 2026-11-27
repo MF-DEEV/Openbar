@@ -107,7 +107,7 @@ it("tells the icon what waits, in the person's words", () => {
   expect(model.visible).toBe(true);
   expect(model.waiting).toBe(3);
   expect(model.header).toBe("3 sessions are waiting for you");
-  expect(model.tooltip).toBe("Openbar Sessions: 3 sessions are waiting for you");
+  expect(model.tooltip).toBe("3 sessions are waiting for you");
   expect(model.label).toBe("3");
   expect(model.asks).toHaveLength(1);
   const none = trayModel(
@@ -115,6 +115,7 @@ it("tells the icon what waits, in the person's words", () => {
     false,
   );
   expect(none.header).toBe("Nothing is waiting for you");
+  expect(none.tooltip).toBe("Openbar Sessions");
   expect(none.label).toBe("");
   const one = trayModel(
     { snapshot: { ...snapshot, counts: { ...snapshot.counts, waiting: 1 } }, autoAllow: {}, names: {} },

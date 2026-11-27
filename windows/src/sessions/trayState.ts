@@ -63,7 +63,11 @@ export function trayModel(
   return {
     visible,
     waiting,
-    tooltip: `${S.trayName}: ${status}`,
+    name: S.trayName,
+    // Windows 11 names the icon for Narrator by the tooltip it was added with
+    // ("Openbar Sessions") followed by the one it has now, unless the two are
+    // the same: the tooltip says the name at rest and only the state otherwise.
+    tooltip: waiting > 0 ? status : S.trayName,
     label: badgeText(waiting),
     header: status,
     asks: trayAsks(presented.sessions, state.names),

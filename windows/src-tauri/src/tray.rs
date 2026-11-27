@@ -163,6 +163,9 @@ pub struct TrayAsk {
 pub struct TraySessions {
     pub visible: bool,
     pub waiting: u32,
+    /// The icon's name, the tooltip it is added with.
+    #[serde(default)]
+    pub name: String,
     pub tooltip: String,
     pub label: String,
     pub header: String,
@@ -285,7 +288,7 @@ fn sessions_menu<R: Runtime>(app: &AppHandle<R>, model: &TraySessions) -> tauri:
 
 fn sessions_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
     if id == SETTINGS_ID {
-        settings::open_page(app, "content");
+        settings::open_section(app, "content", "sessions");
         return;
     }
     match sessions_action(id) {
@@ -309,7 +312,10 @@ fn sessions_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
 /// Makes the icon the first time it is to show. Made after the Openbar icon,
 /// so Windows gives it the same place each start and keeps it where the
 /// person put it; hidden rather than removed when it is not wanted.
-fn sessions_icon<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray::TrayIcon<R>> {
+fn sessions_icon<R: Runtime>(
+    app: &AppHandle<R>,
+    name: &str,
+) -> tauri::Result<tauri::tray::TrayIcon<R>> {
     if let Some(tray) = app.tray_by_id(SESSIONS_ID) {
         return Ok(tray);
     }
@@ -322,7 +328,13 @@ fn sessions_icon<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray::T
                 .map(|icon| icon.clone().to_owned())
         });
     let mut tray = TrayIconBuilder::with_id(SESSIONS_ID)
-        .tooltip("Openbar Sessions")
+        // Windows 11 keeps this first tooltip as the start of the name
+        // Narrator reads, followed by the current one.
+        .tooltip(if name.is_empty() {
+            "Openbar Sessions"
+        } else {
+            name
+        })
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| sessions_menu_event(app, event.id.as_ref()))
         .on_tray_icon_event(|tray, event| {
@@ -359,7 +371,7 @@ pub fn tray_sessions_update<R: Runtime>(
     if !model.visible && !existed {
         return Ok(());
     }
-    let tray = sessions_icon(&app).map_err(|e| e.to_string())?;
+    let tray = sessions_icon(&app, &model.name).map_err(|e| e.to_string())?;
     if model.visible {
         tray.set_menu(Some(
             sessions_menu(&app, &model).map_err(|e| e.to_string())?,

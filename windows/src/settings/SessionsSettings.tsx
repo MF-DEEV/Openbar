@@ -823,20 +823,7 @@ export function SessionsOptions() {
   return (
     <>
       <p className="st-note">{T.sessions.lead}</p>
-      <HooksLink />
-      <ClaudeAccounts />
-      <EditorExtensions />
-      <SubRow title={t("windows.settings.codex")} caption={T.sessions.codexCaption}>
-        {codex === "connected" ? (
-          <Status tone="ok">{T.sessions.codexConnected}</Status>
-        ) : codex === "notRunning" ? (
-          <Status tone="off">{T.sessions.codexNotRunning}</Status>
-        ) : codex === "notFound" ? (
-          <Status tone="off">{T.sessions.codexNotFound}</Status>
-        ) : null}
-      </SubRow>
-      <MoreAgents />
-      <ClaudeDesktopAgent />
+      {/* Where they show comes first, as on the Mac (#331). */}
       <SubRow
         title={t("windows.settings.sessions.placement")}
         caption={t("windows.settings.sessions.placementCaption")}
@@ -864,6 +851,20 @@ export function SessionsOptions() {
           />
         </SubRow>
       ) : null}
+      <HooksLink />
+      <ClaudeAccounts />
+      <EditorExtensions />
+      <SubRow title={t("windows.settings.codex")} caption={T.sessions.codexCaption}>
+        {codex === "connected" ? (
+          <Status tone="ok">{T.sessions.codexConnected}</Status>
+        ) : codex === "notRunning" ? (
+          <Status tone="off">{T.sessions.codexNotRunning}</Status>
+        ) : codex === "notFound" ? (
+          <Status tone="off">{T.sessions.codexNotFound}</Status>
+        ) : null}
+      </SubRow>
+      <MoreAgents />
+      <ClaudeDesktopAgent />
       {/* The strip and opening by itself are the island's alone (#331). */}
       {prefs.placement !== "tray" ? (
         <>

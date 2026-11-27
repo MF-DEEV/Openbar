@@ -60,7 +60,12 @@ export interface TrayAsk {
 export interface TraySessionsModel {
   visible: boolean;
   waiting: number;
-  /** What the pointer and Narrator read; Linux has no tooltip, so the menu's first line says it. */
+  /** The icon's name, the tooltip it is made with. */
+  name: string;
+  /**
+   * What the pointer reads, and Narrator after the icon's name: the name at
+   * rest, the state otherwise. Linux has no tooltip, so the menu's first line says it.
+   */
   tooltip: string;
   /** Beside the icon where the desktop shows it (Linux): the count from two. */
   label: string;
