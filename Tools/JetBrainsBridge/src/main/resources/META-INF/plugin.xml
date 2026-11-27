@@ -1,0 +1,19 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<idea-plugin>
+  <id>com.openbar.terminal-bridge</id>
+  <name>Openbar Terminal Bridge</name>
+  <version>1.0.0</version>
+  <vendor url="https://github.com/MF-DEEV/Openbar">Openbar</vendor>
+  <idea-version since-build="251"/>
+  <description><![CDATA[
+    Lets the Openbar island bring a Claude Code terminal tab forward and type a reply into it.
+    It listens only where your own user can reach it, answers only about the tab whose shell
+    a session runs in, and reads nothing from your terminals or projects.
+  ]]></description>
+  <depends>com.intellij.modules.platform</depends>
+  <depends>org.jetbrains.plugins.terminal</depends>
+  <applicationListeners>
+    <listener class="com.openbar.bridge.BridgeStartup" topic="com.intellij.ide.AppLifecycleListener"/>
+    <listener class="com.openbar.bridge.BridgeStartup" topic="com.intellij.ide.plugins.DynamicPluginListener"/>
+  </applicationListeners>
+</idea-plugin>
