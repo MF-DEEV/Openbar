@@ -20,6 +20,18 @@ enum SessionsMenuBarSupport {
     static let horizontalInset: CGFloat = 18
     static let headerTopInset: CGFloat = 12
 
+    /// The panel's height around a list this tall: the top row and the
+    /// insets, and the list itself between a floor and the full panel, past
+    /// which it scrolls. A session's page and the like take the full panel.
+    static func fittedHeight(list: CGFloat?, full: CGFloat) -> CGFloat {
+        guard let list, list.isFinite else { return full }
+        let chrome = headerTopInset + NotchLayout.headerHeight + NotchLayout.spacing + NotchLayout.bottomInset
+        return min(full, chrome + max(minimumListHeight, list.rounded(.up)))
+    }
+
+    /// The list never gets shorter than a row with room around it.
+    static let minimumListHeight: CGFloat = 96
+
     /// The page's own size inside a panel of this size.
     static func contentSize(in panel: CGSize) -> CGSize {
         CGSize(width: max(0, panel.width - horizontalInset * 2),

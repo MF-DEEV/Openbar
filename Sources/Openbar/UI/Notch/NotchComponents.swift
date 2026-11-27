@@ -403,6 +403,19 @@ extension EnvironmentValues {
     }
 }
 
+/// How tall the Sessions list stands on its own, so the menu bar's panel
+/// fits itself to a short list (#331); nil while a session's page, New
+/// session or the wardrobe fills the page.
+struct NotchSessionsListHeightKey: PreferenceKey {
+    /// What the empty list's message needs.
+    static let empty: CGFloat = 150
+    static var defaultValue: CGFloat? = nil
+
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        if let next = nextValue() { value = next }
+    }
+}
+
 /// Where the Sessions page is shown, the island or the menu bar's panel
 /// (#331), for what the page asks of its host: its Escape layer and its
 /// larger size.

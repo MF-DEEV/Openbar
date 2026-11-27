@@ -100,6 +100,10 @@ struct SessionsMenuBarPanelView: View {
             .environment(\.notchSessionsInPanel, true)
             .environment(\.locale, l10n.language.formattingLocale())
             .focusEffectDisabled(!menuBar.showsKeyboardFocus)
+            .onPreferenceChange(NotchSessionsListHeightKey.self) { height in
+                // Not while SwiftUI lays the panel out: the panel's frame follows.
+                DispatchQueue.main.async { SessionsMenuBar.shared.fitList(height) }
+            }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(FeatureStrings.notchClaudeSessions(l10n.language).menuBarItemName)
     }

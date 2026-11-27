@@ -51,6 +51,7 @@ struct NotchClaudeSessionsView: View {
             } else if service.sessions.isEmpty {
                 NotchEmptyView(symbol: NotchModule.sessions.symbol, message: text.emptyTitle + "\n" + text.emptyDetail)
                     .notchBand(trailing: { newSessionButton })
+                    .preference(key: NotchSessionsListHeightKey.self, value: NotchSessionsListHeightKey.empty)
             } else {
                 list.transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
             }
@@ -104,22 +105,28 @@ struct NotchClaudeSessionsView: View {
         let queue = queue
         return TimelineView(.periodic(from: .now, by: 1)) { context in
             ScrollView {
-                // More than one ask waiting: all of them first, in one queue (#269).
-                if queue.shows, !preview {
-                    NotchPermissionQueueView(queue: queue, text: text)
-                        .padding(.bottom, 4)
-                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
-                }
-                if grouping == .none {
-                    LazyVStack(spacing: 6) {
-                        ForEach(service.sessions) { session in row(session, now: context.date) }
+                VStack {
+                    // More than one ask waiting: all of them first, in one queue (#269).
+                    if queue.shows, !preview {
+                        NotchPermissionQueueView(queue: queue, text: text)
+                            .padding(.bottom, 4)
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
                     }
-                    .padding(.bottom, 4)
-                    .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
-                               value: service.sessions.map(\.id))
-                } else {
-                    grouped(now: context.date)
+                    if grouping == .none {
+                        LazyVStack(spacing: 6) {
+                            ForEach(service.sessions) { session in row(session, now: context.date) }
+                        }
+                        .padding(.bottom, 4)
+                        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
+                                   value: service.sessions.map(\.id))
+                    } else {
+                        grouped(now: context.date)
+                    }
                 }
+                // The menu bar's panel fits itself to the list (#331).
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: NotchSessionsListHeightKey.self, value: proxy.size.height)
+                })
             }
             .scrollIndicators(.automatic)
             .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: queue.shows)

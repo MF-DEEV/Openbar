@@ -56,6 +56,16 @@ final class SessionsStatusItem: NSObject {
         let value = text.menuBarWaiting(waiting)
         button.setAccessibilityLabel(text.menuBarItemName)
         button.setAccessibilityValue(value)
+        // The asks' menu opens on a secondary click; VoiceOver reaches it
+        // through an action of its own, since the item holds no menu to show.
+        if button.accessibilityCustomActions()?.first?.name != text.menuBarAsksAction {
+            button.setAccessibilityCustomActions([
+                NSAccessibilityCustomAction(name: text.menuBarAsksAction) { [weak self] in
+                    DispatchQueue.main.async { self?.onRightClick?() }
+                    return true
+                },
+            ])
+        }
         let tip = "\(text.menuBarItemName): \(value)"
         if button.toolTip != tip { button.toolTip = tip }
     }

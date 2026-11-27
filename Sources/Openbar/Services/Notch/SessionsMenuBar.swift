@@ -20,6 +20,8 @@ final class SessionsMenuBar: ObservableObject {
     @Published private(set) var panelSize = SessionsMenuBarSupport.panelSize
     /// Focus rings show once the keyboard is used, as in the island.
     @Published private(set) var showsKeyboardFocus = false
+    /// How tall the list stands on its own; nil while a page fills the panel.
+    private var listHeight: CGFloat?
 
     private var item: SessionsStatusItem?
     private var panel: SessionsMenuBarPanel?
@@ -355,6 +357,15 @@ final class SessionsMenuBar: ObservableObject {
         }
     }
 
+    /// The panel fits a short list rather than hanging empty below it, and
+    /// takes its full size for a session's page. Its top stays under the item.
+    func fitList(_ height: CGFloat?) {
+        guard listHeight != height else { return }
+        listHeight = height
+        guard panelShown, let panel else { return }
+        panel.setFrame(place(panel), display: true)
+    }
+
     /// Escape steps back from the page's innermost layer first.
     func setPageLayer(_ close: (() -> Void)?) { pageLayer = close }
 
@@ -378,7 +389,9 @@ final class SessionsMenuBar: ObservableObject {
     /// bar of the pointer's screen when macOS has not placed it or the notch
     /// hides it.
     private func place(_ panel: NSPanel) -> CGRect {
-        let wanted = enlarged ? SessionsMenuBarSupport.enlargedSize : SessionsMenuBarSupport.panelSize
+        let full = enlarged ? SessionsMenuBarSupport.enlargedSize : SessionsMenuBarSupport.panelSize
+        let wanted = CGSize(width: full.width,
+                            height: SessionsMenuBarSupport.fittedHeight(list: enlarged ? nil : listHeight, full: full.height))
         let itemFrame = item?.trustedFrame
         let screen = itemFrame.flatMap { frame in NSScreen.screens.first { $0.frame.intersects(frame) } }
             ?? NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main

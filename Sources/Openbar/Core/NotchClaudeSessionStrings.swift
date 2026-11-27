@@ -94,6 +94,7 @@ struct NotchClaudeSessionStrings {
     var menuBarOpenSessions = "Open Sessions"
     var menuBarOpenAsk = "Open"
     var menuBarSettings = "Sessions Settings…"
+    var menuBarAsksAction = "Show waiting asks"
     func menuBarAnnouncement(_ name: String) -> String { "\(name) needs you" }
     // #269: every waiting ask in one queue.
     func queueTitle(_ n: Int) -> String { "\(n) waiting" }
