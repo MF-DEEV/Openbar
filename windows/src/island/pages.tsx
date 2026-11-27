@@ -201,6 +201,9 @@ function presentSessionEvent(event: SessionEvent) {
       void openPanelByItself(permissionQueue(presentedSnapshot(sessions).sessions).shows ? null : session.id);
     return;
   }
+  // The tray's panel open shows the sessions already, and the island opening
+  // on them would close it: the island stays as it is (#331).
+  if (panelVisible()) return;
   if (event.kind !== "finished" && !island.expanded && sessions.prefs.autoExpand) {
     island.open("sessions", { takeFocus: false, automatic: true });
     // More than one ask waiting opens on the queue, not on one of them (#269).
@@ -342,8 +345,10 @@ async function presentReminder(waits: ReminderWait[]) {
   // In the tray: the icon pulses, and the panel opens where it may (#331).
   if (usePlacement.getState().inTray) {
     pulseTray();
+    // The panel open shows them already.
+    if (panelVisible()) return;
     if (!shown("sessions")) {
-      if (!panelVisible()) void openPanelByItself(waits.length === 1 ? waits[0].session : null);
+      void openPanelByItself(waits.length === 1 ? waits[0].session : null);
       return;
     }
   }

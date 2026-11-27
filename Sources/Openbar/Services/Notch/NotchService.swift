@@ -4529,8 +4529,10 @@ final class NotchService: ObservableObject {
     func presentSessionReminder(_ waits: [NotchSessionReminders.Wait], sessions all: [ClaudeSession], now: Date) {
         let service = ClaudeSessionService.shared
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
-        // The list or the session's page already in view, or the away card.
+        // The list or the session's page already in view, in the island or the
+        // menu bar's panel (#331), or the away card.
         if MainActor.assumeIsolated({ NotchAwayCard.shared.isShown }) { return }
+        if SessionsMenuBar.shared.panelShown { return }
         if expanded, selected == .sessions,
            service.focusedID == nil || (waits.count == 1 && service.focusedID == waits[0].session) { return }
         // Another page open is the person at work: a notice, not a jump.
@@ -4585,6 +4587,9 @@ final class NotchService: ObservableObject {
         case .needsPermission(let session, _), .needsInput(let session), .finished(let session, _): id = session
         }
         guard let session = sessions.sessions.first(where: { $0.id == id }) else { return }
+        // The menu bar's panel open shows the sessions already, and the island
+        // opening on them would close it: the island stays as it is (#331).
+        if SessionsMenuBar.shared.panelShown { return }
         if NotchClaudeSessionsSupport.shouldAutoExpand(event, enabled: NotchClaudeSessionsSupport.autoExpands(),
                                                        expanded: expanded, suspended: suspended || hiddenInFullscreen) {
             open(.sessions, takeFocus: false, automatic: true)
