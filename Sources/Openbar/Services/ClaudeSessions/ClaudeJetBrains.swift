@@ -78,24 +78,49 @@ enum ClaudeJetBrains {
     }
 
     private static let cache = NSLock()
-    private static var known: [String: Bool] = [:]
+    private static var known: Set<String> = []
 
-    /// Whether an app identifier is a JetBrains IDE's, looked up once.
+    /// Whether an app identifier is a JetBrains IDE's. A running copy is
+    /// asked first, since a session runs in one, then LaunchServices. Only a
+    /// yes is kept: an IDE installed later is found then.
     static func isIDE(_ bundle: String?) -> Bool {
         guard let bundle, !bundle.isEmpty else { return false }
         if knownBundles.contains(bundle) { return true }
         guard bundle.hasPrefix("com.jetbrains.") || bundle.hasPrefix("com.google.android.studio") else { return false }
         cache.lock()
-        if let answer = known[bundle] {
+        if known.contains(bundle) {
             cache.unlock()
-            return answer
+            return true
         }
         cache.unlock()
-        let answer = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle).flatMap(ide(app:)) != nil
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).compactMap(\.bundleURL)
+            + [NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)].compactMap { $0 }
+        guard apps.contains(where: { ide(app: $0) != nil }) else { return false }
         cache.lock()
-        known[bundle] = answer
+        known.insert(bundle)
         cache.unlock()
-        return answer
+        return true
+    }
+
+    private static var names: [String: String] = [:]
+
+    /// The IDE's name as it calls itself ("PyCharm"), from the running app
+    /// or the one LaunchServices knows; the app's own name otherwise.
+    static func name(bundle: String, ide pid: Int32?) -> String {
+        cache.lock()
+        if let name = names[bundle] {
+            cache.unlock()
+            return name
+        }
+        cache.unlock()
+        let app = pid.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleURL }
+            ?? NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first?.bundleURL
+            ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)
+        guard let found = app.flatMap(ide(app:))?.name else { return ClaudeTerminalApps.name(of: bundle) }
+        cache.lock()
+        names[bundle] = found
+        cache.unlock()
+        return found
     }
 
     /// The IDE a running process belongs to: its app's bundle.
@@ -244,7 +269,9 @@ enum ClaudeJetBrains {
 
     /// The plugin is in the IDE's plugins folder, loaded or waiting for a restart.
     static func installed(bundle: String, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool {
-        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle), let ide = ide(app: app) else { return false }
+        let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first?.bundleURL
+            ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)
+        guard let ide = app.flatMap(ide(app:)) else { return false }
         return FileManager.default.fileExists(atPath: ide.plugins(home: home).appending(path: pluginFile).path)
     }
 

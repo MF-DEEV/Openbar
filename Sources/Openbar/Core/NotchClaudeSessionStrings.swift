@@ -447,8 +447,8 @@ struct NotchClaudeSessionStrings {
         if case .kitty = host { return replyKittyRemote }
         if case .remote = host { return RemoteHostStrings.replyNeedsTmux }
         // The bridge plugin is in the IDE but waits for it to restart (#329).
-        if case .jetbrains(let bundle, _) = host {
-            return ClaudeJetBrains.installed(bundle: bundle) ? replyJetBrainsRestart(ClaudeTerminalApps.name(of: bundle)) : replyJetBrainsBridge
+        if case .jetbrains(let bundle, let ide) = host {
+            return ClaudeJetBrains.installed(bundle: bundle) ? replyJetBrainsRestart(ClaudeJetBrains.name(bundle: bundle, ide: ide)) : replyJetBrainsBridge
         }
         guard let bundle = host.bundle else { return replyUnavailable }
         return String(format: replyUnavailableFormat, ClaudeTerminalApps.name(of: bundle))

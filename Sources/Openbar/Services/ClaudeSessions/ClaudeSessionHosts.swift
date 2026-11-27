@@ -61,10 +61,12 @@ enum ClaudeSessionHosts {
         // A JetBrains IDE's terminal (#329). Whatever is started from it
         // keeps the variable, so the app responsible for the process decides,
         // as for editors below, and a terminal naming itself comes first.
-        if environment["TERMINAL_EMULATOR"] == ClaudeJetBrains.terminalEmulator,
-           program == nil || (program != "vscode" && ClaudeTerminalApps.bundle(program: program) == nil),
-           let app = owner ?? bundle, ClaudeJetBrains.isIDE(app) {
-            return .jetbrains(bundle: app, ide: nil)
+        // An IDE started from VS Code's terminal hands its `TERM_PROGRAM=vscode`
+        // on to its own terminal's shells, so with the IDE responsible for the
+        // process only a terminal naming itself otherwise wins.
+        if environment["TERMINAL_EMULATOR"] == ClaudeJetBrains.terminalEmulator, ClaudeTerminalApps.bundle(program: program) == nil {
+            if let owner, ClaudeJetBrains.isIDE(owner) { return .jetbrains(bundle: owner, ide: nil) }
+            if owner == nil, program != "vscode", let bundle, ClaudeJetBrains.isIDE(bundle) { return .jetbrains(bundle: bundle, ide: nil) }
         }
         if program == "vscode" {
             // An editor started from a terminal, or from another editor's

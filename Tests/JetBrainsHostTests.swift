@@ -26,6 +26,11 @@ enum JetBrainsHostTests {
                                                  environment: jetbrains, owner: "com.jetbrains.WebStorm")
                      == .jetbrains(bundle: "com.jetbrains.WebStorm", ide: nil),
                      "the app responsible for the process wins over an identifier the IDE inherited")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.jetbrains.pycharm", tty: "/dev/ttys040", port: 59497,
+                                                 environment: jetbrains.merging(["TERM_PROGRAM": "vscode"]) { $1 },
+                                                 owner: "com.jetbrains.pycharm")
+                     == .jetbrains(bundle: "com.jetbrains.pycharm", ide: nil),
+                     "an IDE started from VS Code's terminal hands its TERM_PROGRAM on; the IDE responsible for the process wins")
         suite.expect(ClaudeSessionHosts.classify(bundle: "com.jetbrains.goland", tty: "/dev/ttys041", port: nil)
                      == .jetbrains(bundle: "com.jetbrains.goland", ide: nil),
                      "an IDE's identifier alone is enough")
