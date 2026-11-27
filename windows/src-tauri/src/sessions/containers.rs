@@ -72,7 +72,10 @@ impl Target {
 
     pub fn matches(&self, info: &Info) -> bool {
         match (&self.folder, &self.name) {
-            (Some(folder), _) => info.folder.as_deref().is_some_and(|f| same_folder(f, folder)),
+            (Some(folder), _) => info
+                .folder
+                .as_deref()
+                .is_some_and(|f| same_folder(f, folder)),
             (None, Some(name)) => &info.name == name,
             _ => false,
         }
@@ -82,7 +85,9 @@ impl Target {
 fn is_absolute(path: &str) -> bool {
     path.starts_with('/')
         || path.starts_with("\\\\")
-        || (path.len() > 2 && path.as_bytes()[1] == b':' && path.as_bytes()[0].is_ascii_alphabetic())
+        || (path.len() > 2
+            && path.as_bytes()[1] == b':'
+            && path.as_bytes()[0].is_ascii_alphabetic())
 }
 
 /// Windows folders compare without case or slash direction (Docker Desktop
@@ -110,7 +115,11 @@ pub fn title_of(alias: &str) -> String {
             .rsplit(['/', '\\'])
             .next()
             .unwrap_or("");
-        return if last.is_empty() { folder.to_string() } else { last.to_string() };
+        return if last.is_empty() {
+            folder.to_string()
+        } else {
+            last.to_string()
+        };
     }
     id.strip_prefix("name:").unwrap_or(id).to_string()
 }
@@ -183,7 +192,9 @@ pub fn parse(data: &[u8]) -> Vec<Info> {
     list.iter()
         .filter_map(|item| {
             let id = item.get("Id")?.as_str()?.to_string();
-            if id.is_empty() || item.pointer("/State/Running").and_then(Value::as_bool) == Some(false) {
+            if id.is_empty()
+                || item.pointer("/State/Running").and_then(Value::as_bool) == Some(false)
+            {
                 return None;
             }
             let label = |key: &str| {
@@ -199,7 +210,11 @@ pub fn parse(data: &[u8]) -> Vec<Info> {
                 .trim_start_matches('/')
                 .to_string();
             let mut info = Info {
-                name: if name.is_empty() { id.chars().take(12).collect() } else { name },
+                name: if name.is_empty() {
+                    id.chars().take(12).collect()
+                } else {
+                    name
+                },
                 id,
                 image: item
                     .pointer("/Config/Image")
@@ -347,7 +362,9 @@ impl Engine {
         let status = loop {
             match child.try_wait() {
                 Ok(Some(status)) => break status,
-                Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(30)),
+                Ok(None) if Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(30))
+                }
                 _ => {
                     let _ = child.kill();
                     let _ = child.wait();
@@ -376,10 +393,14 @@ fn candidates() -> Vec<PathBuf> {
     let mut list: Vec<PathBuf> = Vec::new();
     #[cfg(windows)]
     {
-        let program_files = std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
+        let program_files =
+            std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
         list.push(Path::new(&program_files).join(r"Docker\Docker\resources\bin\docker.exe"));
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            list.push(Path::new(&local).join(r"Programs\Rancher Desktop\resources\resources\win32\bin\docker.exe"));
+            list.push(
+                Path::new(&local)
+                    .join(r"Programs\Rancher Desktop\resources\resources\win32\bin\docker.exe"),
+            );
         }
         list.push(Path::new(&program_files).join(r"RedHat\Podman\podman.exe"));
         for dir in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
@@ -391,7 +412,9 @@ fn candidates() -> Vec<PathBuf> {
     }
     #[cfg(not(windows))]
     {
-        let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_default();
         for dir in ["/usr/bin", "/usr/local/bin", "/opt/homebrew/bin"] {
             list.push(Path::new(dir).join("docker"));
         }
@@ -439,8 +462,17 @@ pub fn hook_command(home: &str, app: &str) -> String {
 /// Dev Containers authority, which brings an open window forward.
 pub fn editor_url(folder: &str, workspace: Option<&str>) -> String {
     let hex: String = folder.bytes().map(|b| format!("{b:02x}")).collect();
-    let inside = workspace.map(str::to_string).unwrap_or_else(|| format!("/workspaces/{}", title_of(&format!("{PREFIX}folder:{folder}"))));
-    let inside = if inside.starts_with('/') { inside } else { format!("/{inside}") };
+    let inside = workspace.map(str::to_string).unwrap_or_else(|| {
+        format!(
+            "/workspaces/{}",
+            title_of(&format!("{PREFIX}folder:{folder}"))
+        )
+    });
+    let inside = if inside.starts_with('/') {
+        inside
+    } else {
+        format!("/{inside}")
+    };
     let encoded: String = inside
         .bytes()
         .map(|b| {
@@ -463,7 +495,17 @@ pub fn attach_args(container: &Info, socket: &str, pane: &str) -> Vec<String> {
         args.push(user.clone());
     }
     args.extend(
-        [container.id.as_str(), "tmux", "-u", "-S", socket, "attach-session", "-t", pane].map(String::from),
+        [
+            container.id.as_str(),
+            "tmux",
+            "-u",
+            "-S",
+            socket,
+            "attach-session",
+            "-t",
+            pane,
+        ]
+        .map(String::from),
     );
     args
 }
@@ -473,10 +515,21 @@ pub fn attach_args(container: &Info, socket: &str, pane: &str) -> Vec<String> {
 pub fn has_editor() -> bool {
     #[cfg(windows)]
     {
-        use windows::Win32::System::Registry::{HKEY_CLASSES_ROOT, RegOpenKeyExW, RegCloseKey, KEY_READ, HKEY};
+        use windows::Win32::System::Registry::{
+            HKEY, HKEY_CLASSES_ROOT, KEY_READ, RegCloseKey, RegOpenKeyExW,
+        };
         use windows::core::w;
         let mut key = HKEY::default();
-        let ok = unsafe { RegOpenKeyExW(HKEY_CLASSES_ROOT, w!("vscode\\shell\\open\\command"), Some(0), KEY_READ, &mut key) }.is_ok();
+        let ok = unsafe {
+            RegOpenKeyExW(
+                HKEY_CLASSES_ROOT,
+                w!("vscode\\shell\\open\\command"),
+                None,
+                KEY_READ,
+                &mut key,
+            )
+        }
+        .is_ok();
         if ok {
             let _ = unsafe { RegCloseKey(key) };
         }
@@ -489,7 +542,9 @@ pub fn has_editor() -> bool {
             .stderr(Stdio::null())
             .output()
             .ok()
-            .is_some_and(|o| o.status.success() && !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+            .is_some_and(|o| {
+                o.status.success() && !String::from_utf8_lossy(&o.stdout).trim().is_empty()
+            })
     }
 }
 
@@ -513,10 +568,34 @@ mod tests {
         assert_eq!(plain.title(), "agent-box");
         assert_eq!(title_of(r"container:folder:C:\Users\me\shop"), "shop");
         assert!(is_container(&dev.alias()) && !is_container("openbar-linux"));
-        assert!(!Target { name: Some("-it".into()), ..Default::default() }.is_valid());
-        assert!(!Target { name: Some("a b".into()), ..Default::default() }.is_valid());
-        assert!(!Target { folder: Some("rel/x".into()), ..Default::default() }.is_valid());
-        assert!(Target { folder: Some(r"C:\Users\me\x".into()), ..Default::default() }.is_valid());
+        assert!(
+            !Target {
+                name: Some("-it".into()),
+                ..Default::default()
+            }
+            .is_valid()
+        );
+        assert!(
+            !Target {
+                name: Some("a b".into()),
+                ..Default::default()
+            }
+            .is_valid()
+        );
+        assert!(
+            !Target {
+                folder: Some("rel/x".into()),
+                ..Default::default()
+            }
+            .is_valid()
+        );
+        assert!(
+            Target {
+                folder: Some(r"C:\Users\me\x".into()),
+                ..Default::default()
+            }
+            .is_valid()
+        );
         assert!(!Target::default().is_valid());
         let rebuilt = Info {
             id: "new".into(),
@@ -527,19 +606,28 @@ mod tests {
             workspace: None,
         };
         assert!(dev.matches(&rebuilt) && !plain.matches(&rebuilt));
-        let with_mark = Target { set_up: Some("1".into()), ..dev.clone() };
+        let with_mark = Target {
+            set_up: Some("1".into()),
+            ..dev.clone()
+        };
         assert_eq!(with_mark, dev);
     }
 
     #[test]
     fn prefs_list_containers_only_with_the_switch_on() {
-        let list = json!([{"name": "box"}, {"folder": "/p"}, {"name": "box"}, {"name": "-x"}, "junk"]);
+        let list =
+            json!([{"name": "box"}, {"folder": "/p"}, {"name": "box"}, {"name": "-x"}, "junk"]);
         let off = json!({"sessions": {"containers": list}});
         assert!(targets_from_prefs(&off).is_empty());
         let on = json!({"sessions": {"containersEnabled": true, "containers": list}});
         let ids: Vec<String> = targets_from_prefs(&on).iter().map(Target::id).collect();
         assert_eq!(ids, vec!["name:box", "folder:/p"]);
-        let stored = serde_json::to_value(Target { folder: Some("/p".into()), set_up: Some("abc".into()), ..Default::default() }).unwrap();
+        let stored = serde_json::to_value(Target {
+            folder: Some("/p".into()),
+            set_up: Some("abc".into()),
+            ..Default::default()
+        })
+        .unwrap();
         assert_eq!(stored, json!({"folder": "/p", "setUp": "abc"}));
     }
 
@@ -570,7 +658,10 @@ mod tests {
             Engine::exec_args("e9f2", Some("node")),
             ["exec", "-i", "-u", "node", "--", "e9f2", "sh", "-c", LOADER]
         );
-        assert_eq!(Engine::exec_args("x", None), ["exec", "-i", "--", "x", "sh", "-c", LOADER]);
+        assert_eq!(
+            Engine::exec_args("x", None),
+            ["exec", "-i", "--", "x", "sh", "-c", LOADER]
+        );
         assert_eq!(
             hook_command("/home/node", "com.openbar.island"),
             "sh '/home/node/.openbar/com.openbar.island.hook' 2>/dev/null; exit 0 # openbar-container-hook com.openbar.island"
@@ -590,8 +681,24 @@ mod tests {
         };
         assert_eq!(
             attach_args(&info, "/tmp/tmux-1000/default", "%0"),
-            ["exec", "-it", "-u", "node", "1077", "tmux", "-u", "-S", "/tmp/tmux-1000/default", "attach-session", "-t", "%0"]
+            [
+                "exec",
+                "-it",
+                "-u",
+                "node",
+                "1077",
+                "tmux",
+                "-u",
+                "-S",
+                "/tmp/tmux-1000/default",
+                "attach-session",
+                "-t",
+                "%0"
+            ]
         );
-        assert_eq!(reason(b"\nCannot connect to the Docker daemon\n"), "Cannot connect to the Docker daemon");
+        assert_eq!(
+            reason(b"\nCannot connect to the Docker daemon\n"),
+            "Cannot connect to the Docker daemon"
+        );
     }
 }

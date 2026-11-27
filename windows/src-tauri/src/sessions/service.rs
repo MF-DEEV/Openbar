@@ -23,6 +23,7 @@ use super::agent_colors::AgentColors;
 use super::background;
 use super::codex::client::CodexClient;
 use super::codex::state::Answer as CodexAnswer;
+use super::containers;
 use super::engine::Engine;
 use super::hook_agents::{self, Tracker as HookAgents};
 use super::hook_message::{self, Decision, HookMessage};
@@ -32,7 +33,6 @@ use super::models::{
 };
 use super::plan_modes::PlanMode;
 use super::registry::{self, RegistryFile};
-use super::containers;
 use super::remote;
 use super::sample;
 use super::transcript::{self, NoPricing, TranscriptReader};
@@ -2884,11 +2884,20 @@ impl Service {
                         .get(&link.alias)
                         .and_then(|s| remote::Link::pane_of(s, session))
                 };
-                ok = if let Some(folder) = found.folder.as_deref().filter(|_| containers::has_editor()) {
-                    tauri_plugin_opener::open_url(containers::editor_url(folder, found.workspace.as_deref()), None::<&str>)
-                        .is_ok()
+                ok = if let Some(folder) =
+                    found.folder.as_deref().filter(|_| containers::has_editor())
+                {
+                    tauri_plugin_opener::open_url(
+                        containers::editor_url(folder, found.workspace.as_deref()),
+                        None::<&str>,
+                    )
+                    .is_ok()
                 } else if let Some((socket, pane)) = pane.filter(|_| ok) {
-                    background::agent_in_terminal(&engine.binary, &containers::attach_args(&found, &socket, &pane), None)
+                    background::agent_in_terminal(
+                        &engine.binary,
+                        &containers::attach_args(&found, &socket, &pane),
+                        None,
+                    )
                 } else {
                     ok
                 };
@@ -3261,7 +3270,10 @@ impl Service {
                     let _ = wake.send(());
                 }
             });
-            self.remote_codex.lock().unwrap().insert(alias.clone(), codex);
+            self.remote_codex
+                .lock()
+                .unwrap()
+                .insert(alias.clone(), codex);
             inner.remote.links.insert(alias, link);
         }
     }
@@ -3446,7 +3458,11 @@ impl Service {
                             "probe {} {}{}",
                             remote::socket_name(hooks::APP_ID),
                             hooks::APP_ID,
-                            if link.is_container() { " container" } else { "" }
+                            if link.is_container() {
+                                " container"
+                            } else {
+                                ""
+                            }
                         ),
                         &[],
                     )

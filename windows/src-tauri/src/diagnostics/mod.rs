@@ -648,7 +648,10 @@ fn hosts(
     .map(|(label, state)| report::Remote {
         // A container shows by its project or name, as on its badge.
         label: if crate::sessions::containers::is_container(&label) {
-            format!("container {}", crate::sessions::containers::title_of(&label))
+            format!(
+                "container {}",
+                crate::sessions::containers::title_of(&label)
+            )
         } else {
             label
         },

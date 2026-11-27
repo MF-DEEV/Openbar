@@ -17,6 +17,7 @@ import {
   type QuickButton,
 } from "../island/settings";
 import { inTauri } from "./bridge";
+import type { ContainerTarget } from "../sessions/containers";
 import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
 import { CONTROL_ITEMS, type ControlItem } from "../controls/types";
 import { LANGUAGES } from "../i18n/languages";
@@ -87,6 +88,10 @@ export interface SessionPrefs extends SessionSoundPrefs {
   remoteHostsEnabled: boolean;
   /** The hosts, by their alias in ~/.ssh/config. */
   remoteHosts: string[];
+  /** Sessions in Docker containers and devcontainers (#330); off until turned on. */
+  containersEnabled: boolean;
+  /** The containers picked: a devcontainer by its folder, any other by its name. */
+  containers: ContainerTarget[];
   /** Claude Code accounts (config folders) the person named, hid or added by
    * hand (#216; sessions/accounts.rs). */
   claudeAccounts: ClaudeAccountSetting[];
@@ -177,6 +182,8 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   voiceShortcut: "Ctrl+Alt+V",
   remoteHostsEnabled: false,
   remoteHosts: [],
+  containersEnabled: false,
+  containers: [],
   claudeAccounts: [],
   progressStyle: "ring",
   awayCard: true,

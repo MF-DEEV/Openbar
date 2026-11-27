@@ -75,6 +75,7 @@ import {
   type Session,
 } from "./types";
 import { VoiceButton, VoiceProblem } from "./VoiceReply";
+import { isContainer } from "./containers";
 import { isActive as voiceActive, showsMicrophone, useVoice, voiceWanted } from "./voice";
 
 function storedNumber(key: string, fallback: number) {
@@ -677,7 +678,7 @@ function unavailable(session: Session): string | null {
     if (session.editor) return S.replyIn(session.provider);
     // The Claude app has no terminal to type into (#246).
     if (session.origin) return tf("windows.sessions.replyInAgent", CLAUDE_DESKTOP);
-    if (session.remote) return S.replyNeedsTmux;
+    if (session.remote) return isContainer(session.remote) ? S.containerReplyNeedsTmux : S.replyNeedsTmux;
     return session.hostName ? S.replyUnavailableIn(session.hostName) : S.replyUnavailable;
   }
   return null;

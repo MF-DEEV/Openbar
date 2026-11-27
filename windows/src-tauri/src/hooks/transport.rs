@@ -114,7 +114,11 @@ impl Write for HookStream {
 impl HookConnection {
     /// A hook from inside a container, handed on by its relay; `send` takes
     /// the answer back, empty when there is none.
-    pub fn relayed(payload: Vec<u8>, peer_pid: Option<u32>, send: Box<dyn FnOnce(Vec<u8>) + Send>) -> HookConnection {
+    pub fn relayed(
+        payload: Vec<u8>,
+        peer_pid: Option<u32>,
+        send: Box<dyn FnOnce(Vec<u8>) + Send>,
+    ) -> HookConnection {
         HookConnection {
             payload,
             peer_pid,

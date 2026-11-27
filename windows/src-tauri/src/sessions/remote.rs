@@ -263,7 +263,11 @@ pub fn record(data: &[u8], alias: &str, tmux: bool) -> Option<SessionRecord> {
     record.accepts_replies = tmux;
     record.host_name = Some(if containers::is_container(alias) {
         let title = containers::title_of(alias);
-        if tmux { format!("tmux in {title}") } else { title }
+        if tmux {
+            format!("tmux in {title}")
+        } else {
+            title
+        }
     } else if tmux {
         format!("tmux on {alias}")
     } else {
@@ -289,7 +293,8 @@ pub fn snapshot(lines: &[String], alias: &str) -> Snapshot {
                     decode(socket).is_some() && decode(tty).is_some() && pane.starts_with('%');
                 if let Some(record) = record(&data, alias, tmux).filter(|r| r.pid == pid) {
                     if tmux && let Some(socket) = decode(socket) {
-                        out.panes.insert(record.session_id.clone(), (socket, pane.to_string()));
+                        out.panes
+                            .insert(record.session_id.clone(), (socket, pane.to_string()));
                     }
                     out.records.push(record);
                 }
@@ -725,15 +730,23 @@ pub fn one_shot_container(
     input: &[String],
 ) -> Result<Vec<String>, String> {
     let mut command = engine.command();
-    command.args(containers::Engine::exec_args(&container.id, container.user.as_deref()));
-    let ssh = Ssh::spawn_command(command).ok_or_else(|| format!("{} could not start", engine.name()))?;
+    command.args(containers::Engine::exec_args(
+        &container.id,
+        container.user.as_deref(),
+    ));
+    let ssh =
+        Ssh::spawn_command(command).ok_or_else(|| format!("{} could not start", engine.name()))?;
     one_shot_on(ssh, mode, input).map_err(container_reason)
 }
 
 /// What a container's `docker exec` said when it ended; ssh's words when
 /// it said nothing don't fit.
 fn container_reason(reason: String) -> String {
-    if reason.starts_with("The host can") { RELAY_ENDED.into() } else { reason }
+    if reason.starts_with("The host can") {
+        RELAY_ENDED.into()
+    } else {
+        reason
+    }
 }
 
 pub const RELAY_ENDED: &str = "The connection into the container ended";
@@ -777,9 +790,15 @@ impl CodexPipe {
     }
 
     /// The same through `docker exec` into a container (issue #330).
-    pub fn open_container(engine: &containers::Engine, container: &containers::Info) -> Result<CodexPipe, String> {
+    pub fn open_container(
+        engine: &containers::Engine,
+        container: &containers::Info,
+    ) -> Result<CodexPipe, String> {
         let mut command = engine.command();
-        command.args(containers::Engine::exec_args(&container.id, container.user.as_deref()));
+        command.args(containers::Engine::exec_args(
+            &container.id,
+            container.user.as_deref(),
+        ));
         CodexPipe::open_command(command)
     }
 
@@ -936,7 +955,15 @@ impl Link {
         on_state: impl Fn(&str, &State) + Send + 'static,
     ) -> Arc<Link> {
         let alias = target.alias();
-        Link::launch(&alias, app, String::new(), Some(target), Some(on_hook), on_snapshot, on_state)
+        Link::launch(
+            &alias,
+            app,
+            String::new(),
+            Some(target),
+            Some(on_hook),
+            on_snapshot,
+            on_state,
+        )
     }
 
     fn launch(
@@ -1134,11 +1161,20 @@ impl Link {
         *self.engine.lock().unwrap() = Some(engine.clone());
         *self.found.lock().unwrap() = Some(found.clone());
         let name = socket_name(&self.app);
-        let lines = one_shot_container(&engine, &found, &format!("probe {name} {} container", self.app), &[])?;
-        let mut info = probe(&lines).ok_or("The container answered in a way Openbar didn’t expect")?;
+        let lines = one_shot_container(
+            &engine,
+            &found,
+            &format!("probe {name} {} container", self.app),
+            &[],
+        )?;
+        let mut info =
+            probe(&lines).ok_or("The container answered in a way Openbar didn’t expect")?;
         let spawn = || {
             let mut command = engine.command();
-            command.args(containers::Engine::exec_args(&found.id, found.user.as_deref()));
+            command.args(containers::Engine::exec_args(
+                &found.id,
+                found.user.as_deref(),
+            ));
             Ssh::spawn_command(command).map(Arc::new)
         };
         let agent = spawn().ok_or_else(|| format!("{} could not start", engine.name()))?;
@@ -1148,7 +1184,10 @@ impl Link {
             _ => return Err(container_reason(agent.reason())),
         }
         let relay = spawn().ok_or_else(|| format!("{} could not start", engine.name()))?;
-        relay.write(&preamble(&format!("relay {}", socket_name(&self.app).trim_end_matches(".sock"))));
+        relay.write(&preamble(&format!(
+            "relay {}",
+            socket_name(&self.app).trim_end_matches(".sock")
+        )));
         match relay.answer(Duration::from_secs(20)) {
             Some(hello) if hello.first().map(String::as_str) == Some("HELLO 1") => {}
             _ => {
@@ -1177,7 +1216,14 @@ impl Link {
     fn poll(&self, on_snapshot: &impl Fn(&str, Snapshot)) -> String {
         while !self.stopped() {
             // A container's hooks come only while its relay runs.
-            if self.is_container() && !self.relay.lock().unwrap().as_ref().is_some_and(|r| r.running()) {
+            if self.is_container()
+                && !self
+                    .relay
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .is_some_and(|r| r.running())
+            {
                 return RELAY_ENDED.into();
             }
             let mut request = vec!["snap".to_string()];
@@ -1194,7 +1240,11 @@ impl Link {
                     .as_ref()
                     .map(|s| s.reason())
                     .unwrap_or_else(|| "The connection ended".into());
-                return if self.is_container() { container_reason(reason) } else { reason };
+                return if self.is_container() {
+                    container_reason(reason)
+                } else {
+                    reason
+                };
             };
             let read = snapshot(&lines, &self.alias);
             let offset = clock_offset(sent, epoch(), read.host_time);
@@ -1293,19 +1343,30 @@ fn relay_hooks(relay: Arc<Ssh>, sink: HookSink) {
                     let relay = relay.clone();
                     let id = id.clone();
                     move |reply: Vec<u8>| {
-                        let field = if reply.is_empty() { "-".to_string() } else { STANDARD.encode(reply) };
+                        let field = if reply.is_empty() {
+                            "-".to_string()
+                        } else {
+                            STANDARD.encode(reply)
+                        };
                         relay.write(&format!("A {id} {field}\n"));
                     }
                 };
                 let event = words
                     .next()
                     .and_then(|b| STANDARD.decode(b).ok())
-                    .filter(|e| e.len() <= crate::hooks::transport::MAX_MESSAGE && crate::hooks::transport::is_complete(e));
+                    .filter(|e| {
+                        e.len() <= crate::hooks::transport::MAX_MESSAGE
+                            && crate::hooks::transport::is_complete(e)
+                    });
                 let Some(event) = event else {
                     answer(Vec::new());
                     continue;
                 };
-                let connection = crate::hooks::transport::HookConnection::relayed(event, Some(relay.pid), Box::new(answer));
+                let connection = crate::hooks::transport::HookConnection::relayed(
+                    event,
+                    Some(relay.pid),
+                    Box::new(answer),
+                );
                 let sink = sink.clone();
                 // A permission holds its hook while the island asks; others go on.
                 let _ = thread::Builder::new()
@@ -1354,7 +1415,11 @@ const UNREADABLE: &str = "The host’s ~/.claude/settings.json isn’t JSON, so 
 const BUSY: &str = "Claude Code kept changing its settings; try again";
 
 pub fn install(alias: &str, info: &HostInfo, app: &str) -> Result<(), String> {
-    install_with(&|mode: &str, input: &[String]| one_shot(alias, mode, input), info, app)
+    install_with(
+        &|mode: &str, input: &[String]| one_shot(alias, mode, input),
+        info,
+        app,
+    )
 }
 
 pub fn install_with(run: Runner, info: &HostInfo, app: &str) -> Result<(), String> {
@@ -1363,7 +1428,10 @@ pub fn install_with(run: Runner, info: &HostInfo, app: &str) -> Result<(), Strin
         .as_ref()
         .ok_or("The host has none of nc, socat or python3 for the hooks to write with")?;
     let (command, marker) = if *client == Client::Relay {
-        (containers::hook_command(&info.home, app), containers::marker(app))
+        (
+            containers::hook_command(&info.home, app),
+            containers::marker(app),
+        )
     } else {
         let socket = format!("{}/.openbar/{}", info.home, socket_name(app));
         (hook_command(client, &socket, app), marker(app))
@@ -1384,15 +1452,23 @@ pub fn install_with(run: Runner, info: &HostInfo, app: &str) -> Result<(), Strin
 }
 
 pub fn remove(alias: &str, app: &str) -> Result<(), String> {
-    remove_with(&|mode: &str, input: &[String]| one_shot(alias, mode, input), &marker(app), app)
+    remove_with(
+        &|mode: &str, input: &[String]| one_shot(alias, mode, input),
+        &marker(app),
+        app,
+    )
 }
 
 /// Takes the hooks carrying `marker` out; `app` names what `~/.openbar` held.
 pub fn remove_with(run: Runner, marker: &str, app: &str) -> Result<(), String> {
     for _ in 0..3 {
         let settings = read_settings(run)?;
-        let plan = removal_marked(settings.current.as_deref(), settings.backup.as_ref(), marker)
-            .map_err(|_| UNREADABLE)?;
+        let plan = removal_marked(
+            settings.current.as_deref(),
+            settings.backup.as_ref(),
+            marker,
+        )
+        .map_err(|_| UNREADABLE)?;
         let mut input = vec![socket_name(app), settings.sum];
         match plan {
             Removal::Restore => input.push("restore".into()),
@@ -1959,7 +2035,10 @@ mod tests {
             .env("PATH", "/usr/bin:/bin");
         let relay = Arc::new(Ssh::spawn_command(command).unwrap());
         relay.write(&preamble("relay com.openbar.test"));
-        assert_eq!(relay.answer(Duration::from_secs(5)).unwrap(), vec!["HELLO 1"]);
+        assert_eq!(
+            relay.answer(Duration::from_secs(5)).unwrap(),
+            vec!["HELLO 1"]
+        );
         let (tx, rx) = std::sync::mpsc::channel();
         relay_hooks(
             relay.clone(),
@@ -1969,7 +2048,10 @@ mod tests {
             }),
         );
         let hook = containers::hook_path(home.to_str().unwrap(), "com.openbar.test");
-        let event = format!("{{\"hook_event_name\":\"PermissionRequest\",\"pad\":\"{}\"}}", "x".repeat(70_000));
+        let event = format!(
+            "{{\"hook_event_name\":\"PermissionRequest\",\"pad\":\"{}\"}}",
+            "x".repeat(70_000)
+        );
         let mut child = Command::new("/bin/sh")
             .arg(&hook)
             .env("HOME", &home)
@@ -1977,9 +2059,17 @@ mod tests {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
-        child.stdin.take().unwrap().write_all(event.as_bytes()).unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(event.as_bytes())
+            .unwrap();
         let printed = child.wait_with_output().unwrap();
-        assert_eq!(rx.recv_timeout(Duration::from_secs(5)).unwrap(), event.as_bytes());
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            event.as_bytes()
+        );
         assert_eq!(printed.stdout, b"{\"decision\":\"allow\"}");
         // The island goes: the relay ends and a hook doesn't wait on it.
         relay.close_input();
@@ -1988,27 +2078,58 @@ mod tests {
             thread::sleep(Duration::from_millis(50));
         }
         let started = Instant::now();
-        let late = Command::new("/bin/sh").arg(&hook).env("HOME", &home).stdin(Stdio::null()).output().unwrap();
-        assert!(!relay.running() && late.status.success() && started.elapsed() < Duration::from_secs(2));
+        let late = Command::new("/bin/sh")
+            .arg(&hook)
+            .env("HOME", &home)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(
+            !relay.running() && late.status.success() && started.elapsed() < Duration::from_secs(2)
+        );
         let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]
     fn both_kinds_of_hooks_keep_the_copy_for_each_other() {
         let original = b"{\"theme\": \"dark\"}\n".to_vec();
-        let ssh = hook_command(&Client::Nc("/usr/bin/nc".into()), "/home/n/.openbar/a.sock", "app");
+        let ssh = hook_command(
+            &Client::Nc("/usr/bin/nc".into()),
+            "/home/n/.openbar/a.sock",
+            "app",
+        );
         let inside = containers::hook_command("/home/n", "app");
         let both = installer::installing_marked(
-            &installer::installing_marked(&parse_settings(Some(&original)).unwrap(), &ssh, &marker("app")),
+            &installer::installing_marked(
+                &parse_settings(Some(&original)).unwrap(),
+                &ssh,
+                &marker("app"),
+            ),
             &inside,
             &containers::marker("app"),
         );
         let data = serialize(&both);
         let backup = Backup::File(original.clone());
-        assert!(matches!(removal_marked(Some(&data), Some(&backup), &containers::marker("app")), Ok(Removal::Write(_, true))));
-        assert!(matches!(removal(Some(&data), Some(&backup), "app"), Ok(Removal::Write(_, true))));
-        let only = serialize(&installer::installing_marked(&parse_settings(Some(&original)).unwrap(), &inside, &containers::marker("app")));
-        assert_eq!(removal_marked(Some(&only), Some(&backup), &containers::marker("app")), Ok(Removal::Restore));
-        assert_eq!(hook_command(&Client::Relay, "/home/n/.openbar/app.sock", "app"), inside);
+        assert!(matches!(
+            removal_marked(Some(&data), Some(&backup), &containers::marker("app")),
+            Ok(Removal::Write(_, true))
+        ));
+        assert!(matches!(
+            removal(Some(&data), Some(&backup), "app"),
+            Ok(Removal::Write(_, true))
+        ));
+        let only = serialize(&installer::installing_marked(
+            &parse_settings(Some(&original)).unwrap(),
+            &inside,
+            &containers::marker("app"),
+        ));
+        assert_eq!(
+            removal_marked(Some(&only), Some(&backup), &containers::marker("app")),
+            Ok(Removal::Restore)
+        );
+        assert_eq!(
+            hook_command(&Client::Relay, "/home/n/.openbar/app.sock", "app"),
+            inside
+        );
     }
 }
