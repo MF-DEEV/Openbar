@@ -27,6 +27,14 @@ public final class BridgeTests {
     private static final List<String> failed = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 2 && args[0].equals("--built-from")) {
+            // The hash build.sh wrote into a jar, read with the JDK alone.
+            try (java.util.zip.ZipFile jar = new java.util.zip.ZipFile(args[1])) {
+                java.util.zip.ZipEntry entry = jar.getEntry("META-INF/openbar-source.sha256");
+                System.out.println(entry == null ? "" : new String(jar.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8).trim());
+            }
+            return;
+        }
         json();
         protocol();
         places();

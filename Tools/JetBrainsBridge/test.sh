@@ -25,10 +25,9 @@ mkdir -p "$OUT"
     src/main/java/com/openbar/bridge/BridgeServer.java \
     src/test/java/com/openbar/bridge/BridgeTests.java
 "$JAVA" -cp "$OUT" com.openbar.bridge.BridgeTests
-rm -rf build
 
 if [ "${1:-}" = "--check-dist" ]; then
-    built=$(unzip -p dist/openbar-terminal-bridge.jar META-INF/openbar-source.sha256 | tr -d '\r\n')
+    built=$("$JAVA" -cp "$OUT" com.openbar.bridge.BridgeTests --built-from dist/openbar-terminal-bridge.jar)
     now=$(./source-hash.sh)
     if [ "$built" != "$now" ]; then
         echo "dist/openbar-terminal-bridge.jar was built from other sources ($built, now $now): run build.sh" >&2
@@ -36,3 +35,4 @@ if [ "${1:-}" = "--check-dist" ]; then
     fi
     echo "dist/openbar-terminal-bridge.jar matches the sources"
 fi
+rm -rf build
