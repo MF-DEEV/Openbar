@@ -172,6 +172,29 @@ bundle ID:
   rebuilt and lost the hooks, and Set up again put them back.
 - Open attached a Terminal window to the session's tmux in the container.
 
+On Linux (Ubuntu 24.04 arm64 in a VM, X11), with rootless Podman 4.9 and a
+debug build of the app:
+
+- A plain container and a devcontainer made by the devcontainers CLI with
+  `--docker-path podman` showed up, grouped under their projects.
+- Set up, Allow, Deny, a reply into tmux, Codex's approval, and Remove (same
+  SHA-256, mode kept) worked as on the Mac.
+- Removing the container and starting a new one with the same name: Settings
+  said it was rebuilt and offered Set up again.
+
+On Windows 11 ARM64 (in a VM), the Docker CLI for Windows was pointed at the
+Mac's Colima over a loopback port, as a stand-in for Docker Desktop, which
+can't run nested in that VM:
+
+- Both containers showed up, the devcontainer under its project.
+- Set up, Allow, Deny, a reply into tmux, Codex's approval, and Remove (same
+  SHA-256, mode kept) worked.
+
+The Mac, Rust and TypeScript unit tests cover the target names, the
+`docker inspect` shapes of Docker, the devcontainers CLI and Podman, the
+commands, both markers in one file, and the relay script itself under `sh`
+with a hook going through it.
+
 ## Not done (follow-ups)
 
 - Replies into VS Code's integrated terminal in a devcontainer (above).
