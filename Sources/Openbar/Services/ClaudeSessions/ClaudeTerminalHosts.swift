@@ -62,7 +62,11 @@ extension ClaudeSessionHost {
         if case .zellij(let target) = self {
             return target.outer.map { "zellij in " + ClaudeTerminalApps.name(of: $0) } ?? "zellij"
         }
-        if case .remote(let alias, let tmux) = self { return tmux ? "tmux on " + alias : alias }
+        if case .remote(let alias, let tmux) = self {
+            let title = RemoteHostName.title(alias)
+            if RemoteHostName.isContainer(alias) { return tmux ? "tmux in " + title : title }
+            return tmux ? "tmux on " + alias : alias
+        }
         return bundle.map(ClaudeTerminalApps.name(of:))
     }
 }

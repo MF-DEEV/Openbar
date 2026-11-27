@@ -4,14 +4,29 @@
 import Darwin
 import Foundation
 
-/// A running `ssh`, fed lines on standard input and read line by line on
-/// standard output. Its own lock guards everything, so any queue may ask.
+/// A program that runs the agent script's loader: `ssh` to a host, or
+/// `docker exec` into a container (issue #330).
+struct RemoteCommand: Equatable {
+    let executable: String
+    let arguments: [String]
+    var environment: [String: String]? = nil
+
+    static func ssh(_ arguments: [String]) -> RemoteCommand {
+        RemoteCommand(executable: RemoteSSH.binary, arguments: arguments)
+    }
+}
+
+/// A running `ssh` (or `docker exec`), fed lines on standard input and read
+/// line by line on standard output. Its own lock guards everything, so any
+/// queue may ask.
 final class RemoteSSHProcess {
     private let process = Process()
     private let input = Pipe()
     private let output = Pipe()
     private let errors = Pipe()
     private let lock = NSCondition()
+    /// Writes from several queues go out one whole line after another.
+    private let writing = NSLock()
     private var lines: [String] = []
     private var partial = Data()
     private var errorText = Data()
@@ -19,14 +34,18 @@ final class RemoteSSHProcess {
     private var ended = false
     private var exited = false
 
-    init(arguments: [String]) {
-        process.executableURL = URL(fileURLWithPath: RemoteSSH.binary)
-        process.arguments = arguments
+    convenience init(arguments: [String]) {
+        self.init(.ssh(arguments))
+    }
+
+    init(_ command: RemoteCommand) {
+        process.executableURL = URL(fileURLWithPath: command.executable)
+        process.arguments = command.arguments
         process.standardInput = input
         process.standardOutput = output
         process.standardError = errors
         // Never a dialog: a host asking for a password fails at once.
-        var environment = ProcessInfo.processInfo.environment
+        var environment = command.environment ?? ProcessInfo.processInfo.environment
         environment["SSH_ASKPASS_REQUIRE"] = "never"
         environment.removeValue(forKey: "DISPLAY")
         process.environment = environment
@@ -82,11 +101,25 @@ final class RemoteSSHProcess {
 
     func write(_ text: String) -> Bool {
         guard isRunning else { return false }
-        do {
-            try input.fileHandleForWriting.write(contentsOf: Data(text.utf8))
-            return true
-        } catch {
-            return false
+        return writing.withLock {
+            do {
+                try input.fileHandleForWriting.write(contentsOf: Data(text.utf8))
+                return true
+            } catch {
+                return false
+            }
+        }
+    }
+
+    /// The next line as it comes, for a stream with no closing "." (the
+    /// relay's); nil once standard output ends.
+    func nextLine() -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        while true {
+            if !lines.isEmpty { return lines.removeFirst() }
+            if ended { return nil }
+            lock.wait()
         }
     }
 
@@ -146,9 +179,13 @@ enum RemoteOneShot {
     }
 
     static func run(_ alias: String, mode: String, input: [String] = [], timeout: TimeInterval = 25) -> Result {
+        run(.ssh(RemoteSSH.oneShot(alias)), mode: mode, input: input, timeout: timeout)
+    }
+
+    static func run(_ command: RemoteCommand, mode: String, input: [String] = [], timeout: TimeInterval = 25) -> Result {
         guard let preamble = RemoteSSH.preamble(mode) else { return Result(lines: nil, reason: "The host script is missing") }
-        let ssh = RemoteSSHProcess(arguments: RemoteSSH.oneShot(alias))
-        guard ssh.start() else { return Result(lines: nil, reason: "ssh could not start") }
+        let ssh = RemoteSSHProcess(command)
+        guard ssh.start() else { return Result(lines: nil, reason: "\(URL(fileURLWithPath: command.executable).lastPathComponent) could not start") }
         _ = ssh.write(preamble + input.map { $0 + "\n" }.joined())
         ssh.closeInput()
         let lines = ssh.answer(timeout: timeout)
@@ -159,12 +196,24 @@ enum RemoteOneShot {
     }
 }
 
+/// How the island reaches a host: `ssh` by its alias, or `docker exec` into
+/// a container the person picked (issue #330, docs/containers.md).
+enum RemoteTransport: Equatable {
+    case ssh(String)
+    case container(ContainerTarget)
+}
+
 /// The connection to one host: the probe, then the `ssh` that forwards the
 /// host's hook socket to the island and answers the island's questions,
 /// started again with growing pauses whenever it ends. Everything it does
 /// waits on its own queue, never on the island's.
+///
+/// A container has no socket to forward: its agent runs on one
+/// `docker exec -i`, and a second one runs the relay that carries its hooks
+/// (`ContainerRelay`).
 final class RemoteHostLink {
     let alias: String
+    let transport: RemoteTransport
     private let bundle: String
     private let localSocket: String
     private let queue: DispatchQueue
@@ -181,6 +230,14 @@ final class RemoteHostLink {
     /// look found Codex's daemon on the host. Guarded by `lock`.
     private var codexForwarded = false
     private var codexLive = false
+    /// A container's relay, its CLI and the container it found last.
+    /// Guarded by `lock`.
+    private var relay: ContainerRelay?
+    private var engine: ContainerEngine?
+    var container: ContainerInfo? { lock.withLock { foundContainer } }
+    private var foundContainer: ContainerInfo?
+    /// Hands a relayed hook to the island's server (`ClaudeHookServer.adopt`).
+    private let adopt: (Int32, pid_t) -> Void
     private(set) var info: RemoteHostInfo?
     /// The last state handed on. On the link's queue.
     private(set) var state: RemoteHostState?
@@ -194,15 +251,52 @@ final class RemoteHostLink {
 
     init(alias: String, bundle: String, localSocket: String) {
         self.alias = alias
+        transport = .ssh(alias)
         self.bundle = bundle
         self.localSocket = localSocket
+        adopt = { descriptor, _ in close(descriptor) }
         codexSocket = RemoteSSH.codexSocket(alias: alias, bundle: bundle)
         queue = DispatchQueue(label: "openbar.remote-host.\(alias)")
     }
 
+    init(container target: ContainerTarget, bundle: String, adopt: @escaping (Int32, pid_t) -> Void) {
+        alias = target.alias
+        transport = .container(target)
+        self.bundle = bundle
+        localSocket = ""
+        self.adopt = adopt
+        codexSocket = ""
+        queue = DispatchQueue(label: "openbar.container.\(target.id)")
+    }
+
+    var isContainer: Bool { if case .container = transport { return true } else { return false } }
+
+    /// The command that reaches the container as it runs now; nil before
+    /// the first connection found it.
+    var containerCommand: RemoteCommand? {
+        lock.withLock { () -> RemoteCommand? in
+            guard let engine, let foundContainer else { return nil }
+            return engine.exec(foundContainer.id, user: foundContainer.user)
+        }
+    }
+
+    /// Runs one mode of the agent script on the host, as Set up and Remove do.
+    func oneShot(mode: String, input: [String] = []) -> RemoteOneShot.Result {
+        switch transport {
+        case .ssh(let alias): return RemoteOneShot.run(alias, mode: mode, input: input)
+        case .container:
+            guard let command = containerCommand else {
+                return RemoteOneShot.Result(lines: nil, reason: ContainerStrings.notRunning)
+            }
+            return RemoteOneShot.run(command, mode: mode, input: input)
+        }
+    }
+
     /// Whether the host's Codex can be reached through `codexSocket` now.
     /// Any thread.
-    var codexReady: Bool { lock.withLock { ssh != nil && codexForwarded && codexLive } }
+    var codexReady: Bool {
+        lock.withLock { ssh != nil && codexLive && (codexForwarded || (relay != nil && foundContainer != nil)) }
+    }
 
     /// Forgets the Codex forward of a connection that ended; its socket goes too.
     private func dropCodex() {
@@ -210,25 +304,27 @@ final class RemoteHostLink {
             codexForwarded = false
             codexLive = false
         }
-        try? FileManager.default.removeItem(atPath: codexSocket)
+        if !codexSocket.isEmpty { try? FileManager.default.removeItem(atPath: codexSocket) }
     }
 
     /// The `ssh` behind the forwarded socket: hooks from this host reach the
-    /// island through it, so its process number tells them apart.
-    var peer: pid_t? { lock.withLock { ssh.map(\.pid) } }
+    /// island through it, so its process number tells them apart. For a
+    /// container, its relay's `docker exec`.
+    var peer: pid_t? { lock.withLock { isContainer ? relay?.pid : ssh.map(\.pid) } }
 
     func start() {
         queue.async { [self] in connect() }
     }
 
     func stop() {
-        let running = lock.withLock { () -> RemoteSSHProcess? in
+        let (running, relayed) = lock.withLock { () -> (RemoteSSHProcess?, ContainerRelay?) in
             stopped = true
             generation += 1
-            defer { ssh = nil }
-            return ssh
+            defer { ssh = nil; relay = nil }
+            return (ssh, relay)
         }
         running?.stop()
+        relayed?.stop()
         dropCodex()
     }
 
@@ -254,13 +350,14 @@ final class RemoteHostLink {
     /// setup, as Remove from host may have taken the forwarded socket with
     /// it. On the link's queue.
     func reconnectNow() {
-        let running = lock.withLock { () -> RemoteSSHProcess? in
-            guard !stopped else { return nil }
+        let (running, relayed) = lock.withLock { () -> (RemoteSSHProcess?, ContainerRelay?) in
+            guard !stopped else { return (nil, nil) }
             generation += 1
-            defer { ssh = nil }
-            return ssh
+            defer { ssh = nil; relay = nil }
+            return (ssh, relay)
         }
         running?.stop()
+        relayed?.stop()
         dropCodex()
         guard lock.withLock({ !stopped }) else { return }
         attempt = 0
@@ -273,6 +370,7 @@ final class RemoteHostLink {
         let current = lock.withLock { () -> Int? in stopped ? nil : generation }
         guard let current else { return }
         setState(.connecting)
+        if case .container(let target) = transport { return connectContainer(target, generation: current) }
         let name = RemoteSSH.socketName(bundle: bundle)
         let probe = RemoteOneShot.run(alias, mode: "probe \(name) \(bundle)")
         guard let lines = probe.lines, let found = RemoteAnswer.probe(lines) else {
@@ -316,6 +414,68 @@ final class RemoteHostLink {
         poll(generation: current)
     }
 
+    /// A container: found again by its folder or name, as a rebuilt one
+    /// has a new ID; probed, then the agent and the relay started in it.
+    private func connectContainer(_ target: ContainerTarget, generation current: Int) {
+        guard let engine = ContainerEngine.find() else { return retry(ContainerStrings.noEngine, generation: current) }
+        let listed: [ContainerInfo]
+        switch engine.running() {
+        case .success(let list): listed = list
+        case .failure(.engine(let reason)): return retry(reason, generation: current)
+        case .failure(.noEngine): return retry(ContainerStrings.noEngine, generation: current)
+        }
+        guard let container = listed.first(where: target.matches) else {
+            return retry(ContainerStrings.notRunning, generation: current)
+        }
+        lock.withLock {
+            self.engine = engine
+            foundContainer = container
+        }
+        let command = engine.exec(container.id, user: container.user)
+        let name = RemoteSSH.socketName(bundle: bundle)
+        let probe = RemoteOneShot.run(command, mode: "probe \(name) \(bundle) container")
+        guard let lines = probe.lines, var found = RemoteAnswer.probe(lines) else {
+            return retry(probe.lines == nil ? probe.reason : ContainerStrings.unexpected, generation: current)
+        }
+        guard let preamble = RemoteSSH.preamble("agent") else { return retry("The host script is missing", generation: current) }
+        let started = RemoteSSHProcess(command)
+        guard started.start(), started.write(preamble) else {
+            started.stop()
+            return retry(ContainerStrings.cantStart(engine.name), generation: current)
+        }
+        guard let hello = started.answer(timeout: 20), hello.first == "HELLO 1" else {
+            started.stop()
+            started.wait(1)
+            return retry(ContainerEngine.reason(Data(started.stderr.utf8)), generation: current)
+        }
+        let relayed = ContainerRelay(command: command, bundle: bundle, adopt: adopt)
+        guard relayed.start() else {
+            started.stop()
+            relayed.stop()
+            return retry(relayed.failure ?? ContainerStrings.relayEnded, generation: current)
+        }
+        found.client = .relay
+        found.container = container
+        info = found
+        let kept = lock.withLock { () -> Bool in
+            guard !stopped, generation == current else { return false }
+            ssh = started
+            relay = relayed
+            codexForwarded = false
+            codexLive = false
+            return true
+        }
+        guard kept else {
+            started.stop()
+            relayed.stop()
+            return
+        }
+        attempt = 0
+        offsets = [:]
+        setState(.connected(found))
+        poll(generation: current)
+    }
+
     private func setState(_ new: RemoteHostState) {
         state = new
         onState(new)
@@ -331,11 +491,12 @@ final class RemoteHostLink {
     }
 
     private func retry(_ reason: String, generation current: Int) {
-        let gone = lock.withLock { () -> RemoteSSHProcess? in
-            defer { ssh = nil }
-            return ssh
+        let (gone, relayed) = lock.withLock { () -> (RemoteSSHProcess?, ContainerRelay?) in
+            defer { ssh = nil; relay = nil }
+            return (ssh, relay)
         }
         gone?.stop()
+        relayed?.stop()
         dropCodex()
         guard lock.withLock({ !stopped && generation == current }) else { return }
         attempt += 1
@@ -354,8 +515,12 @@ final class RemoteHostLink {
         for (path, offset) in offsets { request.append("t \(offset) \(RemoteAnswer.encode(path))") }
         request.append("end")
         let sent = Date()
+        // A container's hooks come only while its relay runs.
+        if isContainer, lock.withLock({ relay?.isRunning != true }) {
+            return retry(ContainerStrings.relayEnded, generation: current)
+        }
         guard let lines = self.request(request, timeout: 15) else {
-            let reason = lock.withLock { ssh.map { RemoteSSH.reason($0.stderr, status: $0.status) } }
+            let reason = lock.withLock { ssh.map { isContainer ? ContainerEngine.reason(Data($0.stderr.utf8)) : RemoteSSH.reason($0.stderr, status: $0.status) } }
             return retry(reason ?? "The connection ended", generation: current)
         }
         let read = RemoteAnswer.snapshot(lines, alias: alias)
@@ -413,8 +578,15 @@ enum RemoteHostSetup {
         let sum: String
     }
 
-    static func read(_ alias: String) -> Result<Settings, Failure> {
-        let result = RemoteOneShot.run(alias, mode: "read")
+    /// Runs one mode of the agent script on the host and gives its answer.
+    typealias Runner = (_ mode: String, _ input: [String]) -> RemoteOneShot.Result
+
+    static func runner(_ alias: String) -> Runner { { RemoteOneShot.run(alias, mode: $0, input: $1) } }
+
+    static func read(_ alias: String) -> Result<Settings, Failure> { read(runner(alias)) }
+
+    static func read(_ run: Runner) -> Result<Settings, Failure> {
+        let result = run("read", [])
         guard let lines = result.lines else { return .failure(.unreachable(result.reason)) }
         var current: Data?
         var backup: RemoteHookInstaller.Backup?
@@ -433,19 +605,21 @@ enum RemoteHostSetup {
     }
 
     static func install(_ alias: String, info: RemoteHostInfo, bundle: String) -> Failure? {
-        guard let client = info.client else { return .noClient }
-        let socket = info.home + "/.openbar/" + RemoteSSH.socketName(bundle: bundle)
-        let command = RemoteHookInstaller.command(client: client, socket: socket, bundle: bundle)
+        install(runner(alias), info: info, bundle: bundle)
+    }
+
+    static func install(_ run: Runner, info: RemoteHostInfo, bundle: String) -> Failure? {
+        guard let hook = RemoteHookInstaller.hook(info: info, bundle: bundle) else { return .noClient }
         for _ in 0..<3 {
             let settings: Settings
-            switch read(alias) {
+            switch read(run) {
             case .success(let read): settings = read
             case .failure(let failure): return failure
             }
             guard let parsed = try? RemoteHookInstaller.parse(settings.current),
                   let data = try? RemoteHookInstaller.serialize(
-                    RemoteHookInstaller.installing(into: parsed, command: command, bundle: bundle)) else { return .unreadable }
-            let result = RemoteOneShot.run(alias, mode: "install", input: [settings.sum, data.base64EncodedString()])
+                    ClaudeHookInstaller.installing(into: parsed, command: hook.command, marker: hook.marker)) else { return .unreadable }
+            let result = run("install", [settings.sum, data.base64EncodedString()])
             guard let lines = result.lines else { return .unreachable(result.reason) }
             if lines.contains("O") { return nil }
             if !lines.contains("F changed") { return .unreachable(lines.first ?? "") }
@@ -454,20 +628,26 @@ enum RemoteHostSetup {
     }
 
     static func remove(_ alias: String, bundle: String) -> Failure? {
+        remove(runner(alias), marker: RemoteHookInstaller.marker(bundle: bundle), bundle: bundle)
+    }
+
+    /// Takes the hooks with `marker` out; `bundle` names what `~/.openbar`
+    /// held for this build.
+    static func remove(_ run: Runner, marker: String, bundle: String) -> Failure? {
         for _ in 0..<3 {
             let settings: Settings
-            switch read(alias) {
+            switch read(run) {
             case .success(let read): settings = read
             case .failure(let failure): return failure
             }
             guard let removal = try? RemoteHookInstaller.removal(current: settings.current, backup: settings.backup,
-                                                                 bundle: bundle) else { return .unreadable }
+                                                                 marker: marker) else { return .unreadable }
             var input = [RemoteSSH.socketName(bundle: bundle), settings.sum]
             switch removal {
             case .restore: input.append("restore")
             case .write(let data, let keep): input += [keep ? "keep" : "write", data.base64EncodedString()]
             }
-            let result = RemoteOneShot.run(alias, mode: "remove", input: input)
+            let result = run("remove", input)
             guard let lines = result.lines else { return .unreachable(result.reason) }
             if lines.contains("O") { return nil }
             if !lines.contains("F changed") { return .unreachable(lines.first ?? "") }

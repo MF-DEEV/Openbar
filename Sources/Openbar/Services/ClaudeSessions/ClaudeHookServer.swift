@@ -202,6 +202,20 @@ final class ClaudeHookServer {
         }
     }
 
+    /// Takes one end of a socket pair as if a hook had connected: a
+    /// container's relay hands each of its hooks on this way (issue #330).
+    /// `peer` is the relay's `docker exec`, which tells the container's hooks
+    /// apart and lets them go when it ends. Call on the queue.
+    func adopt(_ descriptor: Int32, peer: pid_t) {
+        var noSignal: Int32 = 1
+        setsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
+        _ = fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL) | O_NONBLOCK)
+        let connection = Connection(descriptor: descriptor, peer: peer)
+        let source = DispatchSource.makeReadSource(fileDescriptor: descriptor, queue: queue)
+        source.setEventHandler { [self, connection] in read(connection) }
+        connection.watch(source)
+    }
+
     private func read(_ connection: Connection) {
         var chunk = [UInt8](repeating: 0, count: 64 << 10)
         while true {

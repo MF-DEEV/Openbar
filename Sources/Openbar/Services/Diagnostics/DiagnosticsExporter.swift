@@ -169,6 +169,7 @@ enum DiagnosticsExporter {
             ("limits", DefaultsKey.notchSessionsLimits), ("awayCard", DefaultsKey.notchSessionsAwayCard),
             ("voiceReplies", DefaultsKey.notchSessionsVoiceReplies), ("waitingSound", DefaultsKey.notchSessionsWaitingSound),
             ("remoteHosts", DefaultsKey.notchSessionsRemoteHostsEnabled),
+            ("containers", DefaultsKey.notchSessionsContainersEnabled),
         ]
         list += sessions.map { DiagnosticsFeature(id: $0.0, group: "sessions", on: defaults.bool(forKey: $0.1)) }
         // Where they show (#331): the menu bar, with or without the island.
@@ -301,6 +302,9 @@ enum DiagnosticsExporter {
         let remote = RemoteHostPrefs.hosts(in: defaults).map { host in
             DiagnosticsHosts.Remote(label: host.alias,
                                     state: snapshot.remoteStates[host.alias].map(ClaudeSessionService.remoteKind) ?? "off")
+        } + ContainerPrefs.targets(in: defaults).map { target in
+            DiagnosticsHosts.Remote(label: "container " + target.title,
+                                    state: snapshot.remoteStates[target.alias].map(ClaudeSessionService.remoteKind) ?? "off")
         }
         let accounts = snapshot.accounts.map { $0.hidden ? "\($0.name) (hidden)" : $0.name }
         return DiagnosticsHosts(terminals: terminals, editors: editors, inUse: inUse, claudeAccounts: accounts,

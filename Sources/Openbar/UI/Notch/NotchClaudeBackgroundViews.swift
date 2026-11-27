@@ -382,7 +382,8 @@ struct NotchRemoteHostBadge: View {
 
     var body: some View {
         // A long alias is cut, so the session's own name keeps its room.
-        Label(alias.count > 22 ? alias.prefix(21) + "…" : alias, systemImage: "network")
+        let title = RemoteHostName.title(alias)
+        return Label(title.count > 22 ? title.prefix(21) + "…" : title, systemImage: RemoteHostName.symbol(alias))
             .labelStyle(NotchClaudeSessionInlineLabel())
             .font(.system(size: size, weight: .semibold))
             .foregroundStyle(.white.opacity(0.78))
@@ -391,7 +392,7 @@ struct NotchRemoteHostBadge: View {
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
             .background(.white.opacity(0.1), in: Capsule())
-            .help("On " + alias + ", over SSH")
-            .accessibilityLabel("On remote host " + alias)
+            .help(RemoteHostName.help(alias))
+            .accessibilityLabel(RemoteHostName.isContainer(alias) ? "In container " + title : "On remote host " + alias)
     }
 }
