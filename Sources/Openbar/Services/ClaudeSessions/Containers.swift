@@ -135,8 +135,8 @@ struct ContainerEngine: Equatable {
     static func candidates(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [String] {
         ["/usr/local/bin/docker", "/opt/homebrew/bin/docker", home.appending(path: ".orbstack/bin/docker").path,
          home.appending(path: ".docker/bin/docker").path, "/Applications/Docker.app/Contents/Resources/bin/docker",
-         home.appending(path: ".rd/bin/docker").path, "/usr/bin/docker",
-         "/opt/homebrew/bin/podman", "/usr/local/bin/podman", "/opt/podman/bin/podman", "/usr/bin/podman"]
+         home.appending(path: ".rd/bin/docker").path,
+         "/opt/homebrew/bin/podman", "/usr/local/bin/podman", "/opt/podman/bin/podman"]
     }
 
     static func find(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> ContainerEngine? {

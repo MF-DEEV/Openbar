@@ -40,7 +40,9 @@ enum ContainerTests {
         suite.expect(ContainerTarget(folder: "/a", setUp: "1") == ContainerTarget(folder: "/a"),
                      "the setup's mark doesn't make it another container")
 
-        let defaults = UserDefaults(suiteName: "openbar.tests.containers.\(UUID().uuidString)")!
+        let defaults = UserDefaults(suiteName: "com.openbar.tests.containers")!
+        defaults.removePersistentDomain(forName: "com.openbar.tests.containers")
+        defer { defaults.removePersistentDomain(forName: "com.openbar.tests.containers") }
         ContainerPrefs.save([plain, devcontainer, plain, ContainerTarget(name: "-x")], in: defaults)
         suite.expect(ContainerPrefs.active(in: defaults).isEmpty, "off by default: nothing is reached until the switch is on")
         defaults.set(true, forKey: DefaultsKey.notchSessionsContainersEnabled)
