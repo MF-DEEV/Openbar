@@ -1966,6 +1966,9 @@ enum NotchSupport {
                 && ($0 != .notifications || defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled))
                 && ($0 != .agents || defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
                 && ($0 != .sessions || defaults.bool(forKey: DefaultsKey.notchSessionsEnabled))
+                // Sessions shown only in the menu bar leave the island
+                // altogether: no page, strip, marks or notices (#331).
+                && ($0 != .sessions || NotchClaudeSessionsSupport.placement(in: defaults).inIsland)
                 && ($0 != .watch || defaults.bool(forKey: DefaultsKey.notchWatchEnabled))
         }
     }
@@ -2138,7 +2141,7 @@ enum NotchSupport {
             && modules(in: defaults).contains(.downloads)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
             && modules(in: defaults).contains(.agents)
-        case .sessions: return NotchClaudeSessionsSupport.isEnabled(in: defaults)
+        case .sessions: return NotchClaudeSessionsSupport.inIsland(in: defaults)
         case .systemNotification: return NotchNotificationSupport.isEnabled(in: defaults)
         case .keyboardLight: return AppFeature.brightness.isAvailable(in: defaults)
         case .volume: return AppFeature.mixer.isAvailable(in: defaults)

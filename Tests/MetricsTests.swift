@@ -132,6 +132,7 @@ struct MetricsTests {
                 PermissionInspectionTests.run(suite)
                 PermissionRiskTests.run(suite)
                 NotchPermissionQueueTests.run(suite)
+                SessionsMenuBarTests.run(suite)
                 RemoteHostTests.run(suite)
                 ClaudeAccountTests.run(suite)
                 ClawdCostumeTests.run(suite)
@@ -171,6 +172,7 @@ struct MetricsTests {
                 PermissionRiskTests.run(suite)
                 NotchPermissionQueueTests.run(suite)
             }),
+            ("menu-bar-sessions", { SessionsMenuBarTests.run(suite) }),
             ("file-diffs", { ClaudeFileDiffTests.run(suite) }),
             ("voice-replies", { VoiceReplyTests.run(suite) }),
             ("hook-agents", {

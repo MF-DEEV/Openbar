@@ -65,10 +65,18 @@ final class VoiceReplyRecorder: ObservableObject {
                 self.end(.islandClosed)
             }
             .store(in: &watchers)
+        // The page closes with the island or the menu bar's panel, whichever
+        // showed it (#331).
         NotchService.shared.$expanded
             .receive(on: DispatchQueue.main)
             .sink { [weak self] expanded in
-                if !expanded { self?.end(.islandClosed) }
+                if !expanded, !SessionsMenuBar.shared.panelShown { self?.end(.islandClosed) }
+            }
+            .store(in: &watchers)
+        SessionsMenuBar.shared.$panelShown
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] shown in
+                if !shown, !SessionsSurface.isShown { self?.end(.islandClosed) }
             }
             .store(in: &watchers)
     }
@@ -97,16 +105,16 @@ final class VoiceReplyRecorder: ObservableObject {
     }
 
     /// The hold-to-talk shortcut went down: the page on screen, or the
-    /// session last at work, which the island opens on.
+    /// session last at work, which the island or the menu bar's panel opens
+    /// on, wherever the sessions show.
     func shortcutPressed() {
         guard Self.isOn, !machine.isActive else { return }
         let service = ClaudeSessionService.shared
-        let notch = NotchService.shared
-        let showing = notch.expanded && notch.selected == .sessions ? service.focusedID : nil
+        let showing = SessionsSurface.showingSession
         guard let session = VoiceReplySupport.shortcutTarget(sessions: service.sessions, showing: showing) else { return }
         if showing != session.id {
             service.focus(session.id)
-            notch.open(.sessions)
+            SessionsSurface.open()
         }
         heldByShortcut = true
         start(session)
@@ -170,11 +178,11 @@ final class VoiceReplyRecorder: ObservableObject {
     // MARK: Recording
 
     private func begin(session id: String, token: Int) {
-        // The permission prompt closed the island; it opens again where the press was.
-        let notch = NotchService.shared
-        if !notch.expanded || ClaudeSessionService.shared.focusedID != id {
+        // The permission prompt closed the island or the panel; it opens
+        // again where the press was.
+        if !SessionsSurface.isShown || ClaudeSessionService.shared.focusedID != id {
             ClaudeSessionService.shared.focus(id)
-            notch.open(.sessions)
+            SessionsSurface.open()
         }
         let identifier = VoiceReplySupport.localeIdentifier(
             saved: defaults.string(forKey: DefaultsKey.notchSessionsVoiceLanguage) ?? "", app: L10n.shared.language)

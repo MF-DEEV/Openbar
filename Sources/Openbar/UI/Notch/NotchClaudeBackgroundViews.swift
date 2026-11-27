@@ -28,7 +28,7 @@ struct NotchClaudeBackgroundBar: View {
     let text: NotchClaudeSessionStrings
     @Binding var showingLogs: Bool
     @ObservedObject private var service = ClaudeSessionService.shared
-    @ObservedObject private var notch = NotchService.shared
+    @Environment(\.notchSessionsInPanel) private var inPanel
     @State private var asking: Action?
     @State private var working = false
     @State private var problem: String?
@@ -56,7 +56,7 @@ struct NotchClaudeBackgroundBar: View {
             button(text.logs, symbol: "text.alignleft", active: showingLogs) {
                 showingLogs.toggle()
                 // Logs read in the enlarged page.
-                if showingLogs { notch.setSessionsEnlarged(true) }
+                if showingLogs { NotchSessionsHost.setEnlarged(true, inPanel: inPanel) }
             }
             if NotchClaudeSessionsSupport.canStop(session) {
                 button(text.stopSession, symbol: "stop.fill") { problem = nil; asking = .stop }

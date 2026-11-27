@@ -75,6 +75,26 @@ struct NotchClaudeSessionStrings {
     var remindDuringFocusHint = "Reminds while Focus or Do Not Disturb is on. Otherwise the reminder waits until it ends."
     var reminderStill = "Still waiting"
     func reminderTitle(_ n: Int) -> String { "\(n) sessions waiting" }
+    // #331: sessions in the menu bar.
+    var placementSetting = "Show sessions in"
+    var placementSettingHint = "The island, a panel under their own icon in the menu bar, or both. The menu bar keeps working with the island turned off."
+    var placementIsland = "Island"
+    var placementMenuBar = "Menu bar"
+    var placementBoth = "Both"
+    var menuBarOpens = "Open the panel when a session needs you"
+    var menuBarOpensHint = "Only when you’re on the desktop or in Openbar, the same rule the island follows. Otherwise the icon pulses and the ask waits for you."
+    var menuBarItemName = "Openbar Sessions"
+    func menuBarWaiting(_ n: Int) -> String {
+        switch n {
+        case 0: return "Nothing is waiting for you"
+        case 1: return "1 session is waiting for you"
+        default: return "\(n) sessions are waiting for you"
+        }
+    }
+    var menuBarOpenSessions = "Open Sessions"
+    var menuBarOpenAsk = "Open"
+    var menuBarSettings = "Sessions Settings…"
+    func menuBarAnnouncement(_ name: String) -> String { "\(name) needs you" }
     // #269: every waiting ask in one queue.
     func queueTitle(_ n: Int) -> String { "\(n) waiting" }
     var allowAll = "Allow all"

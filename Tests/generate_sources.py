@@ -1241,9 +1241,11 @@ def main():
           + declaration(notch, "    func open(_ module:")
               .replace("NotchSupport.isEnabled()", "NotchSupport.isEnabled(in: ReviewDefaults.current)")
               .replace("UsageStatsService.shared.noteOpened(destination)", "sectionVisits.append(destination)")
+              .replace("SessionsMenuBar.shared.closePanel()", "sessionsPanelClosings += 1")
           + "var sectionVisits: [NotchModule] = []\n"
+          + "var sessionsPanelClosings = 0\n"
+          + "var sessionAlertResumes = 0\n"
           + "func removeHoverExitMonitors() {}\n"
-          + "func scheduleSessionReminderCheck(after delay: TimeInterval) {}\n"
           + declaration(notch, "    func showScratchpad(")
               .replace("NotchSupport.routesScratchpad()", "NotchSupport.routesScratchpad(in: ReviewDefaults.current)")
           + declaration(notch, "    func showClipboard(")
@@ -1267,6 +1269,7 @@ def main():
           + declaration(notch, "    var reopeningModule:")
           + declaration(notch, "    private func updateSession(").replace("private func", "func", 1)
               .replace("AppFeature.mixer.isAvailable", "AppFeature.mixer.isAvailable(in: ReviewDefaults.current)")
+              .replace("SessionAlerts.shared.resume()", "sessionAlertResumes += 1")
               .replace("NotchLockScreenSupport.playsSounds()", "NotchLockScreenSupport.playsSounds(in: ReviewDefaults.current)")
           # The press handler the initializer installs, run on demand.
           + declaration(notch, "    private init() {").replace("    private init()", "    func installHotkey()", 1)

@@ -996,6 +996,12 @@ enum DefaultsKey {
     /// The hold-to-talk shortcut, off until the person turns it on.
     static let notchSessionsVoiceShortcutEnabled = "notchSessionsVoiceShortcutEnabled"
     static let notchSessionsVoiceShortcut = "notchSessionsVoiceShortcut" // GlobalShortcut storage value
+    /// Where the sessions show (#331): the island, the menu bar, or both
+    /// (`NotchSessionsPlacement` raw value).
+    static let notchSessionsPlacement = "notchSessionsPlacement"
+    /// In the menu bar, the panel opens by itself when a session waits on
+    /// the person, under the island's own rule (#167); off by default.
+    static let notchSessionsMenuBarOpens = "notchSessionsMenuBarOpens"
     /// The agent and models New session last started with.
     static let notchNewSessionAgent = "notchNewSessionAgent"
     static let notchNewSessionClaudeModel = "notchNewSessionClaudeModel"
@@ -1695,6 +1701,8 @@ enum Defaults {
         DefaultsKey.notchSessionsWaitingSound: true,
         DefaultsKey.notchSessionsWaitingSoundName: NotchSessionWaitingSound.defaultSound,
         DefaultsKey.notchSessionsVoiceShortcutEnabled: false,
+        DefaultsKey.notchSessionsPlacement: "island",
+        DefaultsKey.notchSessionsMenuBarOpens: false,
         DefaultsKey.notchSessionsVoiceShortcut: GlobalShortcut.sessionVoiceDefault.storageValue,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,

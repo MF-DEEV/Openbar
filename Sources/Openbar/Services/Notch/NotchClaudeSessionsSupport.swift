@@ -4,13 +4,56 @@
 import Carbon.HIToolbox
 import Foundation
 
+/// Where the sessions show (#331): in the island, in a panel under their
+/// own menu bar item, or in both.
+enum NotchSessionsPlacement: String, CaseIterable, Identifiable {
+    case island, menuBar, both
+
+    var id: String { rawValue }
+    var inIsland: Bool { self != .menuBar }
+    var inMenuBar: Bool { self != .island }
+}
+
 /// Decisions for the island's Sessions section, kept out of its views so they
 /// can be tested.
 enum NotchClaudeSessionsSupport {
-    /// The section rides on the AI feature, which installs everything about
-    /// coding agents, and has its own switch; it can also be hidden.
+    /// Sessions are followed wherever they show: in the island, in the menu
+    /// bar, or in both. The menu bar needs no island, so turning the island
+    /// off keeps them there.
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        inIsland(in: defaults) || inMenuBar(in: defaults)
+    }
+
+    /// The island shows them: its page, the strip beside the camera, the
+    /// agents' marks and its notices.
+    static func inIsland(in defaults: UserDefaults = .standard) -> Bool {
         NotchSupport.isEnabled(in: defaults) && NotchSupport.modules(in: defaults).contains(.sessions)
+    }
+
+    /// Their menu bar item shows them, with or without the island.
+    static func inMenuBar(in defaults: UserDefaults = .standard) -> Bool {
+        placement(in: defaults).inMenuBar && isSwitchedOn(in: defaults)
+    }
+
+    static func placement(in defaults: UserDefaults = .standard) -> NotchSessionsPlacement {
+        NotchSessionsPlacement(rawValue: defaults.string(forKey: DefaultsKey.notchSessionsPlacement) ?? "") ?? .island
+    }
+
+    /// The section's own switch: the Dynamic Island feature, whose settings
+    /// hold it, and the AI feature, which installs everything about coding
+    /// agents, its switch, and not hidden from the island's list, which is
+    /// where it is turned off.
+    static func isSwitchedOn(in defaults: UserDefaults = .standard) -> Bool {
+        AppFeature.notch.isAvailable(in: defaults)
+            && NotchModule.sessions.isAvailable(in: defaults)
+            && defaults.bool(forKey: DefaultsKey.notchSessionsEnabled)
+            && !(defaults.string(forKey: DefaultsKey.notchHiddenModules) ?? "")
+                .split(separator: ",").contains(Substring(NotchModule.sessions.rawValue))
+    }
+
+    /// In the menu bar, whether a waiting session opens the panel by itself.
+    static func menuBarOpens(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchSessionsMenuBarOpens)
     }
 
     static func showsActivity(in defaults: UserDefaults = .standard) -> Bool {
@@ -557,6 +600,24 @@ enum NotchClaudeSessionsSupport {
         let options = AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace, failurePolicy: .returnPartiallyParsedIfPossible)
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+    }
+
+    /// The request a key answers with this decision where the Sessions page
+    /// shows, in the island or in the menu bar's panel (#269, #331): the
+    /// open page's card, else the oldest ask of the queue. A question is
+    /// answered on its card, so only ⌘N skips it there; Always shows only
+    /// on the open page's card, Codex's for its turn and Claude Code's where
+    /// it offers rules. The wardrobe covers the request, so no key answers
+    /// what is not on screen.
+    static func keyTarget(_ decision: ClaudeHookMessage.Decision, focused: ClaudeSession?, sessions: [ClaudeSession],
+                          dressing: Bool) -> (id: String, request: String, provider: ClaudeSessionProvider)? {
+        guard !dressing,
+              let target = focused ?? NotchPermissionQueue(sessions).keyTarget.map({ $0.session.showing($0.ask.requestID) }),
+              let permission = target.permission,
+              !(permission.asksQuestions && decision != .deny),
+              decision != .allowAlways || (focused != nil && (target.codexServer || permission.offersAlways))
+        else { return nil }
+        return (target.id, permission.requestID, target.provider)
     }
 
     /// ⌘Y allows and ⌘N denies, as in the dialogs that ask the same; ⌘T

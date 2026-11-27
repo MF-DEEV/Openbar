@@ -158,7 +158,9 @@ enum DiagnosticsExporter {
             .sessions: DefaultsKey.notchSessionsEnabled,
         ]
         for module in NotchModule.allCases {
-            let on = island && !hidden.contains(module.rawValue) && switched[module].map { defaults.bool(forKey: $0) } ?? true
+            var on = island && !hidden.contains(module.rawValue) && switched[module].map { defaults.bool(forKey: $0) } ?? true
+            // Shown only in the menu bar, the island has no Sessions page (#331).
+            if module == .sessions, !NotchClaudeSessionsSupport.placement(in: defaults).inIsland { on = false }
             list.append(DiagnosticsFeature(id: module.rawValue, group: "island", on: on))
         }
         let sessions: [(String, String)] = [
@@ -169,6 +171,11 @@ enum DiagnosticsExporter {
             ("remoteHosts", DefaultsKey.notchSessionsRemoteHostsEnabled),
         ]
         list += sessions.map { DiagnosticsFeature(id: $0.0, group: "sessions", on: defaults.bool(forKey: $0.1)) }
+        // Where they show (#331): the menu bar, with or without the island.
+        list.append(DiagnosticsFeature(id: "menuBar", group: "sessions",
+                                       on: NotchClaudeSessionsSupport.inMenuBar(in: defaults)))
+        list.append(DiagnosticsFeature(id: "menuBarOpens", group: "sessions",
+                                       on: defaults.bool(forKey: DefaultsKey.notchSessionsMenuBarOpens)))
         let shown = NotchClaudeSessionsSupport.shownAgents(in: defaults)
         list += ClaudeSessionProvider.agents.map {
             DiagnosticsFeature(id: "agent.\($0.rawValue)", group: "sessions", on: shown.contains($0))

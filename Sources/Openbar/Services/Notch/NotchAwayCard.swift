@@ -27,7 +27,10 @@ final class NotchAwayCard: ObservableObject {
         held = false
         ClaudeSessionService.shared.focus(nil)
         ClaudeSessionService.shared.composingSession = false
-        NotchService.shared.open(.sessions, takeFocus: false)
+        // The island opens on the card where it shows the sessions; in the
+        // menu bar the card waits in the panel, which never opens by itself
+        // for it (#331).
+        if NotchService.shared.presentsSessions { NotchService.shared.open(.sessions, takeFocus: false) }
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             MainActor.assumeIsolated {
@@ -46,7 +49,8 @@ final class NotchAwayCard: ObservableObject {
         timer = nil
         since = nil
         lines = []
-        if collapse { NotchService.shared.collapse() }
+        // Only the island the card opened, never a page it shows instead.
+        if collapse, NotchService.shared.selected == .sessions { NotchService.shared.collapse() }
     }
 
     func open(_ id: String) {
