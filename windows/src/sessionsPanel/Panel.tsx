@@ -25,24 +25,35 @@ export const PANEL_TOP = 12;
 export const PANEL_ROW = 36;
 export const PANEL_GAP = 12;
 export const PANEL_BOTTOM = 16;
-export const PANEL_CHROME = PANEL_TOP + PANEL_ROW + PANEL_GAP + PANEL_BOTTOM;
+/** The surface's hairline edge, inside the window. */
+export const PANEL_EDGE = 1;
+export const PANEL_CHROME = PANEL_TOP + PANEL_ROW + PANEL_GAP + PANEL_BOTTOM + PANEL_EDGE * 2;
+/** A row's outline reaches a little past the box it is measured by. */
+const LIST_SLACK = 6;
 /** What the empty list's message needs, and the least a list is given. */
 const EMPTY_LIST = 150;
 const SHORTEST_LIST = 96;
 
-/** How tall the list stands on its own: its rows and the gaps between them, whatever room it has now. */
+/**
+ * How tall the list stands on its own: from its top to the bottom of its last
+ * row, margins and padding included, whatever room the window gives it now
+ * (scrolled or not).
+ */
 export function naturalListHeight(list: HTMLElement): number {
-  const style = getComputedStyle(list);
-  const gap = parseFloat(style.rowGap) || 0;
-  const padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
   const children = [...list.children].filter((child) => (child as HTMLElement).offsetParent !== null);
-  const rows = children.reduce((sum, child) => sum + child.getBoundingClientRect().height, 0);
-  return rows + gap * Math.max(0, children.length - 1) + padding;
+  const last = children[children.length - 1];
+  const style = getComputedStyle(list);
+  const paddingTop = parseFloat(style.paddingTop) || 0;
+  const paddingBottom = parseFloat(style.paddingBottom) || 0;
+  if (!last) return paddingTop + paddingBottom;
+  const margin = parseFloat(getComputedStyle(last).marginBottom) || 0;
+  const top = list.getBoundingClientRect().top;
+  return last.getBoundingClientRect().bottom - top + list.scrollTop + margin + paddingBottom;
 }
 
 /** The window's height around a list this tall. */
 export function fittedHeight(list: number | null): number {
-  return Math.ceil(PANEL_CHROME + Math.max(SHORTEST_LIST, list ?? EMPTY_LIST));
+  return Math.ceil(PANEL_CHROME + Math.max(SHORTEST_LIST, list === null ? EMPTY_LIST : list + LIST_SLACK));
 }
 
 /** The panel's view of the island: open on Sessions while it shows. */
@@ -62,7 +73,7 @@ export function startPanel() {
   void onPrefs(applyPrefs);
   subscribeSessions(() => {});
   startSharedState("panel");
-  void bridge.sessionsPanel.onVisible((visible) => {
+  const showing = (visible: boolean) => {
     useIsland.setState({ expanded: visible, selected: "sessions", showingSections: false });
     if (!visible) {
       // Opened again, it starts on the list, as the island does.
@@ -71,9 +82,16 @@ export function startPanel() {
       useIsland.setState({ sessionsEnlarged: false });
       void useVoice.getState().cancel();
     }
-  });
+  };
+  void bridge.sessionsPanel.onVisible(showing);
   void bridge.sessionsPanel.onFocus((focus) => {
     if (focus) useSessions.getState().focus(focus.session, focus.request);
+  });
+  // The window's first showing went by while this page loaded.
+  void bridge.sessionsPanel.current().then((current) => {
+    if (!current) return;
+    showing(current.visible);
+    if (current.visible && current.focus) useSessions.getState().focus(current.focus.session, current.focus.request);
   });
   // The island hears what the panel shows: its sounds stay quiet for a
   // session on screen here, and it closes its own Sessions page.

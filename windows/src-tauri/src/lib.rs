@@ -320,6 +320,7 @@ pub fn run() {
             tray::tray_sessions_update,
             tray::tray_sessions_icon,
             tray::tray_sessions_pulse,
+            sessions_panel::sessions_panel_current,
             sessions_panel::sessions_panel_show,
             sessions_panel::sessions_panel_hide,
             sessions_panel::sessions_panel_fit,

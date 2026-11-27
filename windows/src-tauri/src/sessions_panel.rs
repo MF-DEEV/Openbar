@@ -28,6 +28,9 @@ const MARGIN: f64 = 10.0;
 /// A click on the icon that closed the panel by taking its keyboard must
 /// not open it again a moment later.
 const RECLICK: Duration = Duration::from_millis(350);
+/// The keyboard can come and go while the window maps (a window manager
+/// placing it, a Wayland surface set up): that is not the person leaving.
+const SETTLE: Duration = Duration::from_millis(600);
 
 /// The session to open on, sent to the panel's page.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -136,6 +139,10 @@ struct State {
     fitted: Option<f64>,
     pinned: bool,
     visible: bool,
+    /// The session the panel was last opened on, for a page that loads
+    /// after the event telling it went by (the window's first showing).
+    focus: Option<Focus>,
+    shown_at: Option<Instant>,
     hidden_at: Option<Instant>,
     /// The icon the panel opened from, kept to place it again as it resizes.
     icon: Option<Area>,
@@ -216,6 +223,8 @@ fn position<R: Runtime>(window: &WebviewWindow<R>) {
         height.round() as u32,
     ));
     let _ = window.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
+    #[cfg(target_os = "linux")]
+    crate::linux::sessions_panel::set_size(window, width / scale, height / scale);
 }
 
 fn build<R: Runtime>(app: &AppHandle<R>) -> Option<WebviewWindow<R>> {
@@ -241,8 +250,11 @@ fn build<R: Runtime>(app: &AppHandle<R>) -> Option<WebviewWindow<R>> {
     let handle = app.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::Focused(false) = event {
-            let pinned = state().lock().map(|s| s.pinned).unwrap_or(false);
-            if !pinned {
+            let keeps = state()
+                .lock()
+                .map(|s| s.pinned || s.shown_at.is_some_and(|at| at.elapsed() < SETTLE))
+                .unwrap_or(false);
+            if !keeps {
                 hide(&handle);
             }
         }
@@ -261,12 +273,20 @@ pub fn show<R: Runtime>(
 ) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let Some(window) = build(&app) else { return };
+        let Some(window) = build(&app) else {
+            crate::diagnostics::log::error(
+                "sessions-panel",
+                "the panel's window could not be made",
+            );
+            return;
+        };
         if let Ok(mut state) = state().lock() {
             if icon.is_some() {
                 state.icon = icon;
             }
             state.visible = true;
+            state.focus = focus.clone();
+            state.shown_at = Some(Instant::now());
             state.hidden_at = None;
         }
         #[cfg(target_os = "linux")]
@@ -275,10 +295,24 @@ pub fn show<R: Runtime>(
         if let Some(focus) = focus {
             let _ = window.emit_to(LABEL, "sessions-panel://focus", Some(focus));
         }
-        let _ = window.show();
+        let shown = window.show();
         if take_focus {
             let _ = window.set_focus();
         }
+        crate::diagnostics::log::info(
+            "sessions-panel",
+            &format!(
+                "shown {} ({}, visible {:?}, size {:?})",
+                if icon.is_some() {
+                    "by the tray icon"
+                } else {
+                    "in the bar's corner"
+                },
+                if shown.is_ok() { "ok" } else { "show failed" },
+                window.is_visible().ok(),
+                window.inner_size().ok()
+            ),
+        );
         let _ = app.emit("sessions-panel://visible", true);
     });
 }
@@ -288,6 +322,7 @@ pub fn hide<R: Runtime>(app: &AppHandle<R>) {
         let was = s.visible;
         s.visible = false;
         s.enlarged = false;
+        s.focus = None;
         if was {
             s.hidden_at = Some(Instant::now());
         }
@@ -297,6 +332,7 @@ pub fn hide<R: Runtime>(app: &AppHandle<R>) {
         let _ = window.hide();
     }
     if was.unwrap_or(false) {
+        crate::diagnostics::log::info("sessions-panel", "hidden");
         let _ = app.emit("sessions-panel://visible", false);
     }
 }
@@ -334,6 +370,24 @@ pub fn toggle_from_tray<R: Runtime>(app: &AppHandle<R>, rect: tauri::Rect) {
         height: size.height,
     };
     show(app, Some(icon), None, true);
+}
+
+/// What the panel's page asks as it loads: whether it shows, and on which session.
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct Current {
+    pub visible: bool,
+    pub focus: Option<Focus>,
+}
+
+#[tauri::command]
+pub fn sessions_panel_current() -> Current {
+    state()
+        .lock()
+        .map(|s| Current {
+            visible: s.visible,
+            focus: s.focus.clone(),
+        })
+        .unwrap_or_default()
 }
 
 #[tauri::command]

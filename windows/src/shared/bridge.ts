@@ -584,6 +584,9 @@ export const bridge = {
   },
   /** The panel the sessions' tray icon opens (#331; sessions_panel.rs). */
   sessionsPanel: {
+    /** Whether it shows and on which session, asked as its page loads after the window's first showing. */
+    current: () =>
+      call<{ visible: boolean; focus: { session: string; request: string | null } | null }>("sessions_panel_current"),
     /** Opens it, on a session's page when `focus` names one. */
     show: (focus: { session: string; request: string | null } | null, takeFocus = true) =>
       call<void>("sessions_panel_show", { focus, takeFocus }),
