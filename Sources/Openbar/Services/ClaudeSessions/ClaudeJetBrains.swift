@@ -27,7 +27,11 @@ struct ClaudeJetBrainsIDE: Equatable, Identifiable {
         home.appending(path: "Library/Application Support/\(vendor)/\(dataDirectory)/plugins", directoryHint: .isDirectory)
     }
 
-    var plugin: String { "\(name) \(version)" }
+    /// "PyCharm 2026.3": the name and the release its settings folder belongs to.
+    var plugin: String {
+        let release = version.split(separator: ".").prefix(2).joined(separator: ".")
+        return release.isEmpty ? name : "\(name) \(release)"
+    }
 }
 
 /// The JetBrains bridge plugin (Tools/JetBrainsBridge) and the IDEs it goes

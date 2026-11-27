@@ -291,6 +291,12 @@ interface JetBrainsStatus {
   running: boolean;
 }
 
+/** "PyCharm 2026.3": the name and the release its settings folder belongs to. */
+function release(ide: JetBrainsStatus): string {
+  const version = ide.version.split(".").slice(0, 2).join(".");
+  return version ? `${ide.name} ${version}` : ide.name;
+}
+
 /** One row per JetBrains IDE found, each with its own plugins folder (#329). */
 function JetBrainsPlugins() {
   useLocale();
@@ -353,7 +359,7 @@ function JetBrainsPlugins() {
         return (
           <SubRow
             key={ide.id}
-            title={ide.version ? `${ide.name} ${ide.version}` : ide.name}
+            title={release(ide)}
             caption={note ? <div className={note.error ? "st-error" : undefined}>{note.text}</div> : undefined}
           >
             {ide.state === "current" ? (

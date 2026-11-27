@@ -127,7 +127,9 @@ enum JetBrainsHostTests {
 
         let ide = ClaudeJetBrains.ide(app: pycharm)
         suite.expect(ide?.name == "PyCharm" && ide?.bundle == "com.jetbrains.pycharm" && ide?.dataDirectory == "PyCharm2026.3"
-                     && ide?.vendor == "JetBrains" && ide?.plugin == "PyCharm 2026.3",
+                     && ide?.vendor == "JetBrains" && ide?.plugin == "PyCharm 2026.3"
+                     && ClaudeJetBrainsIDE(app: pycharm, bundle: "b", name: "PyCharm", version: "2026.3.0.2", dataDirectory: "d", vendor: "v").plugin
+                        == "PyCharm 2026.3",
                      "an IDE is read from its product-info.json")
         suite.expect(ide?.plugins(home: home).path == home.path + "/Library/Application Support/JetBrains/PyCharm2026.3/plugins",
                      "its plugins folder is under its settings folder")

@@ -334,11 +334,17 @@ struct NotchClaudeSessionsSettingsControls: View {
             ForEach(service.jetbrains ?? []) { status in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text(status.ide.plugin)
-                            .font(.callout)
-                        Text(status.state == .missing ? text.hooksMissing : text.hooksInstalled)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        // The name over its state, so neither wraps beside the buttons.
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(status.ide.plugin)
+                                .font(.callout)
+                                .lineLimit(1)
+                            Text(status.state == .missing ? text.hooksMissing : text.hooksInstalled)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .accessibilityElement(children: .combine)
                         Spacer(minLength: 8)
                         if status.state != .current {
                             Button(status.state == .outdated ? text.updatePlugin : text.installPlugin) {
