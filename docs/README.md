@@ -58,7 +58,7 @@ Every agent session on your machine, beside the camera. When one needs you, the 
 | Kimi Code | ✓ | ✓ by keys in its terminal, through its own server for `kimi web` and the Kimi Code app; in its panel for VS Code | ✓ except in VS Code |
 | Kiro CLI | ✓ | ✓ | ✓ |
 
-Background sessions (`claude --bg`), plan limits and **New session** are there too. Each session started from New session gets [its own git worktree](session-worktrees.md), so agents working on one repo don't change each other's files. Sessions on [machines you reach over SSH](remote-hosts.md) can show up too, with the host's name on them. See [what each agent allows](more-session-agents.md) and [which terminals replies reach](terminal-hosts.md).
+Background sessions (`claude --bg`), plan limits and **New session** are there too. Each session started from New session gets [its own git worktree](session-worktrees.md), so agents working on one repo don't change each other's files. Sessions on [machines you reach over SSH](remote-hosts.md) and [in Docker containers and devcontainers](containers.md) can show up too, with the host's or the container's name on them. See [what each agent allows](more-session-agents.md) and [which terminals replies reach](terminal-hosts.md).
 
 ## The rest of your Mac
 
@@ -152,5 +152,6 @@ Then turn on Sessions as the [README](../README.md#install) describes.
 | [Session worktrees](session-worktrees.md) | A git worktree for each session started from New session |
 | [Terminals](terminal-hosts.md) | Every terminal and editor replies reach |
 | [Remote hosts](remote-hosts.md) | Sessions on machines reached over SSH |
+| [Containers](containers.md) | Sessions in Docker containers and devcontainers |
 | [Windows](../windows/README.md) | The Windows island, installer and build |
 | [Linux](../windows/docs/linux.md) | The island under X11 and Wayland: the build and what works |
