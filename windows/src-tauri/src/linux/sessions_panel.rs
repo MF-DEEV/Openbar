@@ -12,15 +12,15 @@ use tauri::{Runtime, WebviewWindow};
 
 use crate::linux::layer;
 
+/// The panel is a layer surface: the compositor places it, and the window's
+/// own size request sizes it.
+static LAYERED: AtomicBool = AtomicBool::new(false);
+
 /// Makes the panel a layer surface the first time it shows on Wayland,
 /// anchored to the bar's corner: the top right, or the bottom right under
 /// KDE, whose panel is at the bottom. Nothing to do on X11. Done on GTK's
 /// thread and waited for, so the window is a layer surface before it maps:
 /// made one afterwards, it would be taken down and lose the keyboard.
-/// The panel is a layer surface, so the compositor places it and the
-/// window's own size request sizes it.
-static LAYERED: AtomicBool = AtomicBool::new(false);
-
 pub fn prepare<R: Runtime>(window: &WebviewWindow<R>, top: bool) {
     static DONE: AtomicBool = AtomicBool::new(false);
     if DONE.load(Ordering::Relaxed) {
@@ -72,13 +72,14 @@ fn make_layer<R: Runtime>(window: &WebviewWindow<R>, top: bool) -> bool {
     true
 }
 
-/// The panel's size as a layer surface, in logical pixels. A surface held by
-/// two edges takes the size its window asks for, and a web view on its own
-/// asks for next to nothing, so the window asks for the panel's size.
+/// The panel's size, in logical pixels, set on GTK's thread. GTK keeps a
+/// window that can't be resized by hand at least as large as its default
+/// size, so that follows the panel's size, letting it shrink to a short list.
+/// A layer surface held by two edges takes the size its window asks for, and
+/// a web view on its own asks for next to nothing, so there the window also
+/// asks for the panel's size.
 pub fn set_size<R: Runtime>(window: &WebviewWindow<R>, width: f64, height: f64) {
-    if !LAYERED.load(Ordering::Relaxed) {
-        return;
-    }
+    let layered = LAYERED.load(Ordering::Relaxed);
     let target = window.clone();
     let _ = window.run_on_main_thread(move || {
         let Ok(native) = target.gtk_window() else {
@@ -86,8 +87,10 @@ pub fn set_size<R: Runtime>(window: &WebviewWindow<R>, width: f64, height: f64) 
         };
         use gtk::prelude::{GtkWindowExt, WidgetExt};
         let (width, height) = (width.round() as i32, height.round() as i32);
-        // The request is a floor only; the resize lets it shrink to a short list.
-        native.set_size_request(width, height);
+        native.set_default_size(width, height);
+        if layered {
+            native.set_size_request(width, height);
+        }
         native.resize(width, height);
     });
 }

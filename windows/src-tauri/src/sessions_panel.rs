@@ -31,6 +31,10 @@ const RECLICK: Duration = Duration::from_millis(350);
 /// The keyboard can come and go while the window maps (a window manager
 /// placing it, a Wayland surface set up): that is not the person leaving.
 const SETTLE: Duration = Duration::from_millis(600);
+/// How long the panel waits, having lost the keyboard, before it closes. On
+/// X11 a global shortcut (the card's Ctrl+Y) takes the keyboard while its
+/// key is down and gives it back: that is not the person leaving either.
+const BLUR_GRACE: Duration = Duration::from_millis(300);
 
 /// The session to open on, sent to the panel's page.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -250,13 +254,29 @@ fn build<R: Runtime>(app: &AppHandle<R>) -> Option<WebviewWindow<R>> {
     let handle = app.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::Focused(false) = event {
-            let keeps = state()
-                .lock()
-                .map(|s| s.pinned || s.shown_at.is_some_and(|at| at.elapsed() < SETTLE))
-                .unwrap_or(false);
-            if !keeps {
-                hide(&handle);
-            }
+            let blurred = Instant::now();
+            let handle = handle.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(BLUR_GRACE);
+                let Some(window) = handle.get_webview_window(LABEL) else {
+                    return;
+                };
+                if window.is_focused().unwrap_or(false) {
+                    return;
+                }
+                // Pinned for a file dialog, or shown again since (a click on the icon).
+                let keeps = state()
+                    .lock()
+                    .map(|s| {
+                        s.pinned
+                            || s.shown_at
+                                .is_some_and(|at| blurred.saturating_duration_since(at) < SETTLE)
+                    })
+                    .unwrap_or(false);
+                if !keeps {
+                    hide(&handle);
+                }
+            });
         }
     });
     Some(window)
