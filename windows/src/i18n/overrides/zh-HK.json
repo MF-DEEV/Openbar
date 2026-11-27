@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "佇列中經「全部允許」放行的每個請求，由新到舊，附完整指令或檔案路徑。逐一允許的請求不會列出。最近 500 項保存在這部電腦上。",
   "windows.settings.sessions.batchApprovalsEmpty": "還沒有請求經「全部允許」放行。",
   "windows.settings.sessions.batchApprovalsClear": "清除",
-  "windows.settings.sessions.batchApprovalsCount": "已允許 %d 個"
+  "windows.settings.sessions.batchApprovalsCount": "已允許 %d 個",
+  "windows.sessions.trayName": "Openbar 會話",
+  "windows.sessions.trayNothingWaiting": "冇嘢等緊你",
+  "windows.sessions.trayOneWaiting": "1 個會話等緊你",
+  "windows.sessions.trayWaitingOne": "%@ 個會話等緊你",
+  "windows.sessions.trayWaitingFew": "%@ 個會話等緊你",
+  "windows.sessions.trayWaitingMany": "%@ 個會話等緊你",
+  "windows.sessions.trayOpenSessions": "開啟會話",
+  "windows.sessions.trayOpenAsk": "開啟",
+  "windows.sessions.traySettings": "會話設定…",
+  "windows.settings.sessions.placement": "會話顯示位置",
+  "windows.settings.sessions.placementCaption": "會話可以喺島嶼、由專屬系統匣圖示開啟嘅面板，或者兩處都顯示。就算關咗島嶼，系統匣都照樣運作。Windows 起初可能會將新圖示收埋喺 ^ 箭咀下面：拖佢去工作列就可以一直睇到。",
+  "windows.settings.sessions.placementCaptionLinux": "會話可以喺島嶼、由專屬系統匣圖示開啟嘅面板，或者兩處都顯示。就算關咗島嶼，系統匣都照樣運作。圖示選單可以開啟面板，並列出等緊嘅請求，可以直接允許或拒絕。",
+  "windows.settings.sessions.placementIsland": "島嶼",
+  "windows.settings.sessions.placementTray": "系統匣",
+  "windows.settings.sessions.placementBoth": "兩者",
+  "windows.settings.sessions.trayOpensPanel": "會話需要你時開啟面板",
+  "windows.settings.sessions.trayOpensPanelCaption": "只會喺你喺桌面或者 Openbar 時開啟，同島嶼一樣。否則圖示會閃，請求會繼續等。"
 }

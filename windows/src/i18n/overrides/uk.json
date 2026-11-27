@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Кожен запит, який «Дозволити всі» пропустила в черзі, від нових до старих, з повною командою або шляхами файлів. Запити, дозволені по одному, сюди не потрапляють. Останні 500 зберігаються на цьому комп’ютері.",
   "windows.settings.sessions.batchApprovalsEmpty": "Через «Дозволити всі» ще нічого не проходило.",
   "windows.settings.sessions.batchApprovalsClear": "Очистити",
-  "windows.settings.sessions.batchApprovalsCount": "Дозволено: %d"
+  "windows.settings.sessions.batchApprovalsCount": "Дозволено: %d",
+  "windows.sessions.trayName": "Сесії Openbar",
+  "windows.sessions.trayNothingWaiting": "На вас нічого не чекає",
+  "windows.sessions.trayOneWaiting": "1 сесія чекає на вас",
+  "windows.sessions.trayWaitingOne": "%@ сесія чекає на вас",
+  "windows.sessions.trayWaitingFew": "%@ сесії чекають на вас",
+  "windows.sessions.trayWaitingMany": "%@ сесій чекають на вас",
+  "windows.sessions.trayOpenSessions": "Відкрити сесії",
+  "windows.sessions.trayOpenAsk": "Відкрити",
+  "windows.sessions.traySettings": "Налаштування сесій…",
+  "windows.settings.sessions.placement": "Показувати сесії",
+  "windows.settings.sessions.placementCaption": "Сесії видно на острові, у панелі від їхнього власного значка в треї або і там, і там. Трей працює і з вимкненим островом. Спершу Windows може сховати новий значок під стрілкою ^: перетягніть його на панель завдань, щоб він був на виду.",
+  "windows.settings.sessions.placementCaptionLinux": "Сесії видно на острові, у панелі від їхнього власного значка в треї або і там, і там. Трей працює і з вимкненим островом. Меню значка відкриває панель і показує запити, що чекають, із кнопками «Дозволити» та «Відмовити».",
+  "windows.settings.sessions.placementIsland": "Острів",
+  "windows.settings.sessions.placementTray": "Трей",
+  "windows.settings.sessions.placementBoth": "Обидва",
+  "windows.settings.sessions.trayOpensPanel": "Відкривати панель, коли сесія чекає на вас",
+  "windows.settings.sessions.trayOpensPanelCaption": "Лише коли ви на робочому столі або в Openbar, як і острів. Інакше значок пульсує, а запит чекає."
 }

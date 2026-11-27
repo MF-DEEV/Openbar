@@ -53,6 +53,7 @@ mod scratchpad;
 mod session_lock;
 mod session_quiet;
 mod sessions;
+mod sessions_panel;
 mod settings;
 mod shell;
 mod sound;
@@ -316,6 +317,14 @@ pub fn run() {
             recorder::recorder_reveal,
             locale::locale_settings,
             tray::tray_battery_warning,
+            tray::tray_sessions_update,
+            tray::tray_sessions_icon,
+            tray::tray_sessions_pulse,
+            sessions_panel::sessions_panel_show,
+            sessions_panel::sessions_panel_hide,
+            sessions_panel::sessions_panel_fit,
+            sessions_panel::sessions_panel_set_enlarged,
+            sessions_panel::sessions_panel_set_pinned,
             island::island_set_hit_rects,
             island::island_set_capture,
             island::island_set_focusable,

@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Every ask Allow all let through in the queue, newest first, with its whole command or file paths. Asks you allowed one by one aren't listed. The last 500 stay on this computer.",
   "windows.settings.sessions.batchApprovalsEmpty": "Nothing has gone through Allow all yet.",
   "windows.settings.sessions.batchApprovalsClear": "Clear",
-  "windows.settings.sessions.batchApprovalsCount": "%d allowed"
+  "windows.settings.sessions.batchApprovalsCount": "%d allowed",
+  "windows.sessions.trayName": "Openbar Sessions",
+  "windows.sessions.trayNothingWaiting": "Nothing is waiting for you",
+  "windows.sessions.trayOneWaiting": "1 session is waiting for you",
+  "windows.sessions.trayWaitingOne": "%@ session is waiting for you",
+  "windows.sessions.trayWaitingFew": "%@ sessions are waiting for you",
+  "windows.sessions.trayWaitingMany": "%@ sessions are waiting for you",
+  "windows.sessions.trayOpenSessions": "Open Sessions",
+  "windows.sessions.trayOpenAsk": "Open",
+  "windows.sessions.traySettings": "Sessions Settings…",
+  "windows.settings.sessions.placement": "Show sessions in",
+  "windows.settings.sessions.placementCaption": "Sessions show in the island, in a panel from their own tray icon, or in both. The tray works even with the island turned off. Windows may hide a new icon under the ^ arrow at first: drag it onto the taskbar to keep it in sight.",
+  "windows.settings.sessions.placementCaptionLinux": "Sessions show in the island, in a panel from their own tray icon, or in both. The tray works even with the island turned off. The icon’s menu opens the panel and lists the waiting asks with Allow and Deny.",
+  "windows.settings.sessions.placementIsland": "Island",
+  "windows.settings.sessions.placementTray": "Tray",
+  "windows.settings.sessions.placementBoth": "Both",
+  "windows.settings.sessions.trayOpensPanel": "Open the panel when a session needs you",
+  "windows.settings.sessions.trayOpensPanelCaption": "Only when you’re on the desktop or in Openbar, as the island does. Otherwise the icon pulses and the ask waits."
 }

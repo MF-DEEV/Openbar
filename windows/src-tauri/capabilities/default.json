@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Island and its mirrors, menu bar, settings, first-run and screen selection windows",
-  "windows": ["island", "island-mirror-*", "bar", "settings", "onboarding", "capture"],
+  "description": "Island and its mirrors, the sessions' tray panel, menu bar, settings, first-run and screen selection windows",
+  "windows": ["island", "island-mirror-*", "sessions-panel", "bar", "settings", "onboarding", "capture"],
   "permissions": [
     "core:default",
     "opener:default",

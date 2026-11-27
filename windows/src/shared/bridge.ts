@@ -46,6 +46,43 @@ export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in
 /** The `--shortcut` listeners of the permission keys held now. */
 const permissionKeyListeners = new Map<string, UnlistenFn>();
 
+/** One waiting ask as the sessions' tray menu lists it (#331). */
+export interface TrayAsk {
+  session: string;
+  request: string;
+  /** The session's name, then what it asks. */
+  title: string;
+  /** Allow and Deny in the menu where the island's queue answers in place; Open otherwise. */
+  decides: boolean;
+}
+
+/** What the sessions' own tray icon shows (#331; tray.rs TraySessions). */
+export interface TraySessionsModel {
+  visible: boolean;
+  waiting: number;
+  /** What the pointer and Narrator read; Linux has no tooltip, so the menu's first line says it. */
+  tooltip: string;
+  /** Beside the icon where the desktop shows it (Linux): the count from two. */
+  label: string;
+  header: string;
+  asks: TrayAsk[];
+  openSessions: string;
+  settings: string;
+  allow: string;
+  deny: string;
+  openAsk: string;
+}
+
+/** A choice made in the sessions' tray menu, handed to the island (#331). */
+export type TraySessionsAction =
+  { kind: "open" } | { kind: "allow" | "deny" | "openAsk"; session: string; request: string };
+
+/** The tray panel shown or hidden, and the session its page shows, for the island (#331). */
+export interface SessionsPanelState {
+  visible: boolean;
+  focused: string | null;
+}
+
 export interface AttentionContext {
   canAutoPresent: boolean;
   fullscreen: boolean;
@@ -534,6 +571,45 @@ export const bridge = {
   tray: {
     batteryWarning: (level: "none" | "early" | "low", percent: number | null) =>
       call<void>("tray_battery_warning", { level, percent }),
+    /** The sessions' own icon (#331): shown or not, its tooltip and its menu. */
+    sessions: (model: TraySessionsModel) => call<void>("tray_sessions_update", { model }),
+    /** Its pictures, as PNG: the face with or without the dot, and the dot swollen for the pulse. */
+    sessionsIcon: (icon: number[], pulse: number[] | null) => call<void>("tray_sessions_icon", { icon, pulse }),
+    /** The dot breathes a few times for a new ask. */
+    sessionsPulse: () => call<void>("tray_sessions_pulse"),
+    onSessionsAction(handler: (action: TraySessionsAction) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<TraySessionsAction>("tray://sessions-action", (e) => handler(e.payload));
+    },
+  },
+  /** The panel the sessions' tray icon opens (#331; sessions_panel.rs). */
+  sessionsPanel: {
+    /** Opens it, on a session's page when `focus` names one. */
+    show: (focus: { session: string; request: string | null } | null, takeFocus = true) =>
+      call<void>("sessions_panel_show", { focus, takeFocus }),
+    hide: () => call<void>("sessions_panel_hide"),
+    /** Its height around a list this tall, or the full panel for null. */
+    fit: (height: number | null) => call<void>("sessions_panel_fit", { height }),
+    setEnlarged: (on: boolean) => call<void>("sessions_panel_set_enlarged", { on }),
+    /** Kept open while a dialog of its own (a file picker) has the keyboard. */
+    setPinned: (on: boolean) => call<void>("sessions_panel_set_pinned", { on }),
+    onVisible(handler: (visible: boolean) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<boolean>("sessions-panel://visible", (e) => handler(e.payload));
+    },
+    /** The session to open on, sent with the panel's showing. */
+    onFocus(handler: (focus: { session: string; request: string | null } | null) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<{ session: string; request: string | null } | null>("sessions-panel://focus", (e) =>
+        handler(e.payload),
+      );
+    },
+    /** The panel tells the island what it shows. */
+    report: (state: SessionsPanelState) => (inTauri ? emit("sessions-panel://state", state) : Promise.resolve()),
+    onState(handler: (state: SessionsPanelState) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<SessionsPanelState>("sessions-panel://state", (e) => handler(e.payload));
+    },
   },
   power: {
     battery: () => call<BatteryReading | null>("battery_status"),

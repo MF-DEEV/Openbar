@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Cada pedido que o Permitir todos liberou na fila, do mais recente ao mais antigo, com o comando completo ou os caminhos dos arquivos. Pedidos que você permitiu um a um não aparecem. Os últimos 500 ficam neste computador.",
   "windows.settings.sessions.batchApprovalsEmpty": "Nada passou pelo Permitir todos ainda.",
   "windows.settings.sessions.batchApprovalsClear": "Limpar",
-  "windows.settings.sessions.batchApprovalsCount": "%d permitidos"
+  "windows.settings.sessions.batchApprovalsCount": "%d permitidos",
+  "windows.sessions.trayName": "Sessões do Openbar",
+  "windows.sessions.trayNothingWaiting": "Nada está esperando por você",
+  "windows.sessions.trayOneWaiting": "1 sessão está esperando por você",
+  "windows.sessions.trayWaitingOne": "%@ sessão está esperando por você",
+  "windows.sessions.trayWaitingFew": "%@ sessões estão esperando por você",
+  "windows.sessions.trayWaitingMany": "%@ sessões estão esperando por você",
+  "windows.sessions.trayOpenSessions": "Abrir sessões",
+  "windows.sessions.trayOpenAsk": "Abrir",
+  "windows.sessions.traySettings": "Ajustes de sessões…",
+  "windows.settings.sessions.placement": "Mostrar sessões em",
+  "windows.settings.sessions.placementCaption": "As sessões aparecem na ilha, em um painel aberto pelo próprio ícone na bandeja ou em ambos. A bandeja funciona mesmo com a ilha desligada. No início, o Windows pode esconder um ícone novo sob a seta ^: arraste-o para a barra de tarefas para mantê-lo à vista.",
+  "windows.settings.sessions.placementCaptionLinux": "As sessões aparecem na ilha, em um painel aberto pelo próprio ícone na bandeja ou em ambos. A bandeja funciona mesmo com a ilha desligada. O menu do ícone abre o painel e lista os pedidos pendentes com Permitir e Negar.",
+  "windows.settings.sessions.placementIsland": "Ilha",
+  "windows.settings.sessions.placementTray": "Bandeja",
+  "windows.settings.sessions.placementBoth": "Ambos",
+  "windows.settings.sessions.trayOpensPanel": "Abrir o painel quando uma sessão precisar de você",
+  "windows.settings.sessions.trayOpensPanelCaption": "Só quando você estiver na área de trabalho ou no Openbar, como faz a ilha. Caso contrário, o ícone pulsa e o pedido espera."
 }

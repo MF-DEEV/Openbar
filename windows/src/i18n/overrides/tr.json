@@ -1014,5 +1014,22 @@
   "windows.settings.sessions.batchApprovalsCaption": "Kuyrukta Tümüne izin ver ile geçen her istek, en yenisi önce, komutun tamamı veya dosya yollarıyla. Tek tek izin verdiğin istekler listelenmez. Son 500 tanesi bu bilgisayarda kalır.",
   "windows.settings.sessions.batchApprovalsEmpty": "Henüz Tümüne izin ver ile geçen bir şey yok.",
   "windows.settings.sessions.batchApprovalsClear": "Temizle",
-  "windows.settings.sessions.batchApprovalsCount": "%d izin verildi"
+  "windows.settings.sessions.batchApprovalsCount": "%d izin verildi",
+  "windows.sessions.trayName": "Openbar Oturumları",
+  "windows.sessions.trayNothingWaiting": "Sizi bekleyen bir şey yok",
+  "windows.sessions.trayOneWaiting": "1 oturum sizi bekliyor",
+  "windows.sessions.trayWaitingOne": "%@ oturum sizi bekliyor",
+  "windows.sessions.trayWaitingFew": "%@ oturum sizi bekliyor",
+  "windows.sessions.trayWaitingMany": "%@ oturum sizi bekliyor",
+  "windows.sessions.trayOpenSessions": "Oturumları aç",
+  "windows.sessions.trayOpenAsk": "Aç",
+  "windows.sessions.traySettings": "Oturum ayarları…",
+  "windows.settings.sessions.placement": "Oturumları göster",
+  "windows.settings.sessions.placementCaption": "Oturumlar adada, kendi tepsi simgelerinden açılan bir panelde ya da ikisinde birden görünür. Tepsi, ada kapalıyken de çalışır. Windows yeni bir simgeyi başta ^ okunun altına gizleyebilir: görünür kalması için onu görev çubuğuna sürükleyin.",
+  "windows.settings.sessions.placementCaptionLinux": "Oturumlar adada, kendi tepsi simgelerinden açılan bir panelde ya da ikisinde birden görünür. Tepsi, ada kapalıyken de çalışır. Simgenin menüsü paneli açar ve bekleyen istekleri İzin ver ve Reddet seçenekleriyle listeler.",
+  "windows.settings.sessions.placementIsland": "Ada",
+  "windows.settings.sessions.placementTray": "Tepsi",
+  "windows.settings.sessions.placementBoth": "İkisi de",
+  "windows.settings.sessions.trayOpensPanel": "Bir oturum size ihtiyaç duyduğunda paneli aç",
+  "windows.settings.sessions.trayOpensPanelCaption": "Yalnızca masaüstündeyken ya da Openbar’dayken, ada gibi. Aksi halde simge atar ve istek bekler."
 }

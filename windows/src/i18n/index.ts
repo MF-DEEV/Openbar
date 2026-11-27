@@ -96,6 +96,8 @@ export function formatUnit(
         .join("")
     : formatter.format(count);
 }
+/** Runs `listener` after every language switch, for what draws text outside React (the tray, #331). */
+export const onLocaleChange = (listener: () => void) => subscribe(listener);
 /** Memoized/portalled components subscribe too; switching never remounts them. */
 export function useLocale(): Language {
   useSyncExternalStore(subscribe, snapshot, snapshot);

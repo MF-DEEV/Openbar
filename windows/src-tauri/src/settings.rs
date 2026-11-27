@@ -41,6 +41,13 @@ pub async fn open_settings<R: Runtime>(app: AppHandle<R>, page: Option<String>) 
     }
 }
 
+/// Opens the settings window on one page from outside a command, as the
+/// sessions' tray menu does for its settings (#331).
+pub fn open_page<R: Runtime>(app: &AppHandle<R>, page: &'static str) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { show_page(&app, page) });
+}
+
 /// Opens the settings window on one page, as onboarding's link to the
 /// usage stats switch in About does (#333).
 fn show_page<R: Runtime>(app: &AppHandle<R>, page: &str) {
