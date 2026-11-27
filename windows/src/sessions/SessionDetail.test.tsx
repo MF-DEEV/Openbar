@@ -193,3 +193,15 @@ it("offers the microphone beside Reply", () => {
   vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)" });
   expect(renderToStaticMarkup(<SessionDetail session={session} enlarged />)).toContain('aria-label="Speak a reply"');
 });
+
+it("leads a JetBrains session without the bridge plugin to Settings (#329)", () => {
+  const base = { ...demoSnapshot().sessions[2]!, phase: "finished" as const, waitingFor: undefined };
+  const without = { ...base, host: "jetbrains" as const, hostName: "PyCharm", acceptsReplies: false };
+  const html = renderToStaticMarkup(<SessionDetail session={without} enlarged />);
+  expect(html).toContain('placeholder="Install the JetBrains bridge to reply"');
+  expect(html).toContain('class="s-bridge-link"');
+  expect(html).toContain("Open Settings");
+  const withPlugin = renderToStaticMarkup(<SessionDetail session={{ ...without, acceptsReplies: true }} enlarged />);
+  expect(withPlugin).not.toContain("s-bridge-link");
+  expect(withPlugin).not.toContain("Install the JetBrains bridge");
+});

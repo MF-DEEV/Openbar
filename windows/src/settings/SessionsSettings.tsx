@@ -283,6 +283,103 @@ function EditorExtensions() {
   );
 }
 
+interface JetBrainsStatus {
+  id: string;
+  name: string;
+  version: string;
+  state: "missing" | "current" | "outdated";
+  running: boolean;
+}
+
+/** One row per JetBrains IDE found, each with its own plugins folder (#329). */
+function JetBrainsPlugins() {
+  useLocale();
+  const [ides, setIdes] = useState<JetBrainsStatus[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, { text: string; error: boolean }>>({});
+  const refresh = useCallback(async () => {
+    setIdes(inTauri ? await invoke<JetBrainsStatus[]>("jetbrains_bridge_status") : []);
+  }, []);
+  useEffect(() => {
+    void refresh();
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refresh]);
+  const change = async (ide: JetBrainsStatus, install: boolean) => {
+    setBusy(ide.id);
+    let note: { text: string; error: boolean } | null = null;
+    try {
+      await invoke("jetbrains_bridge_change", { id: ide.id, install });
+      // A running IDE loads or drops the plugin when it restarts.
+      if (ide.running)
+        note = {
+          text: install ? T.sessions.jetbrainsRestart(ide.name) : T.sessions.jetbrainsRestartRemoved(ide.name),
+          error: false,
+        };
+    } catch (e) {
+      const reason = String(e);
+      note = {
+        text:
+          reason === "inUse"
+            ? T.sessions.jetbrainsInUse(ide.name)
+            : reason === "noFolder"
+              ? T.sessions.jetbrainsNoFolder
+              : reason === "notFound"
+                ? T.sessions.bridgeFailures.notFound
+                : reason,
+        error: true,
+      };
+    }
+    setNotes((all) => {
+      const next = { ...all };
+      if (note) next[ide.id] = note;
+      else delete next[ide.id];
+      return next;
+    });
+    try {
+      await refresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <>
+      <SubRow title={T.sessions.jetbrains} caption={T.sessions.jetbrainsCaption}>
+        {ides?.length === 0 ? <Status tone="off">{T.sessions.jetbrainsNone}</Status> : null}
+      </SubRow>
+      {ides?.map((ide) => {
+        const note = notes[ide.id];
+        return (
+          <SubRow
+            key={ide.id}
+            title={ide.version ? `${ide.name} ${ide.version}` : ide.name}
+            caption={note ? <div className={note.error ? "st-error" : undefined}>{note.text}</div> : undefined}
+          >
+            {ide.state === "current" ? (
+              <Status tone="ok">{T.sessions.bridgeOn}</Status>
+            ) : ide.state === "outdated" ? (
+              <Status tone="warn">{T.sessions.bridgeStale}</Status>
+            ) : (
+              <Status tone="off">{T.sessions.bridgeOff}</Status>
+            )}
+            {ide.state !== "current" ? (
+              <Button accent onClick={() => void change(ide, true)} busy={busy === ide.id} disabled={busy !== null}>
+                {ide.state === "outdated" ? T.sessions.bridgeUpdate : T.sessions.bridgeInstall}
+              </Button>
+            ) : null}
+            {ide.state !== "missing" ? (
+              <Button onClick={() => void change(ide, false)} disabled={busy !== null}>
+                {T.sessions.jetbrainsRemove}
+              </Button>
+            ) : null}
+          </SubRow>
+        );
+      })}
+    </>
+  );
+}
+
 const AGENT_PREF = {
   gemini: "agentGemini",
   copilot: "agentCopilot",
@@ -854,6 +951,7 @@ export function SessionsOptions() {
       <HooksLink />
       <ClaudeAccounts />
       <EditorExtensions />
+      <JetBrainsPlugins />
       <SubRow title={t("windows.settings.codex")} caption={T.sessions.codexCaption}>
         {codex === "connected" ? (
           <Status tone="ok">{T.sessions.codexConnected}</Status>

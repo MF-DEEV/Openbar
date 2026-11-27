@@ -1031,5 +1031,15 @@
   "windows.settings.sessions.placementTray": "Barre d’état",
   "windows.settings.sessions.placementBoth": "Les deux",
   "windows.settings.sessions.trayOpensPanel": "Ouvrir le panneau quand une session a besoin de vous",
-  "windows.settings.sessions.trayOpensPanelCaption": "Seulement quand vous êtes sur le bureau ou dans Openbar, comme pour l’île. Sinon, l’icône pulse et la demande attend."
+  "windows.settings.sessions.trayOpensPanelCaption": "Seulement quand vous êtes sur le bureau ou dans Openbar, comme pour l’île. Sinon, l’icône pulse et la demande attend.",
+  "windows.sessions.replyJetBrainsBridge": "Installez le pont JetBrains pour répondre",
+  "windows.sessions.openBridgeSettings": "Ouvrir les Réglages",
+  "windows.settings.sessions.jetbrains": "Pont JetBrains",
+  "windows.settings.sessions.jetbrainsCaption": "Ouvrir trouve la fenêtre du projet d’une session dans n’importe quel IDE JetBrains. Avec le plugin pont, il choisit aussi l’onglet de terminal de la session, et les réponses y sont tapées. Chaque IDE charge le plugin à son redémarrage.",
+  "windows.settings.sessions.jetbrainsNone": "Aucun IDE JetBrains trouvé",
+  "windows.settings.sessions.jetbrainsRemove": "Retirer",
+  "windows.settings.sessions.jetbrainsRestart": "Redémarrez %@ pour le charger",
+  "windows.settings.sessions.jetbrainsRestartRemoved": "Redémarrez %@ pour le décharger",
+  "windows.settings.sessions.jetbrainsInUse": "Fermez d’abord %@ : il a le plugin ouvert",
+  "windows.settings.sessions.jetbrainsNoFolder": "Le dossier de réglages de cet IDE est introuvable"
 }

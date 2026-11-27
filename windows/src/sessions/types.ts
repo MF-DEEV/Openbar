@@ -19,6 +19,7 @@ export interface LimitStop {
 export type HostKind =
   | "windowsTerminal"
   | "vscode"
+  | "jetbrains"
   | "conhost"
   | "wezterm"
   | "tmux"

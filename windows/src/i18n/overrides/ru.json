@@ -1031,5 +1031,15 @@
   "windows.settings.sessions.placementTray": "Трей",
   "windows.settings.sessions.placementBoth": "Оба",
   "windows.settings.sessions.trayOpensPanel": "Открывать панель, когда сессия ждёт вас",
-  "windows.settings.sessions.trayOpensPanelCaption": "Только когда вы на рабочем столе или в Openbar, как и остров. Иначе значок пульсирует, а запрос ждёт."
+  "windows.settings.sessions.trayOpensPanelCaption": "Только когда вы на рабочем столе или в Openbar, как и остров. Иначе значок пульсирует, а запрос ждёт.",
+  "windows.sessions.replyJetBrainsBridge": "Установите мост JetBrains, чтобы отвечать",
+  "windows.sessions.openBridgeSettings": "Открыть настройки",
+  "windows.settings.sessions.jetbrains": "Мост JetBrains",
+  "windows.settings.sessions.jetbrainsCaption": "«Открыть» находит окно проекта сессии в любой IDE JetBrains. С плагином-мостом оно также выбирает вкладку терминала сессии, и ответы вводятся туда. Каждая IDE загружает плагин при перезапуске.",
+  "windows.settings.sessions.jetbrainsNone": "IDE JetBrains не найдены",
+  "windows.settings.sessions.jetbrainsRemove": "Удалить",
+  "windows.settings.sessions.jetbrainsRestart": "Перезапустите %@, чтобы загрузить его",
+  "windows.settings.sessions.jetbrainsRestartRemoved": "Перезапустите %@, чтобы выгрузить его",
+  "windows.settings.sessions.jetbrainsInUse": "Сначала закройте %@: плагин в нём открыт",
+  "windows.settings.sessions.jetbrainsNoFolder": "Папка настроек этой IDE не найдена"
 }

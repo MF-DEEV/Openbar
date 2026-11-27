@@ -160,6 +160,8 @@ impl RegistryStatus {
 pub enum HostKind {
     WindowsTerminal,
     Vscode,
+    /// A JetBrains IDE's terminal (#329), reached through its bridge plugin.
+    Jetbrains,
     Conhost,
     /// A WezTerm pane, reached through WezTerm's command line.
     Wezterm,

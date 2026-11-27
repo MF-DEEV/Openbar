@@ -37,6 +37,7 @@ jobs:
     outputs:
       mac: ${{ github.event_name != 'pull_request' || steps.filter.outputs.mac == 'true' }}
       windows: ${{ github.event_name != 'pull_request' || steps.filter.outputs.windows == 'true' }}
+      jetbrains: ${{ github.event_name != 'pull_request' || steps.filter.outputs.jetbrains == 'true' }}
       workflows: ${{ github.event_name != 'pull_request' || steps.filter.outputs.workflows == 'true' }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -57,6 +58,11 @@ jobs:
               - 'windows/**'
               - 'Resources/agent-prices.json'
               - 'Resources/Images/**'
+              # The JetBrains bridge plugin travels inside the Windows and Linux apps.
+              - 'Tools/JetBrainsBridge/**'
+              - '.github/workflows/pr.yml'
+            jetbrains:
+              - 'Tools/JetBrainsBridge/**'
               - '.github/workflows/pr.yml'
             workflows:
               - '.github/**'
@@ -243,9 +249,26 @@ jobs:
       - name: Unit tests
         run: ./build.sh --test
 
+  jetbrains-bridge:
+    name: JetBrains bridge plugin
+    needs: changes
+    if: needs.changes.outputs.jetbrains == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # The runner's JDK (17 or later) is enough: the tested code keeps the
+      # IDE's classes behind an interface. --check-dist fails when the jar the
+      # apps carry wasn't rebuilt after a change to the sources.
+      - name: Plugin tests
+        run: Tools/JetBrainsBridge/test.sh --check-dist
+
   ci-ok:
     name: CI ok
-    needs: [changes, lint-workflows, windows-web, windows-clippy, windows-test, linux-rust, mac-tests]
+    needs: [changes, lint-workflows, windows-web, windows-clippy, windows-test, linux-rust, mac-tests, jetbrains-bridge]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

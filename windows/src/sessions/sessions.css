@@ -1673,6 +1673,40 @@
   color: #ff9f0a;
 }
 
+/* The way from a JetBrains session's reply field to its bridge plugin (#329). */
+.s-bridge-link {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.s-bridge-link:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.s-bridge-link:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-bridge-link {
+    transition: none;
+  }
+}
+
 .s-thinking {
   display: flex;
   align-items: baseline;

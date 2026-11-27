@@ -1031,5 +1031,15 @@
   "windows.settings.sessions.placementTray": "Трей",
   "windows.settings.sessions.placementBoth": "Обидва",
   "windows.settings.sessions.trayOpensPanel": "Відкривати панель, коли сесія чекає на вас",
-  "windows.settings.sessions.trayOpensPanelCaption": "Лише коли ви на робочому столі або в Openbar, як і острів. Інакше значок пульсує, а запит чекає."
+  "windows.settings.sessions.trayOpensPanelCaption": "Лише коли ви на робочому столі або в Openbar, як і острів. Інакше значок пульсує, а запит чекає.",
+  "windows.sessions.replyJetBrainsBridge": "Установіть міст JetBrains, щоб відповідати",
+  "windows.sessions.openBridgeSettings": "Відкрити налаштування",
+  "windows.settings.sessions.jetbrains": "Міст JetBrains",
+  "windows.settings.sessions.jetbrainsCaption": "«Відкрити» знаходить вікно проєкту сеансу в будь-якій IDE JetBrains. З плагіном-мостом воно також вибирає вкладку термінала сеансу, і відповіді вводяться туди. Кожна IDE завантажує плагін під час перезапуску.",
+  "windows.settings.sessions.jetbrainsNone": "IDE JetBrains не знайдено",
+  "windows.settings.sessions.jetbrainsRemove": "Видалити",
+  "windows.settings.sessions.jetbrainsRestart": "Перезапустіть %@, щоб завантажити його",
+  "windows.settings.sessions.jetbrainsRestartRemoved": "Перезапустіть %@, щоб вивантажити його",
+  "windows.settings.sessions.jetbrainsInUse": "Спершу закрийте %@: плагін у ній відкритий",
+  "windows.settings.sessions.jetbrainsNoFolder": "Теку налаштувань цієї IDE не знайдено"
 }

@@ -2946,6 +2946,7 @@ fn host_kind(host: &hosts::Host) -> HostKind {
     match host {
         hosts::Host::WindowsTerminal { .. } => HostKind::WindowsTerminal,
         hosts::Host::Vscode { .. } => HostKind::Vscode,
+        hosts::Host::JetBrains { .. } => HostKind::Jetbrains,
         hosts::Host::Conhost => HostKind::Conhost,
         hosts::Host::Wezterm { .. } => HostKind::Wezterm,
         hosts::Host::Tmux { .. } => HostKind::Tmux,

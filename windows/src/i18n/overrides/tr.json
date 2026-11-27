@@ -1031,5 +1031,15 @@
   "windows.settings.sessions.placementTray": "Tepsi",
   "windows.settings.sessions.placementBoth": "İkisi de",
   "windows.settings.sessions.trayOpensPanel": "Bir oturum size ihtiyaç duyduğunda paneli aç",
-  "windows.settings.sessions.trayOpensPanelCaption": "Yalnızca masaüstündeyken ya da Openbar’dayken, ada gibi. Aksi halde simge atar ve istek bekler."
+  "windows.settings.sessions.trayOpensPanelCaption": "Yalnızca masaüstündeyken ya da Openbar’dayken, ada gibi. Aksi halde simge atar ve istek bekler.",
+  "windows.sessions.replyJetBrainsBridge": "Yanıtlamak için JetBrains köprüsünü yükleyin",
+  "windows.sessions.openBridgeSettings": "Ayarları Aç",
+  "windows.settings.sessions.jetbrains": "JetBrains köprüsü",
+  "windows.settings.sessions.jetbrainsCaption": "Aç, herhangi bir JetBrains IDE’sinde oturumun proje penceresini bulur. Köprü eklentisiyle oturumun terminal sekmesini de seçer ve yanıtlar oraya yazılır. Her IDE eklentiyi yeniden başladığında yükler.",
+  "windows.settings.sessions.jetbrainsNone": "JetBrains IDE’si bulunamadı",
+  "windows.settings.sessions.jetbrainsRemove": "Kaldır",
+  "windows.settings.sessions.jetbrainsRestart": "Yüklemek için %@ uygulamasını yeniden başlatın",
+  "windows.settings.sessions.jetbrainsRestartRemoved": "Kaldırmak için %@ uygulamasını yeniden başlatın",
+  "windows.settings.sessions.jetbrainsInUse": "Önce %@ uygulamasını kapatın: eklenti açık",
+  "windows.settings.sessions.jetbrainsNoFolder": "Bu IDE’nin ayar klasörü bulunamadı"
 }
