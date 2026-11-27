@@ -213,6 +213,10 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
         service
             .inner()
             .set_remote_hosts(crate::sessions::remote::hosts_from_prefs(value));
+        // Docker containers and devcontainers picked, off until turned on (#330).
+        service
+            .inner()
+            .set_containers(crate::sessions::containers::targets_from_prefs(value));
     }
     crate::clipboard::apply_prefs(app, before, value);
     crate::audio::apply_prefs(app, value);

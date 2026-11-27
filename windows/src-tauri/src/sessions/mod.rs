@@ -32,6 +32,7 @@ pub mod models;
 pub mod plan_modes;
 pub mod qwen;
 pub mod registry;
+pub mod containers;
 pub mod remote;
 pub mod risk;
 pub mod safe_commands;

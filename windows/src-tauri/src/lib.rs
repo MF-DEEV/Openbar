@@ -409,6 +409,8 @@ pub fn run() {
             sessions::service::sessions_agent_hooks_install,
             sessions::service::sessions_remote_hosts_status,
             sessions::service::sessions_remote_hosts_change,
+            sessions::service::sessions_containers_list,
+            sessions::service::sessions_containers_change,
             island_shortcut::shortcut_registered,
             sessions::service::sessions_reply,
             sessions::service::sessions_open,

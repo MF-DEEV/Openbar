@@ -631,7 +631,12 @@ fn hosts(
         })
         .collect();
     let codex_accounts = codex_profiles(prefs);
-    let aliases = crate::sessions::remote::hosts_from_prefs(prefs);
+    let mut aliases = crate::sessions::remote::hosts_from_prefs(prefs);
+    aliases.extend(
+        crate::sessions::containers::all_targets(prefs)
+            .iter()
+            .map(crate::sessions::containers::Target::alias),
+    );
     let remote_hosts = match service {
         Some(service) => service.remote_states(&aliases),
         None => aliases
@@ -640,7 +645,15 @@ fn hosts(
             .collect(),
     }
     .into_iter()
-    .map(|(label, state)| report::Remote { label, state })
+    .map(|(label, state)| report::Remote {
+        // A container shows by its project or name, as on its badge.
+        label: if crate::sessions::containers::is_container(&label) {
+            format!("container {}", crate::sessions::containers::title_of(&label))
+        } else {
+            label
+        },
+        state,
+    })
     .collect();
     report::Hosts {
         terminals,

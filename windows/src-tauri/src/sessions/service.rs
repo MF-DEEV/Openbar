@@ -32,6 +32,7 @@ use super::models::{
 };
 use super::plan_modes::PlanMode;
 use super::registry::{self, RegistryFile};
+use super::containers;
 use super::remote;
 use super::sample;
 use super::transcript::{self, NoPricing, TranscriptReader};
@@ -2869,7 +2870,29 @@ impl Service {
         }
         if let Some((link, pid)) = self.remote_target(session) {
             // Its pane comes forward in the host's tmux; no window here shows it.
-            let ok = link.focus(pid, session);
+            let mut ok = link.focus(pid, session);
+            // A container's session: its devcontainer's VS Code window, else
+            // a terminal attached to its tmux (issue #330).
+            if link.is_container()
+                && let Some((engine, found)) = link.container()
+            {
+                let pane = {
+                    let inner = self.inner.lock().unwrap();
+                    inner
+                        .remote
+                        .snapshots
+                        .get(&link.alias)
+                        .and_then(|s| remote::Link::pane_of(s, session))
+                };
+                ok = if let Some(folder) = found.folder.as_deref().filter(|_| containers::has_editor()) {
+                    tauri_plugin_opener::open_url(containers::editor_url(folder, found.workspace.as_deref()), None::<&str>)
+                        .is_ok()
+                } else if let Some((socket, pane)) = pane.filter(|_| ok) {
+                    background::agent_in_terminal(&engine.binary, &containers::attach_args(&found, &socket, &pane), None)
+                } else {
+                    ok
+                };
+            }
             if ok {
                 self.acknowledge(session);
             }
@@ -3087,19 +3110,11 @@ impl Service {
             .remote
             .links
             .keys()
-            .filter(|a| !wanted.contains(a))
+            .filter(|a| !containers::is_container(a) && !wanted.contains(a))
             .cloned()
             .collect();
         for alias in gone {
-            if let Some(link) = inner.remote.links.remove(&alias) {
-                link.stop();
-            }
-            if let Some(codex) = self.remote_codex.lock().unwrap().remove(&alias) {
-                codex.stop();
-            }
-            inner.remote.snapshots.remove(&alias);
-            inner.remote.failures.remove(&alias);
-            inner.remote.tails.retain(|(a, _), _| a != &alias);
+            self.drop_link(&mut inner, &alias);
         }
         if wanted.is_empty() {
             return;
@@ -3161,6 +3176,92 @@ impl Service {
                 .lock()
                 .unwrap()
                 .insert(alias.clone(), codex);
+            inner.remote.links.insert(alias, link);
+        }
+    }
+
+    /// Ends a host's or a container's link and forgets what it showed.
+    fn drop_link(&self, inner: &mut Inner, alias: &str) {
+        if let Some(link) = inner.remote.links.remove(alias) {
+            link.stop();
+        }
+        if let Some(codex) = self.remote_codex.lock().unwrap().remove(alias) {
+            codex.stop();
+        }
+        inner.remote.snapshots.remove(alias);
+        inner.remote.failures.remove(alias);
+        inner.remote.tails.retain(|(a, _), _| a != alias);
+    }
+
+    /// Starts a link for each container picked while the switch is on, and
+    /// ends the others (sessions::containers, docs/containers.md).
+    pub fn set_containers(self: &Arc<Self>, wanted: Vec<containers::Target>) {
+        let mut inner = self.inner.lock().unwrap();
+        let aliases: Vec<String> = wanted.iter().map(containers::Target::alias).collect();
+        let gone: Vec<String> = inner
+            .remote
+            .links
+            .keys()
+            .filter(|a| containers::is_container(a) && !aliases.contains(a))
+            .cloned()
+            .collect();
+        for alias in gone {
+            self.drop_link(&mut inner, &alias);
+        }
+        for target in wanted {
+            let alias = target.alias();
+            if inner.remote.links.contains_key(&alias) {
+                continue;
+            }
+            let snapshots = Arc::downgrade(self);
+            let states = Arc::downgrade(self);
+            let hooks_to = Arc::downgrade(self);
+            let link = remote::Link::start_container(
+                target,
+                hooks::APP_ID,
+                Arc::new(move |connection| {
+                    if let Some(service) = hooks_to.upgrade() {
+                        service.on_hook(connection);
+                    }
+                }),
+                move |alias, snapshot| {
+                    if let Some(service) = snapshots.upgrade() {
+                        service.ingest_remote(alias, snapshot);
+                    }
+                },
+                move |alias, state| {
+                    if let Some(service) = states.upgrade() {
+                        if !matches!(state, remote::State::Connected { .. }) {
+                            let mut inner = service.inner.lock().unwrap();
+                            if inner.remote.snapshots.remove(alias).is_some() {
+                                drop(inner);
+                                service.tick();
+                            }
+                        }
+                        let _ = service.app.emit("sessions-remote-hosts", ());
+                    }
+                },
+            );
+            // Codex in the container, through `docker exec` to its daemon's socket.
+            let ready = Arc::downgrade(&link);
+            let connector: super::codex::client::Connector = Box::new(move || {
+                let link = ready.upgrade()?;
+                if !link.codex_ready() {
+                    return None;
+                }
+                let (engine, found) = link.container()?;
+                Some(
+                    remote::CodexPipe::open_container(&engine, &found)
+                        .map(|pipe| Box::new(pipe) as Box<dyn super::codex::client::Duplex>),
+                )
+            });
+            let wake = self.wake.lock().unwrap().clone();
+            let codex = CodexClient::start_remote(&alias, connector, move || {
+                if let Some(wake) = &wake {
+                    let _ = wake.send(());
+                }
+            });
+            self.remote_codex.lock().unwrap().insert(alias.clone(), codex);
             inner.remote.links.insert(alias, link);
         }
     }
@@ -3334,32 +3435,45 @@ impl Service {
             link
         };
         let _ = self.app.emit("sessions-remote-hosts", ());
+        let run = |mode: &str, input: &[String]| link.one_shot(mode, input);
         let result = if install {
             let info = link.info.lock().unwrap().clone();
             let info = match info {
                 Some(info) => Ok(info),
-                None => remote::one_shot(
-                    alias,
-                    &format!(
-                        "probe {} {}",
-                        remote::socket_name(hooks::APP_ID),
-                        hooks::APP_ID
-                    ),
-                    &[],
-                )
-                .and_then(|lines| {
-                    remote::probe(&lines).ok_or_else(|| "The host can’t be reached".to_string())
-                }),
+                None => link
+                    .one_shot(
+                        &format!(
+                            "probe {} {}{}",
+                            remote::socket_name(hooks::APP_ID),
+                            hooks::APP_ID,
+                            if link.is_container() { " container" } else { "" }
+                        ),
+                        &[],
+                    )
+                    .and_then(|lines| {
+                        remote::probe(&lines).ok_or_else(|| "The host can’t be reached".to_string())
+                    })
+                    .map(|mut info| {
+                        if link.is_container() {
+                            info.client = Some(remote::Client::Relay);
+                        }
+                        info
+                    }),
             };
-            info.and_then(|info| remote::install(alias, &info, hooks::APP_ID))
+            info.and_then(|info| remote::install_with(&run, &info, hooks::APP_ID))
         } else {
-            remote::remove(alias, hooks::APP_ID)
+            let marker = if link.is_container() {
+                containers::marker(hooks::APP_ID)
+            } else {
+                remote::marker(hooks::APP_ID)
+            };
+            remote::remove_with(&run, &marker, hooks::APP_ID)
         };
         if result.is_ok() {
             link.mark_hooks(install);
             // The hooks write to the socket the connection forwards; a fresh
-            // one is sure to have it.
-            if install {
+            // one is sure to have it. A container's relay runs on.
+            if install && !link.is_container() {
                 link.reconnect();
             }
         }
@@ -3407,6 +3521,42 @@ pub async fn sessions_remote_hosts_change(
     tauri::async_runtime::spawn_blocking(move || service.change_remote_hooks(&alias, install))
         .await
         .map_err(|e| e.to_string())?
+}
+
+/// The running containers to pick from (issue #330).
+#[tauri::command]
+pub async fn sessions_containers_list() -> Result<Vec<containers::Info>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        containers::Engine::find()
+            .ok_or_else(|| remote::NO_ENGINE.to_string())?
+            .running()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Sets a container up or takes Openbar out of it; the container's ID on a
+/// setup, which Settings keeps to tell a rebuilt one.
+#[tauri::command]
+pub async fn sessions_containers_change(
+    service: tauri::State<'_, Shared>,
+    alias: String,
+    install: bool,
+) -> Result<Option<String>, String> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        service.change_remote_hooks(&alias, install)?;
+        let inner = service.inner.lock().unwrap();
+        Ok(inner
+            .remote
+            .links
+            .get(&alias)
+            .and_then(|l| l.container())
+            .map(|(_, found)| found.id)
+            .filter(|_| install))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 pub type Shared = Arc<Service>;
