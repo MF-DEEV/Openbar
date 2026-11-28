@@ -129,6 +129,7 @@ enum UsageStatsSupport {
         case .ghostty: return "ghostty"
         case .tmux: return "tmux"
         case .zellij: return "zellij"
+        case .herdr: return "herdr"
         case .wezterm: return "wezterm"
         case .kitty: return "kitty"
         case .ide(let bundle, _), .app(let bundle): return appIDs[bundle] ?? "other"

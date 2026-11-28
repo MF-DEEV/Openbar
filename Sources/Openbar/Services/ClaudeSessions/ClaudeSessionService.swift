@@ -2889,6 +2889,22 @@ extension ClaudeSessionHosts {
         if case .jetbrains(let app, nil) = host {
             return .jetbrains(bundle: app, ide: ClaudeJetBrains.process(above: pid, bundle: app))
         }
+        // Herdr's variables reach everything started in its panes, a tmux or
+        // zellij run in one among them; only a process Herdr's server runs
+        // under, with no other multiplexer's server between, is in its pane
+        // (#328).
+        if case .herdr(var target) = host {
+            if let server = ClaudeHerdr.server(of: pid) {
+                target.server = server
+                // The terminal showing it, for its name; Open looks again.
+                if let client = ClaudeHerdr.client(of: target), let outer = Self.host(of: client.pid).bundle {
+                    target.outer = outer
+                }
+                return .herdr(target)
+            }
+            for key in ["HERDR_ENV", "HERDR_PANE_ID", "HERDR_SOCKET_PATH", "HERDR_SESSION"] { environment[key] = nil }
+            host = classify(bundle: bundle, tty: device, port: port, environment: environment, owner: owner)
+        }
         // zellij's variables reach everything started in its panes too, a
         // tmux run in one among them; only a process zellij's server runs
         // under is in its pane.
@@ -2942,7 +2958,7 @@ enum ClaudeHostFocus {
         reach(session.host, pid: session.pid, cwd: session.cwd, homes: homes)
     }
 
-    /// Like `focus`, telling a tmux or zellij with no terminal attached,
+    /// Like `focus`, telling a tmux, zellij or Herdr with no terminal attached,
     /// however deep in other multiplexers it sits, from one not found.
     static func reach(_ host: ClaudeSessionHost, pid: Int32, cwd: String, homes: [URL], depth: Int = 0) -> ClaudeHostOpen {
         // The terminal showing a multiplexer comes forward the way a session
@@ -2968,6 +2984,14 @@ enum ClaudeHostFocus {
             case .client(nil): return .opened
             case .client(let client?): return outer(client.pid)
             }
+        case .herdr(let target):
+            switch ClaudeHerdr.focus(target, pid: pid) {
+            case .missing: return .missing
+            case .detached: return ClaudeHerdr.attachLine(target).map { .detached(attach: $0) } ?? .missing
+            // Focused in Herdr, though which terminal shows it isn't known.
+            case .client(nil): return .opened
+            case .client(let client?): return outer(client.pid)
+            }
         default:
             return focus(host, pid: pid, cwd: cwd, homes: homes, depth: depth) ? .opened : .missing
         }
@@ -2982,7 +3006,7 @@ enum ClaudeHostFocus {
             return script(ClaudeTerminalApps.iterm, ClaudeTTYTerminalScripts.itermFocus(tty: tty))
         case .ghostty(let tty):
             return script(ClaudeTerminalApps.ghostty, ClaudeTTYTerminalScripts.ghosttyFocus(tty: tty))
-        case .tmux, .zellij:
+        case .tmux, .zellij, .herdr:
             // The multiplexer selects the pane; the terminal showing it comes
             // forward the way a session in that terminal would.
             return reach(host, pid: pid, cwd: cwd, homes: homes, depth: depth) == .opened
@@ -3177,6 +3201,8 @@ enum ClaudeTerminalReply {
             return ClaudeTmux.send(steps, to: target, tty: ClaudeSessionHosts.tty(of: session.pid))
         case .zellij(let target):
             return ClaudeZellij.send(steps, to: target, pid: session.pid)
+        case .herdr(let target):
+            return ClaudeHerdr.send(steps, to: target, pid: session.pid)
         case .wezterm(let pane, let socket):
             return ClaudeWezTerm.send(steps, pane: pane, socket: socket, tty: ClaudeSessionHosts.tty(of: session.pid))
         case .kitty(let window, let socket?):
@@ -3209,6 +3235,8 @@ enum ClaudeTerminalReply {
             return ClaudeTmux.send(steps, to: target, tty: ClaudeSessionHosts.tty(of: session.pid))
         case .zellij(let target):
             return ClaudeZellij.send(steps, to: target, pid: session.pid)
+        case .herdr(let target):
+            return ClaudeHerdr.send(steps, to: target, pid: session.pid)
         case .wezterm(let pane, let socket):
             return ClaudeWezTerm.send(steps, pane: pane, socket: socket, tty: ClaudeSessionHosts.tty(of: session.pid))
         case .kitty(let window, let socket?):

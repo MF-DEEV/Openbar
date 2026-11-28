@@ -259,8 +259,8 @@ extension ClaudeSessionProvider {
 }
 
 /// What Open came to: the session's terminal in front, nothing found, or a
-/// tmux or zellij with no terminal attached, which `attach` (a command line)
-/// shows in a new window (#235).
+/// tmux, zellij or Herdr with no terminal attached, which `attach` (a command
+/// line) shows in a new window (#235, #328).
 enum ClaudeHostOpen: Equatable {
     case opened
     case missing
@@ -281,6 +281,8 @@ enum ClaudeSessionHost: Equatable {
     case tmux(ClaudeTmuxPane)
     /// A zellij pane, in whatever terminal shows that zellij (#235).
     case zellij(ClaudeZellijPane)
+    /// A Herdr pane, in whatever terminal shows that Herdr (#328).
+    case herdr(ClaudeHerdrPane)
     /// A pane of WezTerm, by the id WezTerm gives it, and the socket of the
     /// WezTerm that runs it when the pane names one.
     case wezterm(pane: Int, socket: String?)
@@ -307,7 +309,7 @@ enum ClaudeSessionHost: Equatable {
 
     var acceptsReplies: Bool {
         switch self {
-        case .terminal, .iterm, .ghostty, .tmux, .zellij, .wezterm, .ide, .background: return true
+        case .terminal, .iterm, .ghostty, .tmux, .zellij, .herdr, .wezterm, .ide, .background: return true
         // kitty only takes keys from outside with remote control on.
         case .kitty(_, let socket): return socket != nil
         case .remote(_, let tmux): return tmux
@@ -326,7 +328,7 @@ enum ClaudeSessionHost: Equatable {
         case .wezterm: return ClaudeTerminalApps.wezterm
         case .kitty: return ClaudeTerminalApps.kitty
         case .ide(let bundle, _), .jetbrains(let bundle, _), .app(let bundle): return bundle
-        case .tmux, .zellij, .background, .remote, .unknown: return nil
+        case .tmux, .zellij, .herdr, .background, .remote, .unknown: return nil
         }
     }
 
@@ -336,6 +338,7 @@ enum ClaudeSessionHost: Equatable {
         switch self {
         case .tmux: return "tmux"
         case .zellij: return "zellij"
+        case .herdr: return "Herdr"
         default: return nil
         }
     }

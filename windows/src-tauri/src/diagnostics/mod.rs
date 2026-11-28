@@ -599,6 +599,7 @@ const TERMINALS: [(&str, &str); 14] = [
     ("xterm", "XTerm"),
     ("tmux", "tmux"),
     ("zellij", "zellij"),
+    ("herdr", "Herdr"),
     ("screen", "screen"),
 ];
 

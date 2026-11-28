@@ -323,6 +323,7 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/ClaudeTerminalHosts.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeJetBrains.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeZellij.swift
+        Sources/Openbar/Services/ClaudeSessions/ClaudeHerdr.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeTerminalFocus.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeBackgroundSessions.swift
         Sources/Openbar/Services/ClaudeSessions/SessionWorktrees.swift
