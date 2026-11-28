@@ -359,6 +359,13 @@ input:focus-visible {
 .n-compact-activity.is-vertical .n-activity-choice:active {
   transform: scale(0.97);
 }
+.n-compact-activity.is-vertical .n-activity-choice.is-selected {
+  color: #111;
+}
+.n-compact-activity.is-vertical .n-activity-choice-highlight {
+  background: #f3f3f3;
+  box-shadow: none;
+}
 .n-activity-portrait :is(.m-strip, .tm-strip, .s-strip, .ag-strip, .cal-strip, .wt-strip, .ct-strip, .dl-strip, .mic-strip, .n-recording) {
   box-sizing: border-box;
   display: flex;
