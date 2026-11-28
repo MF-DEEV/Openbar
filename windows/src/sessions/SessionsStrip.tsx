@@ -25,6 +25,9 @@ import { type Counts, PROVIDERS, type Provider, workingOf } from "./types";
 /** min(15, strip − 7): 15 pt in the Windows bar's 24 pt strip. */
 export const stripTextSize = (stripHeight: number) => Math.min(15, stripHeight - 7);
 const MARK = 14;
+/** On a side edge: the counts' size, and the room the mark keeps from either side. */
+const PORTRAIT_TEXT = 12;
+const PORTRAIT_MARGIN = 4.5;
 
 /** Waiting, then each agent at work, then the ones a plan limit stopped,
  * then finished. The mark of who works shows once, beside the camera; the
@@ -122,8 +125,12 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
   useIsland((s) => s.settings);
   useSessions((s) => s.snapshot);
   const limit = currentStripLimit();
-  const textSize =
-    size.height > size.width ? Math.min(9, stripTextSize(geometry.stripHeight)) : stripTextSize(geometry.stripHeight);
+  // Standing on a side edge the strip is only as wide as it is thick
+  // elsewhere: the mark keeps a margin from its rounded sides and the counts
+  // stay readable, one per line beneath it.
+  const portrait = size.height > size.width;
+  const textSize = portrait ? PORTRAIT_TEXT : stripTextSize(geometry.stripHeight);
+  const portraitMark = Math.max(8, Math.floor(size.width - 2 * PORTRAIT_MARGIN));
   const capsule = geometry.floatingGap !== null;
   const iconInset = capsule ? 0 : edgeInset(size, 18, 9, 5, geometry.input);
   const textInset = capsule ? 0 : edgeInset(size, textSize * 0.72, 0, 5, geometry.input);
@@ -161,12 +168,13 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
         className="s-strip-wing"
         style={{ width: wing, paddingLeft: Math.round(iconInset), justifyContent: "flex-start" }}
       >
-        {stacked ? (
+        {/* The strip is too narrow for two marks side by side; the counts name both agents. */}
+        {stacked && !portrait ? (
           <StackedMarks front={agents[0]!} behind={agents[1]!} />
         ) : (
           <StripTasksRing off={counts.waiting > 0 || !working}>
             <Mark
-              size={Math.round(MARK * markScale)}
+              size={portrait ? Math.min(Math.round(MARK * markScale), portraitMark) : Math.round(MARK * markScale)}
               strokeWidth={2.5}
               style={markTint ? { color: markTint } : undefined}
               working={working}
@@ -182,10 +190,10 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
         {countItems(counts).map(({ n, Icon, tint }, i) => (
           <span
             key={i}
-            className="s-strip-count"
-            style={{ color: tint, fontSize: size.height > size.width && n >= 100 ? 7 : textSize }}
+            className={`s-strip-count${portrait && n >= 10 ? " is-stacked" : ""}`}
+            style={{ color: tint, fontSize: portrait && n >= 100 ? PORTRAIT_TEXT - 3 : textSize }}
           >
-            <Icon size={size.height > size.width ? 10 : Math.round(textSize * 0.7)} strokeWidth={3} />
+            <Icon size={Math.round(textSize * 0.7)} strokeWidth={3} />
             {n}
           </span>
         ))}

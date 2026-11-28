@@ -29,6 +29,9 @@ const CAMERA_GAP = 6;
 
 let canvas: CanvasRenderingContext2D | null | undefined;
 /** The width the reading draws at `size`, measured on its shape so the strip never jitters. */
+/** The reading's size on a side edge, before it shrinks to fit. */
+const PORTRAIT_TEXT = 12;
+
 export function readingWidth(reading: string, size: number): number {
   const shape = readingShape(reading);
   if (canvas === undefined) {
@@ -76,11 +79,15 @@ export function AgentsStrip({ geometry, size }: { geometry: Geometry; size: Size
   const working = workingProviders(snapshot);
   const reading = currentReading(snapshot, ticking);
   const portrait = size.height > size.width;
+  // On a side edge the strip is as wide as it is thick elsewhere: a time
+  // stands as hours over minutes, anything else shrinks to one line.
+  const clock = portrait ? /^(\d+):(\d+)$/.exec(reading) : null;
+  const line = clock ? clock[1]! : reading;
   const textSize = portrait
-    ? Math.min(9, reading.endsWith("%") ? (9 * (size.width - 6)) / Math.max(1, readingWidth(reading, 9)) : 9)
+    ? Math.min(PORTRAIT_TEXT, (PORTRAIT_TEXT * (size.width - 6)) / Math.max(1, readingWidth(line, PORTRAIT_TEXT)))
     : stripTextSize(geometry.stripHeight);
   const icon = portrait
-    ? Math.min(10, stripIconSize(working.length, geometry.stripHeight))
+    ? Math.min(stripIconSize(working.length, geometry.stripHeight), Math.floor(size.width - 9))
     : stripIconSize(working.length, geometry.stripHeight);
   const capsule = geometry.floatingGap !== null;
   const iconInset = capsule ? 0 : edgeInset(size, icon + 4, (icon + 4) / 2, 5, geometry.input);
@@ -112,10 +119,19 @@ export function AgentsStrip({ geometry, size }: { geometry: Geometry; size: Size
           justifyContent: "flex-end",
           fontSize: textSize,
           color: tint,
-          whiteSpace: portrait && reading.endsWith("%") ? "nowrap" : undefined,
+          whiteSpace: portrait ? "nowrap" : undefined,
+          lineHeight: clock ? 1.05 : undefined,
+          gap: clock ? 0 : undefined,
         }}
       >
-        {wing === undefined || wing >= 42 ? reading : null}
+        {wing !== undefined && wing < 42 ? null : clock ? (
+          <>
+            <span>{clock[1]}</span>
+            <span>{clock[2]}</span>
+          </>
+        ) : (
+          reading
+        )}
       </span>
     </button>
   );

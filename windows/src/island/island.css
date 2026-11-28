@@ -379,13 +379,22 @@ input:focus-visible {
 .n-activity-portrait :is(.s-strip-wing, .ag-strip-wing) {
   flex-direction: column;
   flex-wrap: nowrap;
-  gap: 3px;
+  gap: 6px;
 }
 .n-activity-portrait .s-strip-count {
-  flex-direction: column;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   line-height: 1;
+}
+/* The tasks ring keeps the same margin from the strip's sides as the mark. */
+.n-activity-portrait .p-strip-ring {
+  width: 15px;
+  height: 15px;
+}
+/* Two digits are wider than the strip beside their icon. */
+.n-activity-portrait .s-strip-count.is-stacked {
+  flex-direction: column;
+  gap: 2px;
 }
 .n-activity-portrait .ag-strip-reading {
   white-space: normal;
