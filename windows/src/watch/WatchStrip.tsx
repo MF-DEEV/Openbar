@@ -146,7 +146,7 @@ export function WatchStrip({ geometry, size }: ActivityViewProps) {
             {hidden ? null : <span className="wt-spinner" />}
           </span>
         ) : (
-          <span className="wt-strip-reading" style={{ fontSize: CAPSULE.reading }}>
+          <span className="wt-strip-reading" style={{ fontSize: size.height > size.width ? 9 : CAPSULE.reading }}>
             {s.headline}
           </span>
         )}

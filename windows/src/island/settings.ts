@@ -37,6 +37,8 @@ export interface IslandSettings {
   /** Camera device chosen in the live preview; empty follows the system default. */
   cameraDeviceId: string;
   enabled: boolean;
+  /** Resting island position within the selected display, in fractions of its usable area. */
+  position: { x: number; y: number };
   silhouette: Silhouette;
   layout: LayoutPreset;
   customWidth: number;
@@ -261,6 +263,7 @@ export const DEFAULT_SWITCHER_SHORTCUT = "Ctrl+Alt+Shift+KeyS";
 export const DEFAULT_SETTINGS: IslandSettings = {
   cameraDeviceId: "",
   enabled: true,
+  position: { x: 0.5, y: 0 },
   silhouette: "notch",
   layout: "spacious",
   customWidth: 440,

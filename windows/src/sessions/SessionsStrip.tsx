@@ -122,7 +122,7 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
   useIsland((s) => s.settings);
   useSessions((s) => s.snapshot);
   const limit = currentStripLimit();
-  const textSize = stripTextSize(geometry.stripHeight);
+  const textSize = size.height > size.width ? Math.min(9, stripTextSize(geometry.stripHeight)) : stripTextSize(geometry.stripHeight);
   const capsule = geometry.floatingGap !== null;
   const iconInset = capsule ? 0 : edgeInset(size, 18, 9, 5, geometry.input);
   const textInset = capsule ? 0 : edgeInset(size, textSize * 0.72, 0, 5, geometry.input);
@@ -179,8 +179,8 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
         style={{ width: wing, paddingRight: textInset, justifyContent: "flex-end", fontSize: textSize }}
       >
         {countItems(counts).map(({ n, Icon, tint }, i) => (
-          <span key={i} className="s-strip-count" style={{ color: tint }}>
-            <Icon size={Math.round(textSize * 0.7)} strokeWidth={3} />
+          <span key={i} className="s-strip-count" style={{ color: tint, fontSize: size.height > size.width && n >= 100 ? 7 : textSize }}>
+            <Icon size={size.height > size.width ? 10 : Math.round(textSize * 0.7)} strokeWidth={3} />
             {n}
           </span>
         ))}

@@ -13,6 +13,8 @@ import {
   BatteryLow,
   BatteryMedium,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   LayoutGrid,
 } from "lucide-react";
 import { useContext } from "react";
@@ -25,6 +27,7 @@ import { AudioIcons } from "../../microphone/Microphone";
 import { SessionNoticeMark } from "../../sessions/SessionAvatar";
 import { CLAWD_SIZES } from "../../sessions/clawd/sprite";
 import type { IdleContent } from "../settings";
+import type { IslandEdge } from "../placement";
 import { useBattery } from "../battery";
 import { BATTERY_WARNING_COLORS, batteryWarning } from "../lowBattery";
 import { IdleAgents } from "./IdleAgents";
@@ -43,7 +46,7 @@ import { restingTrack, takesOnlyItsWing } from "../../mascot/motion";
 import { MascotFace, MascotTrackView } from "../../mascot/MascotView";
 import { NOTICE_SIZE } from "../../mascot/model";
 
-export function Resting(props: { size: Size; geometry: Geometry; idleContent: IdleContent }) {
+export function Resting(props: { size: Size; geometry: Geometry; idleContent: IdleContent; vertical?: boolean }) {
   useLocale();
   const size = useContext(DrawnSize) ?? props.size;
   const { geometry, idleContent } = props;
@@ -73,8 +76,9 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
             ? BatteryMedium
             : BatteryFull;
   const warningColor = BATTERY_WARNING_COLORS[batteryWarning(battery, island.settings)];
-  const inset = capsule ? 12 : Math.min(16, edgeInset(size, 12, 0, 4, geometry.input));
-  const readingWidth = capsule ? (size.width - 2 * inset - 5) / 2 : (size.width - geometry.cameraWidth) / 2 - inset;
+  const inset = props.vertical ? 6 : capsule ? 12 : Math.min(16, edgeInset(size, 12, 0, 4, geometry.input));
+  const readingWidth = props.vertical ? size.width - 2 * inset
+    : capsule ? (size.width - 2 * inset - 5) / 2 : (size.width - geometry.cameraWidth) / 2 - inset;
   const label =
     idleContent === "battery" && battery
       ? `${battery.percent == null ? t("s.batteryLabel") : `${battery.percent}%`}${battery.charging ? t("windows.island.charging") : battery.pluggedIn ? t("windows.island.pluggedIn") : t("windows.island.onBattery")}`
@@ -86,11 +90,11 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
   return (
     <button
       type="button"
-      className={`n-activation${idleContent !== "none" && hasWings ? " n-idle" : ""}${capsule ? " is-capsule" : ""}`}
+      className={`n-activation${idleContent !== "none" && hasWings ? " n-idle" : ""}${capsule ? " is-capsule" : ""}${props.vertical ? " is-vertical" : ""}`}
       style={{
         width: size.width,
         height: size.height,
-        columnGap: capsule ? 5 : geometry.cameraWidth,
+        columnGap: props.vertical ? 0 : capsule ? 5 : geometry.cameraWidth,
         paddingInline: inset,
       }}
       aria-label={[t("island.open"), label].filter(Boolean).join(": ")}
@@ -154,7 +158,7 @@ function noticeMetrics(geometry: Geometry, size: Size) {
 }
 
 /** One line of text either side of the camera: title left, detail right. */
-export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Size }) {
+export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Size; vertical?: boolean }) {
   useLocale();
   const { notice, geometry } = props;
   const size = useContext(DrawnSize) ?? props.size;
@@ -167,14 +171,14 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
   return (
     <button
       type="button"
-      className="n-notice"
+      className={`n-notice${props.vertical ? " is-vertical" : ""}`}
       aria-label={[notice.title, notice.detail].filter(Boolean).join(": ")}
       title={[notice.title, notice.detail].filter(Boolean).join("\n")}
       style={{
         width: size.width,
         height: size.height,
-        columnGap: camera,
-        paddingInline: metrics.padding,
+        columnGap: props.vertical ? 0 : camera,
+        paddingInline: props.vertical ? 16 : metrics.padding,
         fontSize: metrics.fontSize,
         lineHeight: "1.25",
       }}
@@ -269,18 +273,23 @@ export function measureContext(): CanvasRenderingContext2D {
 }
 
 /** The hover preview: where opening leads, and a chevron to open. */
-export function Peek(props: { geometry: Geometry; size: Size }) {
+export function Peek(props: { geometry: Geometry; size: Size; edge?: IslandEdge }) {
   useLocale();
   const size = useContext(DrawnSize) ?? props.size;
   const selected = useIsland((s) => s.selected);
+  const vertical = props.edge === "left" || props.edge === "right";
+  const OpenIcon = props.edge === "left" ? ChevronRight : props.edge === "right" ? ChevronLeft : ChevronDown;
   return (
     <div
-      className="n-peek"
+      className={`n-peek${vertical ? " is-vertical" : ""}`}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) useIsland.getState().open();
+      }}
       style={{
         width: size.width,
         height: size.height,
-        paddingTop: props.geometry.safeContentTop,
-        paddingInline: contentInsets(props.geometry, size).horizontal,
+        paddingTop: vertical ? 20 : props.geometry.safeContentTop,
+        paddingInline: vertical ? 14 : contentInsets(props.geometry, size).horizontal,
       }}
     >
       <button
@@ -291,7 +300,7 @@ export function Peek(props: { geometry: Geometry; size: Size }) {
         <LayoutGrid size={14} strokeWidth={2} />
         <span>{t(`module.${selected}`)}</span>
       </button>
-      <IconButton icon={ChevronDown} label={t("island.open")} onClick={() => useIsland.getState().open()} />
+      <IconButton icon={OpenIcon} label={t("island.open")} onClick={() => useIsland.getState().open()} />
     </div>
   );
 }

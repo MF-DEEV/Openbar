@@ -132,6 +132,8 @@ export function DownloadStrip({ geometry, size }: ActivityViewProps) {
   const running = active(items);
   const first = running[0];
   const pct = first ? progress(first) : null;
+  const portrait = size.height > size.width;
+  const compactName = first?.name.split(".").pop()?.slice(0, 3).toUpperCase();
   const padding = geometry.floatingGap === null ? edgeInset(size, 14, 3, 5, geometry.input) : 12;
   return (
     <button
@@ -142,10 +144,10 @@ export function DownloadStrip({ geometry, size }: ActivityViewProps) {
       title={first?.name}
     >
       <span>
-        <ArrowDownToLine size={15} />
+        <ArrowDownToLine size={portrait ? 12 : 15} />
         {running.length > 1 ? running.length : ""}
       </span>
-      <span className="dl-strip-name">{first?.name}</span>
+      <span className="dl-strip-name">{portrait ? compactName : first?.name}</span>
       <span
         className={`dl-mini-progress${pct === null ? " is-indeterminate" : ""}`}
         role="progressbar"

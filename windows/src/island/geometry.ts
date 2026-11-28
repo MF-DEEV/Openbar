@@ -137,7 +137,7 @@ export interface Rect {
 export function capsuleBody(width: number, height: number, gap: number): Rect {
   const w = Math.max(0, width);
   const h = Math.max(0, height);
-  const side = Math.min(shoulder(h), w / 2);
+  const side = Math.min(shoulder(h), h > w ? w / 8 : w / 2);
   const inset = Math.min(Math.max(0, gap), h / 2);
   return { x: side, y: inset, width: w - side * 2, height: h - inset * 2 };
 }

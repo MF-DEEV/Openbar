@@ -15,6 +15,33 @@ const buttons = (left: number, right: number, bottom: number): QuickButton[] =>
   );
 
 describe("editable quick access layout", () => {
+  it("mirrors only the button positions below the top panel for a bottom panel", () => {
+    const config = buttons(2, 2, 1);
+    const size = { width: 450, height: 300 };
+    const top = placeButtons(config, size);
+    const bottom = placeButtons(config, size, undefined, "bottom");
+    expect(bottom.map((item) => item.button.id)).toEqual(top.map((item) => item.button.id));
+    for (const side of ["left", "right"] as const) {
+      const upper = top.filter((item) => item.button.side === side);
+      const lower = bottom.filter((item) => item.button.side === side);
+      expect(lower.map((item) => item.cx)).toEqual(upper.map((item) => item.cx));
+      expect(lower.map((item) => item.cy)).toEqual(upper.map((item) => size.height - item.cy).reverse());
+    }
+    expect(bottom.at(-1)).toMatchObject({ cx: size.width / 2, cy: -QUICK_LAYOUT.offset });
+  });
+  it("places the five default side controls in two rows and one interior button", () => {
+    const config = buttons(2, 2, 1);
+    for (const edge of ["left", "right"] as const) {
+      const placed = placeButtons(config, { width: 340, height: 430 }, undefined, edge, { top: 80, bottom: 80 });
+      expect(placed).toHaveLength(5);
+      expect(placed.slice(0, 2).map((item) => item.cy)).toEqual([-QUICK_LAYOUT.offset, -QUICK_LAYOUT.offset]);
+      expect(placed.slice(2, 4).map((item) => item.cy)).toEqual([430 + QUICK_LAYOUT.offset, 430 + QUICK_LAYOUT.offset]);
+      expect(placed[4]!.cx).toBe(edge === "left" ? 340 + QUICK_LAYOUT.offset : -QUICK_LAYOUT.offset);
+      expect(placed[4]!.cy).toBe(215);
+      const corner = placeButtons(config, { width: 340, height: 430 }, undefined, edge, { top: 12, bottom: 80 });
+      expect(corner.every((item) => item.cy >= QUICK_LAYOUT.diameter / 2)).toBe(true);
+    }
+  });
   it("places all circles without overlap for every supported arrangement", () => {
     for (const silhouette of ["notch", "capsule"] as const) {
       const geometry = makeGeometry({

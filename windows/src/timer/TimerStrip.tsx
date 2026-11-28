@@ -57,6 +57,7 @@ export function TimerStrip({ geometry, size }: { geometry: Geometry; size: Size 
   const session = useTimer((s) => s.session);
   const now = useTimer((s) => s.now);
   const reading = model.compactText(session, now);
+  const portrait = size.height > size.width;
   const Mark = markIcon(session);
   const label = `${sessionTitle(session)}: ${model.clockTextFor(session, now)}`;
   const open = () => useIsland.getState().open("timer");
@@ -74,7 +75,7 @@ export function TimerStrip({ geometry, size }: { geometry: Geometry; size: Size 
         <span className="tm-strip-mark" style={{ width: CAPSULE.slot }}>
           <Mark size={CAPSULE.symbol + 2} strokeWidth={2.25} aria-hidden />
         </span>
-        <Reading text={reading} size={CAPSULE.reading} weight={600} />
+        <Reading text={reading} size={portrait ? Math.min(10, CAPSULE.reading) : CAPSULE.reading} weight={600} vertical={portrait} />
       </button>
     );
   }
@@ -109,8 +110,13 @@ export function TimerStrip({ geometry, size }: { geometry: Geometry; size: Size 
 }
 
 /** Only the part before the last colon rolls; the seconds change in place to save energy. */
-function Reading({ text, size, weight }: { text: string; size: number; weight: number }) {
+function Reading({ text, size, weight, vertical = false }: { text: string; size: number; weight: number; vertical?: boolean }) {
   useLocale();
+  if (vertical) return (
+    <span className="tm-strip-reading is-vertical" style={{ fontSize: size, fontWeight: weight }} aria-hidden>
+      {text.split(":").map((part, i, parts) => <span key={i}><RollingDigits text={part} />{i < parts.length - 1 ? ":" : null}</span>)}
+    </span>
+  );
   const [head, tail] = model.rollingSplit(text);
   return (
     <span className="tm-strip-reading" style={{ fontSize: size, fontWeight: weight }} aria-hidden>

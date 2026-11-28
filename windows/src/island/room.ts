@@ -16,11 +16,11 @@ import type { IslandSettings } from "./settings";
  * would leave an empty band.
  */
 export function roomHeight(
-  settings: Pick<IslandSettings, "enabled" | "makeRoom" | "opening">,
+  settings: Pick<IslandSettings, "enabled" | "makeRoom" | "opening"> & { position?: { y: number } },
   geometry: Pick<Geometry, "stripHeight" | "floatingDrop">,
   linux = onLinux(),
 ): number | null {
-  if (!linux || !settings.enabled || !settings.makeRoom || settings.opening === "hiddenUntilHover") return null;
+  if (!linux || !settings.enabled || !settings.makeRoom || settings.opening === "hiddenUntilHover" || (settings.position?.y ?? 0) > 0) return null;
   const height = geometry.stripHeight + geometry.floatingDrop;
   return Number.isFinite(height) && height > 0 ? Math.ceil(height) : null;
 }

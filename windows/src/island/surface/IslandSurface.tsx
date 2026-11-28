@@ -15,6 +15,7 @@ import { type Geometry, islandPath } from "../geometry";
 import { MotionTimeline, type Size } from "../motion";
 import { DrawnSize } from "./DrawnSize";
 import { setSurface, surfaceArea, Trailing } from "./hits";
+import { surfaceOffset, type IslandEdge, type IslandPosition } from "../placement";
 
 const now = () => performance.now() / 1000;
 
@@ -23,17 +24,22 @@ function reducedMotion() {
 }
 
 /** Path `d` with its origin moved right by `dx` (path() has no transform of its own). */
-function shifted(geometry: Geometry, size: Size, dx: number): string {
-  if (dx === 0) return islandPath(geometry, size);
+function shifted(geometry: Geometry, size: Size, dx: number, dy: number): string {
+  if (dx === 0 && dy === 0) return islandPath(geometry, size);
   return islandPath(geometry, size).replace(
     /(-?\d*\.?\d+(?:e-?\d+)?) (-?\d*\.?\d+(?:e-?\d+)?)/g,
-    (_, x, y) => `${Number(x) + dx} ${y}`,
+    (_, x, y) => `${Number(x) + dx} ${Number(y) + dy}`,
   );
 }
 
 export function IslandSurface(props: {
   geometry: Geometry;
   target: Size;
+  left?: number;
+  top?: number;
+  edge?: IslandEdge;
+  position?: IslandPosition;
+  smoothPosition?: boolean;
   onDrawn?: (size: Size, settled: boolean) => void;
   children: ReactNode;
 }) {
@@ -71,7 +77,8 @@ export function IslandSurface(props: {
       // the window is cut to what the screen has caught up with.
       const held = settled ? size : trailing.current.push(size, now() * 1000);
       if (settled) trailing.current.reset();
-      setSurface(surfaceArea(geometry, target, size, held, frame.getBoundingClientRect().left));
+      const bounds = frame.getBoundingClientRect();
+      setSurface(surfaceArea(geometry, target, size, held, bounds.left, bounds.top, props.edge, props.position), settled);
     };
 
     const t = now();
@@ -82,7 +89,17 @@ export function IslandSurface(props: {
     if (reducedMotion() || (from.width === target.width && from.height === target.height && !current)) {
       timeline.current = null;
       draw(target, true);
-      return;
+      if (reducedMotion()) return;
+      // Position can move while the outline keeps the same size. Follow the
+      // CSS transition so the native pointer region stays on the painted island.
+      let followRaf = 0;
+      const started = performance.now();
+      const follow = () => {
+        reportHits(target, true);
+        if (performance.now() - started < 220) followRaf = requestAnimationFrame(follow);
+      };
+      followRaf = requestAnimationFrame(follow);
+      return () => cancelAnimationFrame(followRaf);
     }
     timeline.current =
       (current && !current.settledAt(t) ? current.continued(target, t) : null) ??
@@ -103,30 +120,30 @@ export function IslandSurface(props: {
     };
     step();
     return () => cancelAnimationFrame(raf.current);
-  }, [geometry, target.width, target.height]);
+  }, [geometry, target.width, target.height, props.left, props.top, props.edge, props.position?.x, props.position?.y]);
 
   // Commit the outline, clip and content layout together. Imperatively
   // moving the outline ahead of React's content update causes visible jumps.
-  const d = shifted(geometry, contentSize, (target.width - contentSize.width) / 2);
+  const offset = surfaceOffset(target, contentSize, props.edge ?? "top", props.position);
+  const d = shifted(geometry, contentSize, offset.x, offset.y);
 
   return (
     <div
       ref={frameRef}
-      className="island-frame"
-      style={{ width: target.width, height: target.height, top: geometry.floatingDrop }}
+      className={`island-frame${props.smoothPosition ? " is-position-moving" : ""}`}
+      style={{ width: target.width, height: target.height, left: props.left, top: props.top ?? geometry.floatingDrop, transform: props.left === undefined ? undefined : "none" }}
     >
       <svg className="island-backdrop" width={target.width} height={target.height} aria-hidden>
         <clipPath id={clipId}>
           <use href={`#${clipId}-shape`} />
         </clipPath>
-        <path id={`${clipId}-shape`} d={d} fill="#000" />
-        {/* Settings › Layout › Show outline: a 2 pt stroke of which only the
-            inner 1 pt shows, white at 65% (spec 01-shell §1.8). */}
+        <path id={`${clipId}-shape`} d={d} fill="#000" stroke="#000" strokeWidth={2} />
+        {/* Settings › Layout › Show outline: keep the contour subdued against black. */}
         {outline ? (
           <path
             d={d}
             fill="none"
-            stroke={timerShown ? "rgba(255,159,10,0.65)" : "rgba(255,255,255,0.65)"}
+            stroke={timerShown ? "rgba(255,159,10,0.65)" : "rgba(95,95,100,0.65)"}
             strokeWidth={2}
             clipPath={`url(#${clipId})`}
           />

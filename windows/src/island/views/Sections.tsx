@@ -15,7 +15,13 @@ import { galleryColumns, modulesOf, useIsland } from "../store";
 const ROW = 86;
 const GAP = 8;
 
-export function SectionsGallery(props: { width: number; height: number }) {
+export function portraitGalleryHeight(count: number, width: number, available: number): number {
+  const rows = Math.min(4, Math.ceil(count / galleryColumns(width)),
+    Math.max(1, Math.floor((available + GAP) / (ROW + GAP))));
+  return rows * (ROW + GAP) - GAP;
+}
+
+export function SectionsGallery(props: { width: number; height: number; portrait?: boolean }) {
   const language = useLocale();
   const settings = useIsland((s) => s.settings);
   const selected = useIsland((s) => s.selected);
@@ -27,7 +33,7 @@ export function SectionsGallery(props: { width: number; height: number }) {
     return q ? modules.filter((id) => t(`module.${id}`).toLocaleLowerCase(language).includes(q)) : modules;
   }, [modules, query, language]);
   const columns = galleryColumns(props.width);
-  const visibleRows = Math.max(1, Math.min(3, Math.floor((props.height + GAP) / (ROW + GAP))));
+  const visibleRows = Math.max(1, Math.min(props.portrait ? 4 : 3, Math.floor((props.height + GAP) / (ROW + GAP))));
   const rows = Math.ceil(shown.length / columns);
   const [row, setRow] = useState(0);
   const [highlight, setHighlight] = useState(0);

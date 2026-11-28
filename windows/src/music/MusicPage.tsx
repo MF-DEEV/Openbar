@@ -9,7 +9,7 @@ import { t, useLocale, tf } from "../i18n";
 
 import { FastForward, ListMusic, Music, Pause, Play, Rewind, Shuffle } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
 import { VolumeControl } from "./VolumeControl";
@@ -60,8 +60,9 @@ export function Cover(props: { src?: string; size: number; radius: number; dimme
   );
 }
 
-export function MusicPage() {
+export function MusicPage({ portrait = false, width = MUSIC_WIDTH }: { portrait?: boolean; width?: number }) {
   useLocale();
+  const pageRef = useRef<HTMLDivElement>(null);
   const playback = useMusic((s) => s.playback);
   const sources = useMusic((s) => s.sources);
   const playing = useMusic(isPlaying);
@@ -71,6 +72,18 @@ export function MusicPage() {
   const lyricsExpanded = useLyrics((s) => s.expanded);
   const queueExpanded = useQueue((s) => s.expanded);
   const reducedMotion = useReducedMotion();
+  useLayoutEffect(() => {
+    if (!portrait || !pageRef.current) return;
+    const page = pageRef.current;
+    // Measure the untransformed layout. The surrounding portrait panel may be
+    // scaled to fit the screen, so getBoundingClientRect() feeds that scale
+    // back into the panel height and makes the whole island oscillate.
+    const update = () => useIsland.getState().setPageContent("music", page.offsetHeight, useQueue.getState().expanded);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(page);
+    return () => observer.disconnect();
+  }, [portrait, width]);
   usePageLayer(queueExpanded, () => useQueue.getState().close());
   useEffect(() => {
     if (!playback) useQueue.getState().close();
@@ -114,7 +127,7 @@ export function MusicPage() {
 
   const accent = tint ?? "#fff";
   return (
-    <div className="m-page">
+    <div ref={pageRef} className={`m-page${portrait ? " is-portrait" : ""}`}>
       <div className="m-head">
         <button
           type="button"
@@ -126,7 +139,8 @@ export function MusicPage() {
           aria-busy={opening}
           onClick={() => void openPlayer()}
         >
-          <Cover src={playback?.artwork} size={COVER} radius={COVER * 0.19} dimmed={!!playback && !playing} />
+          <Cover src={playback?.artwork} size={portrait ? Math.min(144, width / 2) : COVER}
+            radius={(portrait ? Math.min(144, width / 2) : COVER) * 0.19} dimmed={!!playback && !playing} />
         </button>
         <div className="m-titles">
           <ScrollingText
@@ -329,13 +343,13 @@ function Timeline({ playback, accent }: { playback: Playback; accent: string }) 
 }
 
 /** Keeps the island's music page height in step with what the page shows. */
-export function useMusicHeight() {
+export function useMusicHeight(portrait = false) {
   const playback = useMusic((s) => s.playback);
   const expanded = useLyrics((s) => s.expanded);
   const queueExpanded = useQueue((s) => s.expanded);
   const setPageContent = useIsland((s) => s.setPageContent);
   useEffect(
-    () => setPageContent("music", playerHeight(playback, expanded, queueExpanded), queueExpanded),
-    [playback?.duration, !!playback, expanded, queueExpanded, setPageContent],
+    () => { if (!portrait) setPageContent("music", playerHeight(playback, expanded, queueExpanded), queueExpanded); },
+    [playback?.duration, !!playback, expanded, queueExpanded, portrait, setPageContent],
   );
 }

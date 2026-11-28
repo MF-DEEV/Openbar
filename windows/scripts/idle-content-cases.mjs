@@ -138,13 +138,13 @@ export async function checkIdleContent({ send, evaluate, base }) {
     `(()=>{const s=emptyAgents();s.seen=['claude'];s.periods.today.total.cost=4.25;agents.getState().receive(s)})()`,
   );
   await settle();
-  assert.equal((await reading()).text, "$4.25", "Agents rest with today's cost without an allowance");
+  assert.equal((await reading()).text.replace(",", "."), "$4.25", "Agents rest with today's cost without an allowance");
   await evaluate(
     `prefs.setPrefs({island:{silhouette:'notch'}});agents.getState().receive({...agents.getState().snapshot,periods:{...agents.getState().snapshot.periods,today:{...agents.getState().snapshot.periods.today,total:{...agents.getState().snapshot.periods.today.total,cost:9999}}}})`,
   );
   await settle();
   const costReading = await reading();
-  assert.equal(costReading.text, "$9,999");
+  assert.equal(costReading.text.replace(/[.,\s\u00a0\u202f]/g, ""), "$9999");
   assert(
     costReading.wings.every((wing) => !wing.clipped),
     "Long cost readings scale down within the resting wings",

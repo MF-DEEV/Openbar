@@ -32,7 +32,7 @@ export function useCards(): Card[] {
   return useMemo(() => systemCards(snapshot, { hidden, inBits }), [snapshot, hidden, inBits, language]);
 }
 
-export function SystemPage({ width }: PageProps) {
+export function SystemPage({ width, portrait }: PageProps) {
   useLocale();
   const cards = useCards();
   const snapshot = useSystem((s) => s.snapshot);
@@ -66,7 +66,7 @@ export function SystemPage({ width }: PageProps) {
   const inset = hoverInset(width);
   const rows = systemRowRanges(cards.length, width - inset * 2);
   return (
-    <div className="sy-grid" style={{ padding: inset }}>
+    <div className={`sy-grid${portrait ? " is-portrait" : ""}`} style={{ padding: inset }}>
       {rows.map(([start, end]) => (
         <div key={start} className="sy-row">
           {cards.slice(start, end).map((card) => (

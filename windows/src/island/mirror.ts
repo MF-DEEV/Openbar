@@ -8,6 +8,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { MirrorFrame } from "../shared/bridge";
+import { insetUsableEdge, islandEdge, placeIsland, usableDisplayArea } from "./placement";
 
 const root = document.getElementById("root")!;
 const inline = document.head.appendChild(document.createElement("style"));
@@ -32,6 +33,17 @@ function draw(frame: MirrorFrame | null) {
   if (html !== drawn) {
     drawn = html;
     root.innerHTML = html;
+  }
+  const element = root.querySelector<HTMLElement>(".island-frame");
+  if (element && frame?.position) {
+    const screen = { width: innerWidth, height: innerHeight };
+    const usable = usableDisplayArea(screen);
+    const edge = islandEdge(frame.position, screen, usable);
+    const place = placeIsland(frame.position, screen,
+      { width: frame.width, height: frame.height ?? element.getBoundingClientRect().height }, insetUsableEdge(usable, edge, frame.edgeGap ?? 0, screen));
+    element.style.left = `${place.left}px`;
+    element.style.top = `${place.top + (frame.height ?? 0) - element.getBoundingClientRect().height}px`;
+    element.style.transform = "none";
   }
 }
 

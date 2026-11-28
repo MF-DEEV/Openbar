@@ -60,7 +60,11 @@ export async function checkActivityPicker({ send, evaluate, base }) {
   );
   assert.equal(
     await evaluate(`getComputedStyle(document.querySelector('.n-activity-choice[aria-pressed="true"]')).color`),
-    "rgb(0, 0, 0)",
+    "rgb(255, 255, 255)",
+  );
+  assert.equal(
+    await evaluate(`getComputedStyle(document.querySelector('.n-activity-choice-highlight')).backgroundColor`),
+    "rgb(48, 48, 52)",
   );
   await evaluate(`document.querySelector('.n-activity-choice[aria-label="Music"]').focus()`);
   await send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowLeft", code: "ArrowLeft" });

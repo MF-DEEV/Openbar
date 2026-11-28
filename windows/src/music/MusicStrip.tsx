@@ -34,12 +34,14 @@ export function MusicStrip({ geometry, size }: { geometry: Geometry; size: Size 
   const tint = useMusic((s) => s.tint) ?? "#fff";
   const [overBars, setOverBars] = useState(false);
   const capsule = geometry.floatingGap !== null;
-  const side = artworkSide(capsule ? geometry.stripHeight - 2 * (geometry.floatingGap ?? 0) + 4 : geometry.stripHeight);
-  const bars = barHeight(geometry.stripHeight);
+  const portrait = size.height > size.width;
+  const side = portrait ? Math.min(26, Math.max(0, capsuleBody(size.width, size.height, geometry.floatingGap ?? 0).width - 4))
+    : artworkSide(capsule ? geometry.stripHeight - 2 * (geometry.floatingGap ?? 0) + 4 : geometry.stripHeight);
+  const bars = portrait ? 18 : barHeight(geometry.stripHeight);
   // Capsule activity sizing reserves 8px inside each painted end, beyond the transparent shoulders.
   const capsuleInset = capsule ? capsuleBody(size.width, size.height, geometry.floatingGap ?? 0).x + 8 : 0;
-  const coverInset = capsule ? capsuleInset : edgeInset(size, side, side * 0.28, COMPACT_EDGE_GAP, geometry.input);
-  const barsInset = capsule ? capsuleInset : edgeInset(size, bars, BAR_WIDTH / 2, COMPACT_EDGE_GAP, geometry.input);
+  const coverInset = portrait ? 0 : capsule ? capsuleInset : edgeInset(size, side, side * 0.28, COMPACT_EDGE_GAP, geometry.input);
+  const barsInset = portrait ? 0 : capsule ? capsuleInset : edgeInset(size, bars, BAR_WIDTH / 2, COMPACT_EDGE_GAP, geometry.input);
   const wing = capsule ? undefined : (size.width - geometry.cameraWidth) / 2;
 
   return (
@@ -61,13 +63,15 @@ export function MusicStrip({ geometry, size }: { geometry: Geometry; size: Size 
         onMouseEnter={() => setOverBars(true)}
         onMouseLeave={() => setOverBars(false)}
         onClick={(e) => {
-          // The bars' own button plays and pauses in place.
+          // The narrow side strip opens from every visible point; its full
+          // player still exposes play/pause. Keep the horizontal shortcut.
+          if (portrait) return;
           e.stopPropagation();
           void useMusic.getState().command("toggle");
         }}
       >
         <span className="m-strip-swap" style={{ opacity: overBars ? 0 : 1 }}>
-          <EqualizerBars count={BARS} width={BAR_WIDTH} height={bars} color={tint} moving={playing} />
+          <EqualizerBars count={portrait ? 3 : BARS} width={BAR_WIDTH} height={bars} color={tint} moving={playing} />
         </span>
         <span className="m-strip-swap is-over" style={{ opacity: overBars ? 1 : 0, color: tint }}>
           {playing ? (

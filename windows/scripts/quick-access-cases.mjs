@@ -70,7 +70,10 @@ export async function checkQuickAccessEditor({ send, evaluate, base }) {
   await send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 950, deviceScaleFactor: 1, mobile: false });
   // Carry the edited configuration to the island and check all nine controls and hit areas.
   await send("Page.navigate", { url: `${base}island.html?sessions` });
-  await new Promise((r) => setTimeout(r, 500));
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await evaluate(`!!document.querySelector('.island-frame')`)) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
   await evaluate(`(async()=>{
     window.island=(await import('/src/island/store.ts')).useIsland;
     const {bridge}=await import('/src/shared/bridge.ts');
@@ -96,9 +99,29 @@ export async function checkQuickAccessEditor({ send, evaluate, base }) {
     "Hit areas did not follow relocated circles",
   );
   assert.equal(await evaluate(`lastHitRects.length`), 9);
+  await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
+  await evaluate(`document.querySelector('.n-bubble[aria-label="Now Playing"]').click()`);
+  await new Promise((r) => setTimeout(r, 240));
+  const musicRing = await evaluate(`(()=>{
+    const music=document.querySelector('.n-bubble[aria-label="Now Playing"]');
+    const sessions=document.querySelector('.n-bubble[aria-label="Sessions"]');
+    const style=getComputedStyle(music);
+    return {selected:music.classList.contains('is-selected'),inactive:!sessions.classList.contains('is-selected'),
+      activeRing:style.boxShadow,inactiveRing:getComputedStyle(sessions).boxShadow,
+      radius:style.borderRadius,transition:style.transitionProperty,tabIndex:music.tabIndex};
+  })()`);
+  assert(musicRing.selected&&musicRing.inactive&&musicRing.activeRing!==musicRing.inactiveRing&&
+    !musicRing.activeRing.includes('255')&&musicRing.radius==='50%'&&
+    musicRing.transition.includes('box-shadow')&&musicRing.tabIndex>=0,
+    `Music active ring is inconsistent: ${JSON.stringify(musicRing)}`);
+  const selectedShot = await send("Page.captureScreenshot", { format: "png" });
+  await writeFile(resolve("../build/island-bubble-selected.png"), Buffer.from(selectedShot.data, "base64"));
   await evaluate(`document.querySelector('.n-bubble[aria-label="Downloads"]').click()`);
   await frames();
   assert.equal(await evaluate(`island.getState().selected`), "downloads");
+  assert(await evaluate(`document.querySelector('.n-bubble[aria-label="Downloads"]').classList.contains('is-selected') &&
+    !document.querySelector('.n-bubble[aria-label="Now Playing"]').classList.contains('is-selected')`),
+    "The active ring did not follow the selected module");
   await evaluate(`document.querySelector('.n-bubble[aria-label="Unpin"]').click()`);
   await frames();
   assert.equal(await evaluate(`island.getState().pinned`), false);

@@ -106,10 +106,10 @@ subscribeVoiceShortcut({
   },
 });
 pages.music = {
-  Page: function Music() {
+  Page: function Music({ width, portrait }) {
     useLocale();
-    useMusicHeight();
-    return <MusicPage />;
+    useMusicHeight(portrait);
+    return <MusicPage portrait={portrait} width={width} />;
   },
 };
 activityViews.music = MusicStrip;

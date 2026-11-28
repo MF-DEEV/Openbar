@@ -17,19 +17,19 @@ import { mascotEnabled, mascotLook } from "../mascot/service";
 import { useIsland } from "../island/store";
 import "./files.css";
 
-export function DropHint(props: { geometry: Geometry; size: Size }) {
+export function DropHint(props: { geometry: Geometry; size: Size; vertical?: boolean }) {
   useLocale();
   const size = useContext(DrawnSize) ?? props.size;
   const settings = useIsland((s) => s.settings);
   return (
     <div
-      className="fl-drop-hint"
+      className={`fl-drop-hint${props.vertical ? " is-vertical" : ""}`}
       style={{
         width: size.width,
         height: size.height,
-        paddingTop: props.geometry.safeContentTop,
+        paddingTop: props.vertical ? 16 : props.geometry.safeContentTop,
         // 18 in, or clear of the outline's curved ends, like the peek row.
-        paddingInline: Math.max(18, contentInsets(props.geometry, size).horizontal),
+        paddingInline: props.vertical ? 14 : Math.max(18, contentInsets(props.geometry, size).horizontal),
       }}
     >
       <div className="fl-drop-box">

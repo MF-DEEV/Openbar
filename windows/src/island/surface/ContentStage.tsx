@@ -10,6 +10,7 @@ import { useLocale } from "../../i18n";
 import { type ReactNode, useContext, useLayoutEffect, useRef, useState } from "react";
 import type { ContentTransition } from "../store";
 import { DrawnSize } from "./DrawnSize";
+import { surfaceOffset, type IslandEdge, type IslandPosition } from "../placement";
 
 interface Layer {
   /** Stable for the layer's life, so turning to leave does not remount it. */
@@ -29,7 +30,7 @@ function reducedMotion() {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
-function animateIn(el: HTMLElement, kind: ContentTransition) {
+function animateIn(el: HTMLElement, kind: ContentTransition, side = false) {
   if (reducedMotion() && kind !== "none") {
     el.animate([{ opacity: 0 }, { opacity: 0, offset: 0.25 }, { opacity: 1 }], { duration: 200 });
     return;
@@ -45,7 +46,7 @@ function animateIn(el: HTMLElement, kind: ContentTransition) {
         ],
         { duration: 450 },
       );
-      el.animate([{ transform: "scale(0.86)" }, { transform: "scale(1)" }], {
+      if (!side) el.animate([{ transform: "scale(0.86)" }, { transform: "scale(1)" }], {
         duration: 450,
         easing: "cubic-bezier(0.22, 1, 0.36, 1)",
       });
@@ -75,7 +76,16 @@ function animateIn(el: HTMLElement, kind: ContentTransition) {
   }
 }
 
-function animateOut(el: HTMLElement, kind: ContentTransition): number {
+function animateOut(el: HTMLElement, kind: ContentTransition, side = false): number {
+  if (side && (kind === "reveal" || kind === "dismiss")) {
+    el.animate(
+      kind === "reveal"
+        ? [{ opacity: 1 }, { opacity: 1, offset: 0.28 }, { opacity: 0, offset: 0.56 }, { opacity: 0 }]
+        : [{ opacity: 1 }, { opacity: 0, offset: 0.65 }, { opacity: 0 }],
+      { duration: 400, fill: "forwards" },
+    );
+    return 400;
+  }
   if (kind === "replace") {
     el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: EASE_IN_OUT, fill: "forwards" });
     return 180;
@@ -92,10 +102,13 @@ export function ContentStage(props: {
   transition: ContentTransition;
   width: number;
   height: number;
+  edge?: IslandEdge;
+  position?: IslandPosition;
   children: ReactNode;
 }) {
   useLocale();
   const { contentKey, transition, width, height, children } = props;
+  const side = props.edge === "left" || props.edge === "right";
   const drawn = useContext(DrawnSize);
   const nextId = useRef(1);
   const [layers, setLayers] = useState<Layer[]>([
@@ -111,7 +124,7 @@ export function ContentStage(props: {
     lastKey.current = contentKey;
     const id = nextId.current++;
     pendingIn.current = { id, kind: transition };
-    const keepsOld = transition === "replace" || transition === "depart";
+    const keepsOld = transition === "replace" || transition === "depart" || (side && (transition === "reveal" || transition === "dismiss"));
     setLayers((current) => [
       ...current.filter((l) => keepsOld && l.key === previous && !l.leaving).map((l) => ({ ...l, leaving: true })),
       { id, key: contentKey, node: children, width, height, leaving: false },
@@ -136,11 +149,11 @@ export function ContentStage(props: {
     if (!pending) return;
     pendingIn.current = null;
     const entering = refs.current.get(pending.id);
-    if (entering) animateIn(entering, pending.kind);
+    if (entering) animateIn(entering, pending.kind, side);
     for (const layer of layers) {
       if (!layer.leaving) continue;
       const el = refs.current.get(layer.id);
-      const wait = el ? animateOut(el, pending.kind) : 0;
+      const wait = el ? animateOut(el, pending.kind, side) : 0;
       setTimeout(() => setLayers((current) => current.filter((l) => l.id !== layer.id)), wait);
     }
   }, [layers]);
@@ -151,6 +164,7 @@ export function ContentStage(props: {
         // Compact views share the surface's live dimensions, including their
         // centering. Expanded pages keep a stable layout during reveal.
         const size = !layer.leaving && !layer.key.startsWith("expanded:") && drawn ? drawn : layer;
+        const offset = surfaceOffset({ width, height }, size, props.edge ?? "top", props.position);
         return (
           <div
             key={layer.id}
@@ -162,9 +176,13 @@ export function ContentStage(props: {
             style={{
               width: size.width,
               height: size.height,
-              left: `calc(50% - ${size.width / 2}px)`,
+              left: offset.x,
+              top: offset.y,
               pointerEvents: layer.leaving ? "none" : undefined,
-              transformOrigin: "50% 0",
+              transformOrigin: props.edge === "bottom" ? `${(props.position?.x ?? 0.5) * 100}% 100%`
+                : props.edge === "left" ? `0 ${(props.position?.y ?? 0.5) * 100}%`
+                  : props.edge === "right" ? `100% ${(props.position?.y ?? 0.5) * 100}%`
+                    : `${(props.position?.x ?? 0.5) * 100}% 0`,
             }}
           >
             <DrawnSize.Provider value={size}>{layer.node}</DrawnSize.Provider>
