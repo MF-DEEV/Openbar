@@ -39,8 +39,12 @@ function draw(frame: MirrorFrame | null) {
     const screen = { width: innerWidth, height: innerHeight };
     const usable = usableDisplayArea(screen);
     const edge = islandEdge(frame.position, screen, usable);
-    const place = placeIsland(frame.position, screen,
-      { width: frame.width, height: frame.height ?? element.getBoundingClientRect().height }, insetUsableEdge(usable, edge, frame.edgeGap ?? 0, screen));
+    const place = placeIsland(
+      frame.position,
+      screen,
+      { width: frame.width, height: frame.height ?? element.getBoundingClientRect().height },
+      insetUsableEdge(usable, edge, frame.edgeGap ?? 0, screen),
+    );
     element.style.left = `${place.left}px`;
     element.style.top = `${place.top + (frame.height ?? 0) - element.getBoundingClientRect().height}px`;
     element.style.transform = "none";

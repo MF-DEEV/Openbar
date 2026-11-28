@@ -11,7 +11,11 @@ export async function checkMusicStability({ send, evaluate, base }) {
   assert(await evaluate("!!document.querySelector('.island-frame')"));
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
 
-  for (const position of [{ x: 0, y: 0.5 }, { x: 1, y: 0.5 }, { x: 0.5, y: 0 }]) {
+  for (const position of [
+    { x: 0, y: 0.5 },
+    { x: 1, y: 0.5 },
+    { x: 0.5, y: 0 },
+  ]) {
     await evaluate(`(async()=>{
       const {useIsland}=await import('/src/island/store.ts');
       const {useMusic}=await import('/src/music/store.ts');
@@ -53,9 +57,16 @@ export async function checkMusicStability({ send, evaluate, base }) {
         heights:[...new Set(values.map(v=>v.page))],contents:[...new Set(values.map(v=>v.content))],
         bubbles:[...new Set(values.map(v=>v.bubble?.join(',')))]};
     })()`);
-    assert(result.count > 40 && result.frames.length === 1 && result.heights.length === 1 &&
-      result.contents.length === 1 && result.bubbles.length === 1,
-      `Music moved at ${JSON.stringify(position)}: ${JSON.stringify(result)}`);
+    assert(
+      result.count > 40 &&
+        result.frames.length === 1 &&
+        result.heights.length === 1 &&
+        result.contents.length === 1 &&
+        result.bubbles.length === 1,
+      `Music moved at ${JSON.stringify(position)}: ${JSON.stringify(result)}`,
+    );
   }
-  console.log("Music panel, content and external buttons stayed still at left, right and top during playback and visualizer updates.");
+  console.log(
+    "Music panel, content and external buttons stayed still at left, right and top during playback and visualizer updates.",
+  );
 }

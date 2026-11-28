@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   LayoutGrid,
 } from "lucide-react";
 import { useContext } from "react";
@@ -77,8 +78,11 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
             : BatteryFull;
   const warningColor = BATTERY_WARNING_COLORS[batteryWarning(battery, island.settings)];
   const inset = props.vertical ? 6 : capsule ? 12 : Math.min(16, edgeInset(size, 12, 0, 4, geometry.input));
-  const readingWidth = props.vertical ? size.width - 2 * inset
-    : capsule ? (size.width - 2 * inset - 5) / 2 : (size.width - geometry.cameraWidth) / 2 - inset;
+  const readingWidth = props.vertical
+    ? size.width - 2 * inset
+    : capsule
+      ? (size.width - 2 * inset - 5) / 2
+      : (size.width - geometry.cameraWidth) / 2 - inset;
   const label =
     idleContent === "battery" && battery
       ? `${battery.percent == null ? t("s.batteryLabel") : `${battery.percent}%`}${battery.charging ? t("windows.island.charging") : battery.pluggedIn ? t("windows.island.pluggedIn") : t("windows.island.onBattery")}`
@@ -158,7 +162,7 @@ function noticeMetrics(geometry: Geometry, size: Size) {
 }
 
 /** One line of text either side of the camera: title left, detail right. */
-export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Size; vertical?: boolean }) {
+export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Size }) {
   useLocale();
   const { notice, geometry } = props;
   const size = useContext(DrawnSize) ?? props.size;
@@ -171,14 +175,14 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
   return (
     <button
       type="button"
-      className={`n-notice${props.vertical ? " is-vertical" : ""}`}
+      className="n-notice"
       aria-label={[notice.title, notice.detail].filter(Boolean).join(": ")}
       title={[notice.title, notice.detail].filter(Boolean).join("\n")}
       style={{
         width: size.width,
         height: size.height,
-        columnGap: props.vertical ? 0 : camera,
-        paddingInline: props.vertical ? 16 : metrics.padding,
+        columnGap: camera,
+        paddingInline: metrics.padding,
         fontSize: metrics.fontSize,
         lineHeight: "1.25",
       }}
@@ -221,7 +225,12 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
       {notice.detail ? (
         <span
           className="n-notice-detail"
-          style={{ fontSize: Math.max(9, metrics.fontSize - 1), color: notice.audio?.muted ? "#ff453a" : undefined }}
+          // A capsule is sized to fit both texts; 32% of a short one cuts a time like 00:30.
+          style={{
+            fontSize: Math.max(9, metrics.fontSize - 1),
+            color: notice.audio?.muted ? "#ff453a" : undefined,
+            maxWidth: camera ? undefined : "50%",
+          }}
         >
           {notice.detail}
         </span>
@@ -277,19 +286,26 @@ export function Peek(props: { geometry: Geometry; size: Size; edge?: IslandEdge 
   useLocale();
   const size = useContext(DrawnSize) ?? props.size;
   const selected = useIsland((s) => s.selected);
-  const vertical = props.edge === "left" || props.edge === "right";
-  const OpenIcon = props.edge === "left" ? ChevronRight : props.edge === "right" ? ChevronLeft : ChevronDown;
+  // The chevron points the way the island opens.
+  const OpenIcon =
+    props.edge === "left"
+      ? ChevronRight
+      : props.edge === "right"
+        ? ChevronLeft
+        : props.edge === "bottom"
+          ? ChevronUp
+          : ChevronDown;
   return (
     <div
-      className={`n-peek${vertical ? " is-vertical" : ""}`}
+      className="n-peek"
       onClick={(event) => {
         if (event.target === event.currentTarget) useIsland.getState().open();
       }}
       style={{
         width: size.width,
         height: size.height,
-        paddingTop: vertical ? 20 : props.geometry.safeContentTop,
-        paddingInline: vertical ? 14 : contentInsets(props.geometry, size).horizontal,
+        paddingTop: props.geometry.safeContentTop,
+        paddingInline: contentInsets(props.geometry, size).horizontal,
       }}
     >
       <button

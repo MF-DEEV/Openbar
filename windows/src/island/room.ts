@@ -20,7 +20,14 @@ export function roomHeight(
   geometry: Pick<Geometry, "stripHeight" | "floatingDrop">,
   linux = onLinux(),
 ): number | null {
-  if (!linux || !settings.enabled || !settings.makeRoom || settings.opening === "hiddenUntilHover" || (settings.position?.y ?? 0) > 0) return null;
+  if (
+    !linux ||
+    !settings.enabled ||
+    !settings.makeRoom ||
+    settings.opening === "hiddenUntilHover" ||
+    (settings.position?.y ?? 0) > 0
+  )
+    return null;
   const height = geometry.stripHeight + geometry.floatingDrop;
   return Number.isFinite(height) && height > 0 ? Math.ceil(height) : null;
 }

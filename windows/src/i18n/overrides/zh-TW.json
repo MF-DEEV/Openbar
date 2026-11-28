@@ -1058,5 +1058,14 @@
   "windows.settings.sessions.jetbrainsRestart": "重新啟動 %@ 以載入",
   "windows.settings.sessions.jetbrainsRestartRemoved": "重新啟動 %@ 以解除載入",
   "windows.settings.sessions.jetbrainsInUse": "請先關閉 %@：外掛程式正在使用中",
-  "windows.settings.sessions.jetbrainsNoFolder": "找不到此 IDE 的設定資料夾"
+  "windows.settings.sessions.jetbrainsNoFolder": "找不到此 IDE 的設定資料夾",
+  "windows.settings.layout.dragIsland": "拖曳動態島",
+  "windows.settings.layout.positionHint": "沿著螢幕任一邊緣拖曳動態島。位置會被儲存。",
+  "windows.settings.layout.restorePosition": "恢復預設位置",
+  "windows.settings.layout.fromBottom": "與底部的距離",
+  "windows.settings.layout.fromLeft": "與左側的距離",
+  "windows.settings.layout.fromRight": "與右側的距離",
+  "windows.settings.layout.capsuleFitCaptionBottom": "調整膠囊大小，並將其從螢幕底部向上提起。",
+  "windows.settings.layout.capsuleFitCaptionSide": "調整膠囊大小，並將其從螢幕側邊向內移動。",
+  "windows.settings.layout.capsulePreviewCaptionEdge": "寬度、高度、圓角及與螢幕邊緣距離的預覽。"
 }

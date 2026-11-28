@@ -92,7 +92,7 @@ export function previewSize(
   return notificationPreviewSize(geometry, height);
 }
 
-export function NotificationPreview(props: { notice: Notice; geometry: Geometry; size: Size; vertical?: boolean }) {
+export function NotificationPreview(props: { notice: Notice; geometry: Geometry; size: Size }) {
   useLocale();
   const { notice, geometry, size } = props;
   const notification = notice.notification!;
@@ -130,14 +130,14 @@ export function NotificationPreview(props: { notice: Notice; geometry: Geometry;
 
   return (
     <div
-      className={`nt-preview${props.vertical ? " is-vertical" : ""}`}
+      className="nt-preview"
       role="group"
       aria-label={notice.title}
       style={{
         width: size.width,
         height: size.height,
-        paddingTop: props.vertical ? 22 : geometry.safeContentTop,
-        paddingInline: props.vertical ? 22 : insets.horizontal,
+        paddingTop: geometry.safeContentTop,
+        paddingInline: insets.horizontal,
         gap: SPACING,
       }}
     >
@@ -173,7 +173,7 @@ export function NotificationPreview(props: { notice: Notice; geometry: Geometry;
       {notification.image ? (
         <img className="nt-preview-image" src={notification.image} alt={t("windows.notifications.discordImageAlt")} />
       ) : null}
-      <div className="nt-preview-actions" style={{ minHeight: ACTION_HEIGHT, height: props.vertical ? undefined : ACTION_HEIGHT }}>
+      <div className="nt-preview-actions" style={{ height: ACTION_HEIGHT }}>
         {discord ? (
           <button type="button" className="n-pill-button is-prominent" aria-expanded={replying} onClick={reply.toggle}>
             <Reply size={12} />

@@ -77,9 +77,10 @@ export function AgentsStrip({ geometry, size }: { geometry: Geometry; size: Size
   const reading = currentReading(snapshot, ticking);
   const portrait = size.height > size.width;
   const textSize = portrait
-    ? Math.min(9, reading.endsWith("%") ? 9 * (size.width - 6) / Math.max(1, readingWidth(reading, 9)) : 9)
+    ? Math.min(9, reading.endsWith("%") ? (9 * (size.width - 6)) / Math.max(1, readingWidth(reading, 9)) : 9)
     : stripTextSize(geometry.stripHeight);
-  const icon = portrait ? Math.min(10, stripIconSize(working.length, geometry.stripHeight))
+  const icon = portrait
+    ? Math.min(10, stripIconSize(working.length, geometry.stripHeight))
     : stripIconSize(working.length, geometry.stripHeight);
   const capsule = geometry.floatingGap !== null;
   const iconInset = capsule ? 0 : edgeInset(size, icon + 4, (icon + 4) / 2, 5, geometry.input);
@@ -105,8 +106,14 @@ export function AgentsStrip({ geometry, size }: { geometry: Geometry; size: Size
       {capsule ? null : <span style={{ width: geometry.cameraWidth, flex: "none" }} />}
       <span
         className="ag-strip-wing ag-strip-reading"
-        style={{ width: wing, paddingRight: textInset, justifyContent: "flex-end", fontSize: textSize,
-          color: tint, whiteSpace: portrait && reading.endsWith("%") ? "nowrap" : undefined }}
+        style={{
+          width: wing,
+          paddingRight: textInset,
+          justifyContent: "flex-end",
+          fontSize: textSize,
+          color: tint,
+          whiteSpace: portrait && reading.endsWith("%") ? "nowrap" : undefined,
+        }}
       >
         {wing === undefined || wing >= 42 ? reading : null}
       </span>

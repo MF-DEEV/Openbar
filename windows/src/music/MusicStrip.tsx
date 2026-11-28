@@ -35,13 +35,22 @@ export function MusicStrip({ geometry, size }: { geometry: Geometry; size: Size 
   const [overBars, setOverBars] = useState(false);
   const capsule = geometry.floatingGap !== null;
   const portrait = size.height > size.width;
-  const side = portrait ? Math.min(26, Math.max(0, capsuleBody(size.width, size.height, geometry.floatingGap ?? 0).width - 4))
+  const side = portrait
+    ? Math.min(26, Math.max(0, capsuleBody(size.width, size.height, geometry.floatingGap ?? 0).width - 4))
     : artworkSide(capsule ? geometry.stripHeight - 2 * (geometry.floatingGap ?? 0) + 4 : geometry.stripHeight);
   const bars = portrait ? 18 : barHeight(geometry.stripHeight);
   // Capsule activity sizing reserves 8px inside each painted end, beyond the transparent shoulders.
   const capsuleInset = capsule ? capsuleBody(size.width, size.height, geometry.floatingGap ?? 0).x + 8 : 0;
-  const coverInset = portrait ? 0 : capsule ? capsuleInset : edgeInset(size, side, side * 0.28, COMPACT_EDGE_GAP, geometry.input);
-  const barsInset = portrait ? 0 : capsule ? capsuleInset : edgeInset(size, bars, BAR_WIDTH / 2, COMPACT_EDGE_GAP, geometry.input);
+  const coverInset = portrait
+    ? 0
+    : capsule
+      ? capsuleInset
+      : edgeInset(size, side, side * 0.28, COMPACT_EDGE_GAP, geometry.input);
+  const barsInset = portrait
+    ? 0
+    : capsule
+      ? capsuleInset
+      : edgeInset(size, bars, BAR_WIDTH / 2, COMPACT_EDGE_GAP, geometry.input);
   const wing = capsule ? undefined : (size.width - geometry.cameraWidth) / 2;
 
   return (

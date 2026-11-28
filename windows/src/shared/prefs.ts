@@ -420,14 +420,17 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
     island: {
       ...DEFAULT_SETTINGS,
       ...island,
-      position: isObject(raw.position) &&
-        typeof raw.position.x === "number" && Number.isFinite(raw.position.x) &&
-        typeof raw.position.y === "number" && Number.isFinite(raw.position.y)
-        ? constrainIslandPosition(raw.position, {
-          width: typeof window === "undefined" ? 1920 : window.screen.width || 1920,
-          height: typeof window === "undefined" ? 1080 : window.screen.height || 1080,
-        })
-        : DEFAULT_SETTINGS.position,
+      position:
+        isObject(raw.position) &&
+        typeof raw.position.x === "number" &&
+        Number.isFinite(raw.position.x) &&
+        typeof raw.position.y === "number" &&
+        Number.isFinite(raw.position.y)
+          ? constrainIslandPosition(raw.position, {
+              width: typeof window === "undefined" ? 1920 : window.screen.width || 1920,
+              height: typeof window === "undefined" ? 1080 : window.screen.height || 1080,
+            })
+          : DEFAULT_SETTINGS.position,
       ...(hiddenModules ? { hiddenModules } : {}),
       ...(moduleOrder ? { moduleOrder } : {}),
       ...(quickAccess ? { quickAccess } : {}),

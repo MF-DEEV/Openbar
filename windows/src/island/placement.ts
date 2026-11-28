@@ -15,10 +15,14 @@ export function insetUsableEdge(usable: UsableArea, edge: IslandEdge, distance: 
   const horizontal = Math.min(Math.max(0, distance), Math.max(0, right - left));
   const vertical = Math.min(Math.max(0, distance), Math.max(0, usable.bottom - usable.top));
   switch (edge) {
-    case "top": return { ...usable, top: usable.top + vertical };
-    case "bottom": return { ...usable, bottom: usable.bottom - vertical };
-    case "left": return { ...usable, left: left + horizontal };
-    case "right": return { ...usable, right: right - horizontal };
+    case "top":
+      return { ...usable, top: usable.top + vertical };
+    case "bottom":
+      return { ...usable, bottom: usable.bottom - vertical };
+    case "left":
+      return { ...usable, left: left + horizontal };
+    case "right":
+      return { ...usable, right: right - horizontal };
   }
 }
 
@@ -36,8 +40,10 @@ export function constrainIslandPosition(
   const width = Math.max(1, (usable.right ?? screen.width) - (usable.left ?? 0));
   const height = Math.max(1, usable.bottom - usable.top);
   const distances: Record<IslandEdge, number> = {
-    top: y * height, bottom: (1 - y) * height,
-    left: x * width, right: (1 - x) * width,
+    top: y * height,
+    bottom: (1 - y) * height,
+    left: x * width,
+    right: (1 - x) * width,
   };
   const nearest = islandEdge({ x, y }, screen, usable);
   const edge = previous && distances[previous] <= distances[nearest] + 10 ? previous : nearest;
@@ -61,19 +67,24 @@ export function islandEdge(position: IslandPosition, screen: Size, usable: Usabl
     ["left", position.x * width],
     ["right", (1 - position.x) * width],
   ];
-  return distances.reduce((best, next) => next[1] < best[1] ? next : best)[0];
+  return distances.reduce((best, next) => (next[1] < best[1] ? next : best))[0];
 }
 
 /** The painted shape stays against the edge from which it opens. */
 export function surfaceOffset(
-  target: Size, drawn: Size, edge: IslandEdge,
+  target: Size,
+  drawn: Size,
+  edge: IslandEdge,
   position: IslandPosition = { x: 0.5, y: 0.5 },
 ): { x: number; y: number } {
   return {
-    x: edge === "left" ? 0 : edge === "right" ? target.width - drawn.width
-      : (target.width - drawn.width) * position.x,
-    y: edge === "bottom" ? target.height - drawn.height
-      : edge === "left" || edge === "right" ? (target.height - drawn.height) * position.y : 0,
+    x: edge === "left" ? 0 : edge === "right" ? target.width - drawn.width : (target.width - drawn.width) * position.x,
+    y:
+      edge === "bottom"
+        ? target.height - drawn.height
+        : edge === "left" || edge === "right"
+          ? (target.height - drawn.height) * position.y
+          : 0,
   };
 }
 
@@ -89,25 +100,28 @@ export function placeIsland(
 ): Placement {
   position = constrainIslandPosition(position, screen, usable);
   const edge = islandEdge(position, screen, usable);
+  // Room beside the panel for the quick buttons that sit off its ends.
   const gutter = bubbles && (edge === "top" || edge === "bottom") ? 56 : 0;
-  // Bottom quick buttons now sit above the panel; only a small taskbar-side
-  // margin is needed below it. Keep the side clearance for the side buttons.
-  const bottomGutter = bubbles && edge === "bottom" ? 8 : gutter;
-  const sideGutter = bubbles && (edge === "left" || edge === "right") &&
-    usable.bottom - usable.top - size.height >= 112 ? 56 : 0;
+  const sideGutter =
+    bubbles && (edge === "left" || edge === "right") && usable.bottom - usable.top - size.height >= 112 ? 56 : 0;
   const workLeft = usable.left ?? 0;
   const workRight = usable.right ?? screen.width;
   const closedLeft = workLeft + position.x * Math.max(0, workRight - workLeft - closedWidth);
   const closedTop = usable.top + position.y * Math.max(0, usable.bottom - usable.top - closedHeight);
-  const wantedLeft = edge === "left" ? closedLeft
-    : edge === "right" ? closedLeft + closedWidth - size.width
-    : closedLeft + (closedWidth - size.width) / 2;
-  const left = clamp(wantedLeft,
-    workLeft + gutter, workRight - size.width - gutter);
-  const available = Math.max(0, usable.bottom - usable.top - size.height - bottomGutter - 2 * sideGutter);
-  const wanted = edge === "bottom" ? closedTop + closedHeight - size.height
-    : edge === "left" || edge === "right" ? closedTop + (closedHeight - size.height) / 2
-    : closedTop;
+  const wantedLeft =
+    edge === "left"
+      ? closedLeft
+      : edge === "right"
+        ? closedLeft + closedWidth - size.width
+        : closedLeft + (closedWidth - size.width) / 2;
+  const left = clamp(wantedLeft, workLeft + gutter, workRight - size.width - gutter);
+  const available = Math.max(0, usable.bottom - usable.top - size.height - 2 * sideGutter);
+  const wanted =
+    edge === "bottom"
+      ? closedTop + closedHeight - size.height
+      : edge === "left" || edge === "right"
+        ? closedTop + (closedHeight - size.height) / 2
+        : closedTop;
   const top = clamp(wanted, usable.top + sideGutter, usable.top + sideGutter + available);
   return { left, top };
 }

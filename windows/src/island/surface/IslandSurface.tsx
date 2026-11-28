@@ -11,9 +11,9 @@ import { useLocale } from "../../i18n";
 
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { useIsland, visibleActivity } from "../store";
-import { type Geometry, islandPath } from "../geometry";
+import { type Geometry, edgePath } from "../geometry";
 import { MotionTimeline, type Size } from "../motion";
-import { DrawnSize } from "./DrawnSize";
+import { DrawnOffset, DrawnSize } from "./DrawnSize";
 import { setSurface, surfaceArea, Trailing } from "./hits";
 import { surfaceOffset, type IslandEdge, type IslandPosition } from "../placement";
 
@@ -23,10 +23,11 @@ function reducedMotion() {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
-/** Path `d` with its origin moved right by `dx` (path() has no transform of its own). */
-function shifted(geometry: Geometry, size: Size, dx: number, dy: number): string {
-  if (dx === 0 && dy === 0) return islandPath(geometry, size);
-  return islandPath(geometry, size).replace(
+/** Path `d` turned onto its edge, with its origin moved by `dx`, `dy` (path() has no transform of its own). */
+function shifted(geometry: Geometry, size: Size, dx: number, dy: number, edge: IslandEdge): string {
+  const d = edgePath(geometry, size, edge);
+  if (dx === 0 && dy === 0) return d;
+  return d.replace(
     /(-?\d*\.?\d+(?:e-?\d+)?) (-?\d*\.?\d+(?:e-?\d+)?)/g,
     (_, x, y) => `${Number(x) + dx} ${Number(y) + dy}`,
   );
@@ -34,6 +35,8 @@ function shifted(geometry: Geometry, size: Size, dx: number, dy: number): string
 
 export function IslandSurface(props: {
   geometry: Geometry;
+  /** What is drawn when it differs from what lays out the content (a notch on a side edge). */
+  outline?: Geometry;
   target: Size;
   left?: number;
   top?: number;
@@ -45,6 +48,7 @@ export function IslandSurface(props: {
 }) {
   useLocale();
   const { geometry, target, children } = props;
+  const shape = props.outline ?? geometry;
   const outline = useIsland((s) => s.settings.outline);
   // The outline turns system orange while the timer has the closed island (NotchService.swift:2837-2838).
   const timerShown = useIsland(
@@ -59,6 +63,30 @@ export function IslandSurface(props: {
   const trailing = useRef(new Trailing());
   const onDrawn = useRef(props.onDrawn);
   onDrawn.current = props.onDrawn;
+
+  // Along its edge the outline travels from where it was drawn when the
+  // target changed to where the new frame puts it, in step with its size.
+  // A fixed anchor would jump wherever the open panel is pushed in from a
+  // screen corner and the closed island is not.
+  const edge = props.edge ?? "top";
+  const horizontal = edge === "top" || edge === "bottom";
+  const frameStart = horizontal ? props.left : props.top;
+  const travelKey = `${edge}:${target.width}x${target.height}@${props.left},${props.top}`;
+  const last = useRef<{ edge: IslandEdge; start: number; size: number } | null>(null);
+  const travel = useRef<{ key: string; start: number; size: number } | null>(null);
+  if (travel.current?.key !== travelKey) {
+    const from = last.current?.edge === edge ? last.current : null;
+    travel.current = { key: travelKey, start: from?.start ?? NaN, size: from?.size ?? NaN };
+  }
+  const offsetOf = (size: Size) => {
+    const base = surfaceOffset(target, size, edge, props.position);
+    const from = travel.current;
+    if (frameStart === undefined || !from || !Number.isFinite(from.start)) return base;
+    const span = (horizontal ? target.width : target.height) - from.size;
+    const progress = Math.abs(span) < 0.5 ? 1 : ((horizontal ? size.width : size.height) - from.size) / span;
+    const start = from.start + (frameStart - from.start) * progress;
+    return horizontal ? { x: start - frameStart, y: base.y } : { x: base.x, y: start - frameStart };
+  };
 
   useLayoutEffect(() => {
     const draw = (size: Size, settled: boolean) => {
@@ -78,7 +106,10 @@ export function IslandSurface(props: {
       const held = settled ? size : trailing.current.push(size, now() * 1000);
       if (settled) trailing.current.reset();
       const bounds = frame.getBoundingClientRect();
-      setSurface(surfaceArea(geometry, target, size, held, bounds.left, bounds.top, props.edge, props.position), settled);
+      setSurface(
+        surfaceArea(shape, target, size, held, bounds.left, bounds.top, props.edge, props.position, offsetOf),
+        settled,
+      );
     };
 
     const t = now();
@@ -120,18 +151,32 @@ export function IslandSurface(props: {
     };
     step();
     return () => cancelAnimationFrame(raf.current);
-  }, [geometry, target.width, target.height, props.left, props.top, props.edge, props.position?.x, props.position?.y]);
+  }, [shape, target.width, target.height, props.left, props.top, props.edge, props.position?.x, props.position?.y]);
 
   // Commit the outline, clip and content layout together. Imperatively
   // moving the outline ahead of React's content update causes visible jumps.
-  const offset = surfaceOffset(target, contentSize, props.edge ?? "top", props.position);
-  const d = shifted(geometry, contentSize, offset.x, offset.y);
+  const offset = offsetOf(contentSize);
+  const d = shifted(shape, contentSize, offset.x, offset.y, edge);
+  useLayoutEffect(() => {
+    if (frameStart === undefined) return;
+    last.current = {
+      edge,
+      start: frameStart + (horizontal ? offset.x : offset.y),
+      size: horizontal ? contentSize.width : contentSize.height,
+    };
+  });
 
   return (
     <div
       ref={frameRef}
       className={`island-frame${props.smoothPosition ? " is-position-moving" : ""}`}
-      style={{ width: target.width, height: target.height, left: props.left, top: props.top ?? geometry.floatingDrop, transform: props.left === undefined ? undefined : "none" }}
+      style={{
+        width: target.width,
+        height: target.height,
+        left: props.left,
+        top: props.top ?? geometry.floatingDrop,
+        transform: props.left === undefined ? undefined : "none",
+      }}
     >
       <svg className="island-backdrop" width={target.width} height={target.height} aria-hidden>
         <clipPath id={clipId}>
@@ -150,7 +195,9 @@ export function IslandSurface(props: {
         ) : null}
       </svg>
       <div className="island-content" style={{ clipPath: `path("${d}")` }}>
-        <DrawnSize.Provider value={contentSize}>{children}</DrawnSize.Provider>
+        <DrawnOffset.Provider value={offsetOf}>
+          <DrawnSize.Provider value={contentSize}>{children}</DrawnSize.Provider>
+        </DrawnOffset.Provider>
       </div>
     </div>
   );

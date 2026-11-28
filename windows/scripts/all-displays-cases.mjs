@@ -120,10 +120,14 @@ export async function checkAllDisplays({ send, evaluate, base }) {
     const top=(s.availTop??s.top??0)-(s.top??0);
     return {x:b.x,y:b.y,width:b.width,height:b.height,screenWidth:innerWidth,screenHeight:innerHeight,
       left,top,right:left+s.availWidth,bottom:top+s.availHeight};})()`);
-  assert(Math.abs(moved.x - (moved.right - moved.width)) < 1,
-    "The mirror snaps the saved position to the nearest right edge");
-  assert(Math.abs(moved.y - (moved.top + 0.8 * (moved.bottom - moved.top - moved.height))) < 1,
-    `The mirror follows the saved position along the right edge: ${JSON.stringify(moved)}`);
+  assert(
+    Math.abs(moved.x - (moved.right - moved.width)) < 1,
+    "The mirror snaps the saved position to the nearest right edge",
+  );
+  assert(
+    Math.abs(moved.y - (moved.top + 0.8 * (moved.bottom - moved.top - moved.height))) < 1,
+    `The mirror follows the saved position along the right edge: ${JSON.stringify(moved)}`,
+  );
   await evaluate(`document.querySelector('.island-frame').click()`);
   await wait(100);
   assert((await evaluate(`__calls`)).includes("island_mirror_open"), "A click brings the island here");

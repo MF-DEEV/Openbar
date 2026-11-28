@@ -9,17 +9,13 @@
 // before the island has grown into it (island.rs, `reshape`).
 
 import { bridge, type HitRect } from "../../shared/bridge";
-import { type Geometry, hitShape } from "../geometry";
+import { type Geometry, edgeHitShape } from "../geometry";
 import type { Size } from "../motion";
 import { surfaceOffset, type IslandEdge, type IslandPosition } from "../placement";
 
 export interface Area {
   reach: HitRect;
   drawn: HitRect;
-  /** Current painted shape for the Windows native region (no compositor lag). */
-  painted: HitRect;
-  /** The currently visible capsule may extend beyond the destination's rounded hit shape. */
-  interactive?: HitRect;
 }
 
 /**
@@ -35,12 +31,22 @@ if (windowIsCut && typeof document !== "undefined") document.documentElement.cla
  * The outline of an island of `size`, centred in a frame of the target's width that starts at `left`:
  * where the pointer is answered, or what is painted.
  */
-function outlineAt(geometry: Geometry, target: Size, left: number, size: Size, part: "reach" | "painted", top = geometry.floatingDrop, edge: IslandEdge = "top", position?: IslandPosition): HitRect {
-  const hit = hitShape(geometry, size);
-  // A side capsule has no screen-edge approach strip above it. Its pointer
-  // region follows the actual rounded body, including both visible ends.
-  const shape = part === "painted" || edge === "left" || edge === "right" ? hit.painted : hit;
-  const offset = surfaceOffset(target, size, edge, position);
+type OffsetOf = (size: Size) => { x: number; y: number };
+
+function outlineAt(
+  geometry: Geometry,
+  target: Size,
+  left: number,
+  size: Size,
+  part: "reach" | "painted",
+  top = geometry.floatingDrop,
+  edge: IslandEdge = "top",
+  position?: IslandPosition,
+  offsetOf?: OffsetOf,
+): HitRect {
+  const hit = edgeHitShape(geometry, size, edge);
+  const shape = part === "painted" ? hit.painted : hit;
+  const offset = offsetOf ? offsetOf(size) : surfaceOffset(target, size, edge, position);
   return {
     x: left + offset.x + shape.rect.x,
     y: top + offset.y + shape.rect.y,
@@ -56,15 +62,21 @@ function outlineAt(geometry: Geometry, target: Size, left: number, size: Size, p
  * The island drawn at `size`, on its way to `target`: it answers to the larger of the two.
  * `held` is the size the window may be cut to, which is never more than `size`.
  */
-export function surfaceArea(geometry: Geometry, target: Size, size: Size, held: Size, left: number, top = geometry.floatingDrop, edge: IslandEdge = "top", position?: IslandPosition): Area {
+export function surfaceArea(
+  geometry: Geometry,
+  target: Size,
+  size: Size,
+  held: Size,
+  left: number,
+  top = geometry.floatingDrop,
+  edge: IslandEdge = "top",
+  position?: IslandPosition,
+  offsetOf?: OffsetOf,
+): Area {
   const reach = { width: Math.max(size.width, target.width), height: Math.max(size.height, target.height) };
   return {
-    reach: outlineAt(geometry, target, left, reach, "reach", top, edge, position),
-    drawn: outlineAt(geometry, target, left, held, "painted", top, edge, position),
-    painted: outlineAt(geometry, target, left, size, "painted", top, edge, position),
-    ...((edge === "left" || edge === "right") && (size.width !== target.width || size.height !== target.height)
-      ? { interactive: outlineAt(geometry, target, left, size, "painted", top, edge, position) }
-      : {}),
+    reach: outlineAt(geometry, target, left, reach, "reach", top, edge, position, offsetOf),
+    drawn: outlineAt(geometry, target, left, held, "painted", top, edge, position, offsetOf),
   };
 }
 
@@ -131,8 +143,11 @@ function flush() {
     const scale = scales.get(c.id) ?? 0;
     return scale > 0 ? [circleDrawn(c.reach, scale)] : [];
   });
-  const rects = [...(surface ? [surface.reach, ...(surface.interactive ? [surface.interactive] : []), ...(transitionOrigin ? [transitionOrigin] : [])] : []), ...circles.map((c) => c.reach)];
-  const drawn = [...(surface ? [windowIsCut ? surface.drawn : surface.painted] : []), ...shown];
+  const rects = [
+    ...(surface ? [surface.reach, ...(transitionOrigin ? [transitionOrigin] : [])] : []),
+    ...circles.map((c) => c.reach),
+  ];
+  const drawn = [...(surface ? [surface.drawn] : []), ...shown];
   const key = JSON.stringify([rects, drawn]);
   if (key === published || sending) return;
   published = key;
@@ -151,7 +166,7 @@ function schedule() {
 }
 
 export function setSurface(area: Area, settled = true) {
-  if (!settled && !transitionOrigin) transitionOrigin = surface?.interactive ?? surface?.drawn ?? null;
+  if (!settled && !transitionOrigin) transitionOrigin = surface?.drawn ?? null;
   if (settled) transitionOrigin = null;
   surface = area;
   schedule();

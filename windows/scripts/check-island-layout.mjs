@@ -109,9 +109,12 @@ try {
     return result.result.value;
   };
   await send("Runtime.enable");
+  // The island's window covers its whole display, so the screen is as large as the page.
   await send("Emulation.setDeviceMetricsOverride", {
     width: 1440,
     height: 1000,
+    screenWidth: 1440,
+    screenHeight: 1000,
     deviceScaleFactor: 1.25,
     mobile: false,
   });

@@ -262,27 +262,6 @@
   white-space: nowrap;
 }
 
-.n-expanded-vertical .n-portrait-leading:has(.s-back) {
-  justify-content: flex-start;
-}
-
-.n-expanded-vertical.is-sessions-enlarged .n-portrait-leading {
-  justify-content: flex-start;
-}
-
-.n-expanded-vertical.is-sessions-enlarged .n-portrait-leading .s-back {
-  width: fit-content;
-  max-width: 100%;
-  height: auto;
-  min-height: 28px;
-}
-
-.n-expanded-vertical.is-sessions-enlarged .n-portrait-leading .s-back span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .s-back:hover {
   background: rgba(255, 255, 255, 0.09);
 }

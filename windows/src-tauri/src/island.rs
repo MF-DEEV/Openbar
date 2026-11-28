@@ -157,11 +157,20 @@ impl Display {
         } else {
             0.0
         };
-        let gap = if frame.edge_gap.is_finite() { frame.edge_gap.max(0.0) } else { 0.0 };
-        if x == 0.0 { work_left += gap.min(work_right - work_left); }
-        else if x == 1.0 { work_right -= gap.min(work_right - work_left); }
-        else if y == 0.0 { work_top += gap.min(work_bottom - work_top); }
-        else if y == 1.0 { work_bottom -= gap.min(work_bottom - work_top); }
+        let gap = if frame.edge_gap.is_finite() {
+            frame.edge_gap.max(0.0)
+        } else {
+            0.0
+        };
+        if x == 0.0 {
+            work_left += gap.min(work_right - work_left);
+        } else if x == 1.0 {
+            work_right -= gap.min(work_right - work_left);
+        } else if y == 0.0 {
+            work_top += gap.min(work_bottom - work_top);
+        } else if y == 1.0 {
+            work_bottom -= gap.min(work_bottom - work_top);
+        }
         let left = (work_left + x * (work_right - work_left - frame.width).max(0.0))
             .clamp(work_left, (work_right - frame.width).max(work_left));
         let top = (work_top + y * (work_bottom - work_top - frame.height).max(0.0))
@@ -222,10 +231,6 @@ impl DisplaySettle {
 #[derive(Default)]
 pub struct IslandState {
     rects: Mutex<Vec<HitRect>>,
-    #[cfg(windows)]
-    windows_hit_region_ready: AtomicBool,
-    #[cfg(windows)]
-    painted_rects: Mutex<Vec<HitRect>>,
     /// What is on screen now (Linux), see `linux/island.rs`.
     #[cfg(target_os = "linux")]
     drawn: Mutex<Option<Vec<platform::Drawn>>>,
@@ -538,7 +543,6 @@ fn mirror_under_pointer<R: Runtime>(
 /// the island's edge, and when a button goes down anywhere else.
 fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
     thread::spawn(move || {
-        #[cfg(not(windows))]
         let mut taking_input = false;
         let mut was_inside = false;
         let mut buttons_down = false;
@@ -563,7 +567,6 @@ fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
             let selecting = app.get_webview_window(crate::capture::LABEL).is_some();
             let inside = !selecting && state.rects.lock().unwrap().iter().any(|r| r.contains(x, y));
             let wants_input = inside || *state.capture.lock().unwrap();
-            #[cfg(not(windows))]
             if wants_input != taking_input {
                 taking_input = wants_input;
                 let _ = set_click_through(&window, !wants_input);
@@ -626,76 +629,8 @@ fn pointer_in_window<R: Runtime>(window: &WebviewWindow<R>) -> Option<(f64, f64)
 
 #[cfg(not(target_os = "linux"))]
 #[tauri::command]
-pub fn island_set_hit_rects<R: Runtime>(app: AppHandle<R>, state: tauri::State<'_, IslandState>, rects: Vec<HitRect>, drawn: Option<Vec<HitRect>>) {
-    *state.rects.lock().unwrap() = rects.clone();
-    #[cfg(windows)]
-    if let Some(window) = app.get_webview_window(LABEL) {
-        // The pointer may reach farther than the painted capsule (especially
-        // above its rounded top corners). Cutting the native window to that
-        // reach exposed WebView's white backing in the unpainted corners.
-        let painted = drawn.unwrap_or_else(|| rects.clone());
-        *state.painted_rects.lock().unwrap() = painted.clone();
-        if set_windows_hit_region(&window, &painted, *state.capture.lock().unwrap()) {
-            if !state.windows_hit_region_ready.swap(true, Ordering::Relaxed) {
-                let _ = set_click_through(&window, false);
-            }
-        }
-    }
-    #[cfg(not(windows))]
-    let _ = app;
-}
-
-#[cfg(windows)]
-fn set_windows_hit_region<R: Runtime>(window: &WebviewWindow<R>, rects: &[HitRect], capture: bool) -> bool {
-    use windows::Win32::Foundation::POINT;
-    use windows::Win32::Graphics::Gdi::{
-        CombineRgn, CreatePolygonRgn, CreateRectRgn, DeleteObject, HGDIOBJ, RGN_OR,
-        SetWindowRgn, WINDING,
-    };
-
-    let (Ok(hwnd), Ok(scale)) = (window.hwnd(), window.scale_factor()) else { return false };
-    if capture { return unsafe { SetWindowRgn(hwnd, None, false) } != 0; }
-    let region = unsafe { CreateRectRgn(0, 0, 0, 0) };
-    if region.0.is_null() { return false; }
-    for rect in rects {
-        if !rect.width.is_finite() || !rect.height.is_finite() || rect.width <= 0.0 || rect.height <= 0.0 {
-            continue;
-        }
-        let x = rect.x * scale;
-        let y = rect.y * scale;
-        let width = rect.width * scale;
-        let height = rect.height * scale;
-        let top = (rect.top_radius * scale).max(0.0).min(width / 2.0).min(height / 2.0);
-        let bottom = (rect.bottom_radius * scale).max(0.0).min(width / 2.0).min(height / 2.0);
-        let mut points = Vec::with_capacity(28);
-        for (cx, cy, radius, start) in [
-            (x + width - top, y + top, top, -90.0_f64),
-            (x + width - bottom, y + height - bottom, bottom, 0.0),
-            (x + bottom, y + height - bottom, bottom, 90.0),
-            (x + top, y + top, top, 180.0),
-        ] {
-            for step in 0..=6 {
-                let angle = (start + step as f64 * 15.0).to_radians();
-                points.push(POINT {
-                    x: (cx + radius * angle.cos()).round() as i32,
-                    y: (cy + radius * angle.sin()).round() as i32,
-                });
-            }
-        }
-        let part = unsafe { CreatePolygonRgn(&points, WINDING) };
-        if !part.0.is_null() {
-            unsafe {
-                CombineRgn(Some(region), Some(region), Some(part), RGN_OR);
-                let _ = DeleteObject(HGDIOBJ(part.0));
-            }
-        }
-    }
-    // Windows owns the region after a successful call.
-    if unsafe { SetWindowRgn(hwnd, Some(region), false) } != 0 { true }
-    else {
-        unsafe { let _ = DeleteObject(HGDIOBJ(region.0)); }
-        false
-    }
+pub fn island_set_hit_rects(state: tauri::State<'_, IslandState>, rects: Vec<HitRect>) {
+    *state.rects.lock().unwrap() = rects;
 }
 
 #[cfg(target_os = "linux")]
@@ -711,15 +646,8 @@ pub fn island_set_hit_rects<R: Runtime>(
 
 #[cfg(not(target_os = "linux"))]
 #[tauri::command]
-pub fn island_set_capture<R: Runtime>(app: AppHandle<R>, state: tauri::State<'_, IslandState>, capture: bool) {
+pub fn island_set_capture(state: tauri::State<'_, IslandState>, capture: bool) {
     *state.capture.lock().unwrap() = capture;
-    #[cfg(windows)]
-    if let Some(window) = app.get_webview_window(LABEL) {
-        let painted = state.painted_rects.lock().unwrap().clone();
-        let _ = set_windows_hit_region(&window, &painted, capture);
-    }
-    #[cfg(not(windows))]
-    let _ = app;
 }
 
 #[cfg(target_os = "linux")]
@@ -846,7 +774,6 @@ mod platform {
     use std::sync::atomic::{AtomicU32, Ordering};
     use tauri::{Runtime, WebviewWindow};
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR};
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
     };
@@ -937,15 +864,6 @@ mod platform {
     pub fn style<R: Runtime>(window: &WebviewWindow<R>) {
         let Ok(hwnd) = window.hwnd() else { return };
         unsafe {
-            // DWM may paint its own light frame around a transparent window's
-            // changing region. The SVG owns the island outline instead.
-            const NO_BORDER: u32 = 0xFFFF_FFFE;
-            let _ = DwmSetWindowAttribute(
-                hwnd,
-                DWMWA_BORDER_COLOR,
-                &NO_BORDER as *const u32 as *const std::ffi::c_void,
-                std::mem::size_of::<u32>() as u32,
-            );
             let _ = SetWindowSubclass(hwnd, Some(preserve_overlay_style), 3, 0);
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             SetWindowLongPtrW(

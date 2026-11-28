@@ -1058,5 +1058,14 @@
   "windows.settings.sessions.jetbrainsRestart": "불러오려면 %@을(를) 다시 시작하세요",
   "windows.settings.sessions.jetbrainsRestartRemoved": "내리려면 %@을(를) 다시 시작하세요",
   "windows.settings.sessions.jetbrainsInUse": "먼저 %@을(를) 닫으세요: 플러그인을 사용 중입니다",
-  "windows.settings.sessions.jetbrainsNoFolder": "이 IDE의 설정 폴더를 찾을 수 없습니다"
+  "windows.settings.sessions.jetbrainsNoFolder": "이 IDE의 설정 폴더를 찾을 수 없습니다",
+  "windows.settings.layout.dragIsland": "아일랜드 드래그",
+  "windows.settings.layout.positionHint": "아일랜드를 화면의 아무 가장자리를 따라 드래그하세요. 위치가 저장됩니다.",
+  "windows.settings.layout.restorePosition": "기본 위치로 복원",
+  "windows.settings.layout.fromBottom": "아래쪽에서의 거리",
+  "windows.settings.layout.fromLeft": "왼쪽에서의 거리",
+  "windows.settings.layout.fromRight": "오른쪽에서의 거리",
+  "windows.settings.layout.capsuleFitCaptionBottom": "캡슐 크기를 조정하고 화면 아래쪽에서 올립니다.",
+  "windows.settings.layout.capsuleFitCaptionSide": "캡슐 크기를 조정하고 화면 옆쪽에서 안쪽으로 옮깁니다.",
+  "windows.settings.layout.capsulePreviewCaptionEdge": "너비, 높이, 모서리 둥글기 및 화면 가장자리와의 거리 미리보기."
 }

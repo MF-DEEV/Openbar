@@ -29,30 +29,28 @@ describe("a growing island", () => {
 
   it("keeps hit areas against the bottom and side anchors during growth", () => {
     const capsule = makeGeometry({ screen, devicePixelRatio: 1, silhouette: "capsule", layout: "spacious" });
+    // As at the top, the pointer is answered up to the screen edge the capsule floats from.
     const bottom = surfaceArea(capsule, open, closed, closed, 100, 50, "bottom");
-    expect(bottom.drawn.y + bottom.drawn.height).toBeCloseTo(bottom.reach.y + bottom.reach.height);
-    const right = surfaceArea(capsule, open, closed, closed, 100, 50, "right");
-    expect(Math.abs(right.drawn.x + right.drawn.width - right.reach.x - right.reach.width)).toBeLessThan(16);
+    expect(bottom.reach.y + bottom.reach.height).toBe(50 + open.height);
+    expect(bottom.reach.y + bottom.reach.height - (bottom.drawn.y + bottom.drawn.height)).toBeCloseTo(
+      capsule.floatingGap!,
+    );
+    const tall = { width: 32, height: 200 };
+    const right = surfaceArea(capsule, open, tall, tall, 100, 50, "right");
+    expect(right.reach.x + right.reach.width).toBe(100 + open.width);
     expect(Math.abs(right.drawn.y + right.drawn.height / 2 - right.reach.y - right.reach.height / 2)).toBeLessThan(2);
+    const left = surfaceArea(capsule, open, tall, tall, 100, 50, "left");
+    expect(left.reach.x).toBe(100);
+    expect(left.drawn.x).toBeCloseTo(100 + capsule.floatingGap!);
   });
 
-  it("keeps the visible narrow side strip interactive while its wider panel grows", () => {
-    const capsule = makeGeometry({ screen, devicePixelRatio: 1.25, silhouette: "capsule", layout: "spacious" });
-    const narrow = { width: 30, height: 200 };
-    const wide = { width: 210, height: 320 };
-    for (const edge of ["left", "right"] as const) {
-      const area = surfaceArea(capsule, wide, narrow, narrow, 100, 50, edge, { x: edge === "left" ? 0 : 1, y: 0.5 });
-      const old = area.interactive!;
-      const x = edge === "left" ? old.x + 2 : old.x + old.width - 2;
-      const y = old.y + old.height / 2;
-      expect(old).toBeDefined();
-      expect(x).toBeGreaterThan(old.x);
-      expect(x).toBeLessThan(old.x + old.width);
-      expect(y).toBeGreaterThan(old.y);
-      expect(y).toBeLessThan(old.y + old.height);
-      expect(edge === "left" ? x < area.reach.x : x > area.reach.x + area.reach.width).toBe(true);
-      expect(surfaceArea(capsule, wide, wide, wide, 100, 50, edge).interactive).toBeUndefined();
-    }
+  it("turns a notch's hit area onto a side edge, flat against it", () => {
+    const panel = { width: 400, height: 300 };
+    const area = surfaceArea(notch, panel, panel, panel, 0, 100, "left");
+    // The ears take the panel's ends along the edge; the body runs the full depth.
+    expect(area.drawn).toMatchObject({ x: 0, y: 114, width: 400, height: 272 });
+    const right = surfaceArea(notch, panel, panel, panel, 1520, 100, "right");
+    expect(right.drawn.x + right.drawn.width).toBe(1920);
   });
 
   it("answers to what is drawn while it shrinks, and to both when it has arrived", () => {
@@ -162,17 +160,7 @@ describe("what goes out to Rust", () => {
     expect(sent[0].drawn).toEqual([area.drawn, circleDrawn(disc(10, 10), 0.5)]);
   });
 
-  it("publishes both the future panel and the currently painted side strip", async () => {
-    const capsule = makeGeometry({ screen, devicePixelRatio: 1.25, silhouette: "capsule", layout: "spacious" });
-    const area = surfaceArea(capsule, { width: 210, height: 320 }, { width: 30, height: 200 },
-      { width: 30, height: 200 }, 100, 50, "left");
-    setSurface(area);
-    await settle();
-    expect(sent[0].rects).toEqual([area.reach, area.interactive]);
-    expect(sent[0].drawn).toEqual([area.drawn]);
-  });
-
-  it("cuts the Windows window to the painted capsule, not its square-corner pointer reach", async () => {
+  it("sends the painted capsule beside its square-corner pointer reach", async () => {
     const capsule = makeGeometry({ screen, devicePixelRatio: 1, silhouette: "capsule", layout: "spacious" });
     const area = surfaceArea(capsule, closed, closed, closed, 100);
     setSurface(area);
@@ -200,9 +188,11 @@ describe("what goes out to Rust", () => {
     expect(sent.at(-1)?.rects).not.toContainEqual(old.drawn);
   });
 
-  it("does not let an older native hit region overtake a newer frame", async () => {
+  it("does not let an older hit area overtake a newer frame", async () => {
     let finishFirst!: () => void;
-    const first = new Promise<void>((resolve) => { finishFirst = resolve; });
+    const first = new Promise<void>((resolve) => {
+      finishFirst = resolve;
+    });
     vi.mocked(bridge.setHitRects).mockImplementationOnce(async (rects, drawn) => {
       sent.push({ rects, drawn });
       await first;

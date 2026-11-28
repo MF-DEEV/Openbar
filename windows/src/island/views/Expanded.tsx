@@ -14,13 +14,11 @@ import { type ModuleId, moduleInfo } from "../modules";
 import type { Size } from "../motion";
 import { galleryHeight, modulesOf, useIsland } from "../store";
 import { EmptyState, IconButton } from "./Controls";
-import { portraitGalleryHeight, SectionsGallery } from "./Sections";
-import type { IslandEdge } from "../placement";
+import { SectionsGallery } from "./Sections";
 
 export interface PageProps {
   width: number;
   height: number;
-  portrait?: boolean;
 }
 
 export interface PageDefinition {
@@ -34,10 +32,9 @@ export interface PageDefinition {
 /** Section pages register here as they are built. */
 export const pages: Partial<Record<ModuleId, PageDefinition>> = {};
 
-export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolean; edge?: IslandEdge }) {
+export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolean }) {
   useLocale();
   const { geometry, size, hasRow } = props;
-  const vertical = props.edge === "left" || props.edge === "right";
   // Each layer keeps the page it opened with: its content key names that
   // page, and while it fades out it must not draw a second copy of the
   // page replacing it (whose effects would then run twice).
@@ -49,25 +46,18 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
   const moduleCount = useIsland((s) => modulesOf(s).length);
   const enlarged = useIsland((s) => selected === "sessions" && s.sessionsEnlarged && !s.showingSections);
   const header = headerMetrics(geometry, hasRow);
-  const baseInsets = contentInsets(geometry, size);
-  const insets = vertical && !enlarged
-    ? { ...baseInsets, horizontal: Math.min(baseInsets.horizontal, Math.max(12, (size.width - 116) / 2)) }
-    : baseInsets;
+  const insets = contentInsets(geometry, size);
   // Pages and header share one coordinate system. Fit that whole layout into
   // the usable contour, so fixed-size glyphs, gaps and controls scale together.
   const reference = { ...geometry, input: { ...geometry.input, layout: "spacious" as const } };
   const referenceWidth = expandedWidth(reference, {
     natural: showingSections ? undefined : moduleInfo(selected).naturalWidth,
   });
-  const contentWidth = vertical && !enlarged
-    ? Math.max(1, size.width - 2 * insets.horizontal)
-    : enlarged ? Math.max(344, size.width - 2 * insets.horizontal) : referenceWidth - 56;
+  const contentWidth = enlarged ? Math.max(344, size.width - 2 * insets.horizontal) : referenceWidth - 56;
   const contentHeight = enlarged
     ? Math.max(264, size.height - header.pageTopInset - insets.bottom)
     : showingSections
-      ? vertical
-        ? portraitGalleryHeight(moduleCount, size.width, size.height - (hasRow ? 48 : 0) - 32)
-        : galleryHeight(moduleCount, contentWidth + 56)
+      ? galleryHeight(moduleCount, contentWidth + 56)
       : (pageHeight ?? 264);
   const layoutHeight = header.pageTopInset - header.headerTopInset + contentHeight;
   const fit = fitContent(
@@ -99,53 +89,6 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
     );
   }
   const Trailing = !showingSections ? page?.Trailing : undefined;
-  const pageNode = showingSections ? (
-    <SectionsGallery width={contentWidth + 56} height={contentHeight} portrait={vertical} />
-  ) : page ? (
-    <page.Page width={contentWidth} height={contentHeight} portrait={vertical} />
-  ) : (
-    <PlaceholderPage module={selected} />
-  );
-
-  if (vertical) {
-    const topRow = hasRow ? 36 : 0;
-    const bottomRow = !enlarged && hasRow && (Trailing || pinned) ? 36 : 0;
-    const pageTop = topRow ? topRow + 12 : 0;
-    const footerTop = pageTop + contentHeight + (bottomRow ? 8 : 0);
-    const portraitHeight = footerTop + bottomRow;
-    const portraitFit = fitContent(
-      { width: Math.max(0, size.width - 2 * insets.horizontal), height: Math.max(0, size.height - 2 * insets.bottom) },
-      { width: contentWidth, height: portraitHeight },
-    );
-    return (
-      <div className={`n-expanded n-expanded-vertical is-${props.edge}${enlarged ? " is-sessions-enlarged" : ""}`} style={{ width: size.width, height: size.height }}>
-        <div className="n-expanded-layout" style={{
-          width: contentWidth,
-          height: enlarged ? Math.max(0, size.height - 2 * insets.bottom) : portraitHeight,
-          left: insets.horizontal + portraitFit.x,
-          top: insets.bottom + portraitFit.y,
-          transform: enlarged ? undefined : `scale(${portraitFit.scale})`,
-          display: enlarged ? "flex" : undefined,
-          flexDirection: enlarged ? "column" : undefined,
-        }}>
-          {hasRow ? <div className="n-portrait-leading" style={{ width: contentWidth, height: enlarged ? "auto" : topRow, minHeight: enlarged ? topRow : undefined, position: enlarged ? "relative" : undefined, order: enlarged ? -2 : undefined }}>{leading}</div> : null}
-          <div className="n-page" style={{ top: enlarged ? undefined : pageTop, left: 0, width: contentWidth, height: enlarged ? undefined : contentHeight, position: enlarged ? "relative" : undefined, flex: enlarged ? "1 1 0" : undefined, marginTop: enlarged ? 12 : undefined }}>{pageNode}</div>
-          {bottomRow || enlarged && hasRow && (Trailing || pinned) ? <div className="n-portrait-trailing" style={{
-            top: enlarged ? undefined : footerTop,
-            left: 0,
-            width: contentWidth,
-            height: enlarged ? topRow : bottomRow,
-            justifyContent: enlarged ? "flex-end" : undefined,
-            position: enlarged ? "relative" : undefined,
-            order: enlarged ? -1 : undefined,
-          }}>
-            {Trailing ? <Trailing /> : null}
-            {pinned ? <Pin className="n-pin-mark" size={11} /> : null}
-          </div> : null}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="n-expanded" style={{ width: size.width, height: size.height }}>
@@ -185,7 +128,13 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
             height: contentHeight,
           }}
         >
-          {pageNode}
+          {showingSections ? (
+            <SectionsGallery width={contentWidth + 56} height={contentHeight} />
+          ) : page ? (
+            <page.Page width={contentWidth} height={contentHeight} />
+          ) : (
+            <PlaceholderPage module={selected} />
+          )}
         </div>
       </div>
     </div>

@@ -240,15 +240,6 @@
   justify-content: space-between;
   flex: none;
 }
-.nt-preview.is-vertical .nt-preview-actions {
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: 6px;
-  margin-top: auto;
-}
-.nt-preview.is-vertical {
-  overflow-y: auto;
-}
 
 .nt-preview-actions .n-pill-button {
   display: inline-flex;

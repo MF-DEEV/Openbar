@@ -110,18 +110,26 @@ export async function checkQuickAccessEditor({ send, evaluate, base }) {
       activeRing:style.boxShadow,inactiveRing:getComputedStyle(sessions).boxShadow,
       radius:style.borderRadius,transition:style.transitionProperty,tabIndex:music.tabIndex};
   })()`);
-  assert(musicRing.selected&&musicRing.inactive&&musicRing.activeRing!==musicRing.inactiveRing&&
-    !musicRing.activeRing.includes('255')&&musicRing.radius==='50%'&&
-    musicRing.transition.includes('box-shadow')&&musicRing.tabIndex>=0,
-    `Music active ring is inconsistent: ${JSON.stringify(musicRing)}`);
+  assert(
+    musicRing.selected &&
+      musicRing.inactive &&
+      musicRing.activeRing !== musicRing.inactiveRing &&
+      !musicRing.activeRing.includes("255") &&
+      musicRing.radius === "50%" &&
+      musicRing.transition.includes("box-shadow") &&
+      musicRing.tabIndex >= 0,
+    `Music active ring is inconsistent: ${JSON.stringify(musicRing)}`,
+  );
   const selectedShot = await send("Page.captureScreenshot", { format: "png" });
   await writeFile(resolve("../build/island-bubble-selected.png"), Buffer.from(selectedShot.data, "base64"));
   await evaluate(`document.querySelector('.n-bubble[aria-label="Downloads"]').click()`);
   await frames();
   assert.equal(await evaluate(`island.getState().selected`), "downloads");
-  assert(await evaluate(`document.querySelector('.n-bubble[aria-label="Downloads"]').classList.contains('is-selected') &&
+  assert(
+    await evaluate(`document.querySelector('.n-bubble[aria-label="Downloads"]').classList.contains('is-selected') &&
     !document.querySelector('.n-bubble[aria-label="Now Playing"]').classList.contains('is-selected')`),
-    "The active ring did not follow the selected module");
+    "The active ring did not follow the selected module",
+  );
   await evaluate(`document.querySelector('.n-bubble[aria-label="Unpin"]').click()`);
   await frames();
   assert.equal(await evaluate(`island.getState().pinned`), false);

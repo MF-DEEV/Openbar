@@ -1058,5 +1058,14 @@
   "windows.settings.sessions.jetbrainsRestart": "Reštartujte %@, aby sa načítal",
   "windows.settings.sessions.jetbrainsRestartRemoved": "Reštartujte %@, aby sa uvoľnil",
   "windows.settings.sessions.jetbrainsInUse": "Najprv zatvorte %@: má plugin otvorený",
-  "windows.settings.sessions.jetbrainsNoFolder": "Priečinok nastavení tohto IDE sa nenašiel"
+  "windows.settings.sessions.jetbrainsNoFolder": "Priečinok nastavení tohto IDE sa nenašiel",
+  "windows.settings.layout.dragIsland": "Presunúť ostrov",
+  "windows.settings.layout.positionHint": "Presuňte ostrov pozdĺž ľubovoľného okraja obrazovky. Jeho poloha sa uloží.",
+  "windows.settings.layout.restorePosition": "Obnoviť predvolenú polohu",
+  "windows.settings.layout.fromBottom": "Vzdialenosť zdola",
+  "windows.settings.layout.fromLeft": "Vzdialenosť zľava",
+  "windows.settings.layout.fromRight": "Vzdialenosť sprava",
+  "windows.settings.layout.capsuleFitCaptionBottom": "Zmení veľkosť kapsuly a zdvihne ju od spodného okraja obrazovky.",
+  "windows.settings.layout.capsuleFitCaptionSide": "Zmení veľkosť kapsuly a posunie ju od bočného okraja obrazovky.",
+  "windows.settings.layout.capsulePreviewCaptionEdge": "Náhľad šírky, výšky, zaoblenia rohov a vzdialenosti od okraja obrazovky."
 }

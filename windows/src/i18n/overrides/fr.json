@@ -1058,5 +1058,14 @@
   "windows.settings.sessions.jetbrainsRestart": "Redémarrez %@ pour le charger",
   "windows.settings.sessions.jetbrainsRestartRemoved": "Redémarrez %@ pour le décharger",
   "windows.settings.sessions.jetbrainsInUse": "Fermez d’abord %@ : il a le plugin ouvert",
-  "windows.settings.sessions.jetbrainsNoFolder": "Le dossier de réglages de cet IDE est introuvable"
+  "windows.settings.sessions.jetbrainsNoFolder": "Le dossier de réglages de cet IDE est introuvable",
+  "windows.settings.layout.dragIsland": "Faire glisser l’îlot",
+  "windows.settings.layout.positionHint": "Faites glisser l’îlot le long de n’importe quel bord de l’écran. Sa position est enregistrée.",
+  "windows.settings.layout.restorePosition": "Rétablir la position par défaut",
+  "windows.settings.layout.fromBottom": "Distance depuis le bas",
+  "windows.settings.layout.fromLeft": "Distance depuis la gauche",
+  "windows.settings.layout.fromRight": "Distance depuis la droite",
+  "windows.settings.layout.capsuleFitCaptionBottom": "Redimensionne la capsule et la remonte depuis le bas de l’écran.",
+  "windows.settings.layout.capsuleFitCaptionSide": "Redimensionne la capsule et l’écarte du côté de l’écran.",
+  "windows.settings.layout.capsulePreviewCaptionEdge": "Aperçu de la largeur, de la hauteur, de l’arrondi des coins et de la distance au bord de l’écran."
 }

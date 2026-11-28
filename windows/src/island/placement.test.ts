@@ -3,14 +3,13 @@
 
 import { describe, expect, it } from "vitest";
 import { constrainIslandPosition, insetUsableEdge, islandEdge, placeIsland, surfaceOffset } from "./placement";
-import { capsuleBody } from "./geometry";
+import { alongInset, capsuleBody, edgePath, islandPath, makeGeometry, outlineGeometry } from "./geometry";
 
 describe("free island placement", () => {
   const screen = { width: 1920, height: 1080 };
 
   it("preserves the default top centre", () => {
-    expect(placeIsland({ x: 0.5, y: 0 }, screen, { width: 200, height: 30 }))
-      .toEqual({ left: 860, top: 0 });
+    expect(placeIsland({ x: 0.5, y: 0 }, screen, { width: 200, height: 30 })).toEqual({ left: 860, top: 0 });
   });
 
   it("applies the capsule distance inward from the selected work-area edge", () => {
@@ -69,31 +68,40 @@ describe("free island placement", () => {
 
   it("keeps every presentation and its quick buttons inside the work area", () => {
     const area = { top: 40, bottom: 1040 };
-    for (const size of [{ width: 200, height: 30 }, { width: 560, height: 530 }, { width: 420, height: 270 }]) {
-      for (const position of [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 0.12, y: 0.73 }]) {
+    for (const size of [
+      { width: 200, height: 30 },
+      { width: 560, height: 530 },
+      { width: 420, height: 270 },
+    ]) {
+      for (const position of [
+        { x: 0, y: 0 },
+        { x: 1, y: 1 },
+        { x: 0.12, y: 0.73 },
+      ]) {
         const { left, top } = placeIsland(position, screen, size, area, true);
         const edge = islandEdge(constrainIslandPosition(position, screen, area), screen, area);
         const side = edge === "left" || edge === "right";
         expect(left).toBeGreaterThanOrEqual(side ? 0 : 56);
         expect(left + size.width + (side ? 0 : 56)).toBeLessThanOrEqual(screen.width);
         expect(top).toBeGreaterThanOrEqual(area.top);
-        expect(top + size.height + (edge === "bottom" ? 8 : side ? 0 : 56)).toBeLessThanOrEqual(area.bottom);
+        expect(top + size.height + (edge === "bottom" || side ? 0 : 56)).toBeLessThanOrEqual(area.bottom);
       }
     }
   });
 
-  it("holds an open bottom panel close to the taskbar while leaving the closed position intact", () => {
+  it("hangs an open bottom panel from the taskbar like the closed island", () => {
     const area = { top: 40, bottom: 1040 };
     const size = { width: 450, height: 300 };
     const open = placeIsland({ x: 0.5, y: 1 }, screen, size, area, true, 30, 200);
     const closed = placeIsland({ x: 0.5, y: 1 }, screen, { width: 200, height: 30 }, area);
-    expect(open.top + size.height).toBe(area.bottom - 8);
+    expect(open.top + size.height).toBe(area.bottom);
     expect(closed.top + 30).toBe(area.bottom);
   });
 
   it("opens above a resting island in the lower half", () => {
-    expect(placeIsland({ x: 0.5, y: 0.8 }, screen, { width: 480, height: 400 },
-      { top: 0, bottom: 1040 }, false, 30).top).toBe(640);
+    expect(
+      placeIsland({ x: 0.5, y: 0.8 }, screen, { width: 480, height: 400 }, { top: 0, bottom: 1040 }, false, 30).top,
+    ).toBe(640);
   });
 
   it("stays clear of a taskbar on the left or right", () => {
@@ -125,13 +133,48 @@ describe("free island placement", () => {
   it("expands inward from a side while retaining the compact island's vertical centre", () => {
     const area = { left: 0, right: 1920, top: 0, bottom: 1080 };
     const size = { width: 440, height: 520 };
-    expect(placeIsland({ x: 0.05, y: 0.5 }, screen, size, area, false, 128, 48))
-      .toEqual({ left: 0, top: 280 });
-    expect(placeIsland({ x: 0.95, y: 0.5 }, screen, size, area, false, 128, 48))
-      .toEqual({ left: 1480, top: 280 });
+    expect(placeIsland({ x: 0.05, y: 0.5 }, screen, size, area, false, 128, 48)).toEqual({ left: 0, top: 280 });
+    expect(placeIsland({ x: 0.95, y: 0.5 }, screen, size, area, false, 128, 48)).toEqual({ left: 1480, top: 280 });
   });
 
   it("keeps a usable body for the vertical capsule", () => {
     expect(capsuleBody(48, 128, 2).width).toBe(36);
+  });
+});
+
+describe("the outline on each edge", () => {
+  const screen = { width: 1920, height: 1080 };
+  const notch = outlineGeometry(
+    makeGeometry({ screen, devicePixelRatio: 1, silhouette: "capsule", layout: "spacious" }),
+    "notch",
+  );
+  const points = (d: string) =>
+    [...d.matchAll(/(-?\d*\.?\d+(?:e-?\d+)?) (-?\d*\.?\d+(?:e-?\d+)?)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+  const bounds = (d: string) => {
+    const p = points(d);
+    return {
+      left: Math.min(...p.map(([x]) => x)),
+      right: Math.max(...p.map(([x]) => x)),
+      top: Math.min(...p.map(([, y]) => y)),
+      bottom: Math.max(...p.map(([, y]) => y)),
+    };
+  };
+
+  it("keeps a notch flat against whichever edge it hangs from", () => {
+    const size = { width: 400, height: 300 };
+    expect(edgePath(notch, size, "top")).toBe(islandPath(notch, size));
+    for (const edge of ["top", "bottom", "left", "right"] as const) {
+      expect(bounds(edgePath(notch, size, edge))).toEqual({ left: 0, right: 400, top: 0, bottom: 300 });
+      // The flat side runs the full length of the edge: both of its corners are on it.
+      const corners = points(edgePath(notch, size, edge)).filter(([x, y]) =>
+        edge === "top" ? y === 0 : edge === "bottom" ? y === 300 : edge === "left" ? x === 0 : x === 400,
+      );
+      expect(corners.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("insets content along a side edge by the ears", () => {
+    expect(alongInset(notch, { width: 400, height: 300 }, "left")).toBe(14);
+    expect(alongInset(notch, { width: 400, height: 300 }, "top")).toBe(14);
   });
 });
