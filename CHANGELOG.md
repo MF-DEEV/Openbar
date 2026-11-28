@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format follows
 
 - Sessions in the menu bar or the tray (#331). Settings › Sessions › Show sessions in: Island, Menu bar (Tray on Windows and Linux) or Both, and it works with the island turned off. The sessions get an icon of their own: the agent face, an orange dot while a session waits for you and the count from two, pulsing when an ask arrives (not with reduced motion). A click opens a panel with the island's own Sessions page: groups, rows, the permission card with the whole command or diff, questions, replies, voice and ⌘Y / ⌘N / ⌘T (Ctrl on Windows and Linux). The icon's menu lists the waiting asks with Allow and Deny where the queue offers them. On Linux, whose tray has no click, the menu's Open Sessions opens the panel. The panel opens by itself only when you turn that on, and only while you're on the desktop or in Openbar. In menu bar mode the island leaves out the Sessions page, strip and notices; sounds and reminders keep working. Screen readers read the icon's state: VoiceOver also hears new asks and has a Show waiting asks action, Narrator reads the tooltip, and Linux's menu starts with the state.
 
+### Fixed
+
+- Windows and Linux: when a session asked for permission while its page was open, the Allow and Deny buttons could end up out of sight. The page follows the session down and the card sits above that, so on a background session or one in a worktree only the line under the buttons showed. A new ask now scrolls its card into view (the buttons first, when the whole card doesn't fit), and the page goes back to following the session once you answer.
+
 ## [3.6.1] - 2026-11-26
 
 Windows 1.3.1 and Linux 1.1.1 ship the same changes.
