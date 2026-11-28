@@ -63,8 +63,9 @@ pub enum Host {
     },
     /// A Herdr pane (#328), by the pane id and API socket Herdr put in the
     /// environment, the named session (None for the default one), the
-    /// server the session runs under and that server's own program (Linux).
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    /// server the session runs under and that server's own program (Linux
+    /// and Windows).
+    #[cfg_attr(not(any(target_os = "linux", windows)), allow(dead_code))]
     Herdr {
         socket: String,
         pane: String,
@@ -191,13 +192,22 @@ pub const ZELLIJ_VARIABLES: [&str; 3] = [zellij::ZELLIJ, zellij::SESSION, zellij
 
 /// A Herdr pane, when the session's own environment names one and a Herdr
 /// server runs it with no zellij or tmux server between (#328).
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "linux", windows)), allow(dead_code))]
 pub fn herdr_host(
     chain: &[process::Entry],
     environment: &std::collections::HashMap<String, String>,
 ) -> Option<Host> {
     let pane = herdr::pane_of(environment)?;
     let server = herdr::server_of(chain, herdr::is_server)?;
+    // On Windows the socket's file names the server that serves its pipe.
+    #[cfg(windows)]
+    if std::fs::read_to_string(&pane.socket)
+        .ok()
+        .and_then(|marker| herdr::marker_server(&marker))
+        != Some(server)
+    {
+        return None;
+    }
     Some(Host::Herdr {
         socket: pane.socket,
         pane: pane.pane,
@@ -335,6 +345,11 @@ pub fn locate(pid: u32) -> Option<Located> {
     if let Some(host) = zellij_host(&chain, &process::environment_values(pid, &ZELLIJ_VARIABLES)) {
         located.host = host;
     }
+    // A Herdr pane wins over the console Herdr runs in, once its server runs
+    // the session with no zellij server between (#328).
+    if let Some(host) = herdr_host(&chain, &process::environment_values(pid, &herdr::VARIABLES)) {
+        located.host = host;
+    }
     named_jetbrains(&mut located);
     Some(located)
 }
@@ -402,8 +417,16 @@ pub fn deliver(
             if !herdr_holds(pid, *server) {
                 return Err(DeliveryError::Unreachable);
             }
-            herdr::send(&herdr::Target { socket, pane }, text, images)
-                .map_err(|_| DeliveryError::Unreachable)
+            herdr::send(
+                &herdr::Target {
+                    socket,
+                    pane,
+                    server: *server,
+                },
+                text,
+                images,
+            )
+            .map_err(|_| DeliveryError::Unreachable)
         }
         #[cfg(target_os = "linux")]
         Host::Tmux { .. } | Host::Kitty { .. } => {
@@ -605,8 +628,15 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
             if !herdr_holds(pid, *server) {
                 return Err(DeliveryError::Unreachable);
             }
-            herdr::keys(&herdr::Target { socket, pane }, &key.herdr_name())
-                .map_err(|_| DeliveryError::Unreachable)
+            herdr::keys(
+                &herdr::Target {
+                    socket,
+                    pane,
+                    server: *server,
+                },
+                &key.herdr_name(),
+            )
+            .map_err(|_| DeliveryError::Unreachable)
         }
         #[cfg(target_os = "linux")]
         (
@@ -700,17 +730,22 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
         Host::Herdr {
             socket,
             pane,
+            session,
             server,
             ..
         } => {
             if !herdr_holds(pid, *server) {
                 return false;
             }
-            let target = herdr::Target { socket, pane };
+            let target = herdr::Target {
+                socket,
+                pane,
+                server: *server,
+            };
             if !herdr::has_pane(&target) {
                 return false;
             }
-            let clients = herdr::clients(*server, socket);
+            let clients = herdr::clients(*server, socket, session.as_deref());
             // No terminal attached: Open tells so and offers to attach it.
             if clients.as_ref().is_some_and(Vec::is_empty) || !herdr::focus(&target) {
                 return false;
@@ -777,6 +812,7 @@ pub fn shown(pid: u32, located: &Located) -> Option<bool> {
         Host::Herdr {
             socket,
             pane,
+            session,
             server,
             ..
         } => {
@@ -784,10 +820,14 @@ pub fn shown(pid: u32, located: &Located) -> Option<bool> {
                 return None;
             }
             // Herdr keeps one focus, which every attached terminal shows.
-            if !herdr::focused(&herdr::Target { socket, pane })? {
+            if !herdr::focused(&herdr::Target {
+                socket,
+                pane,
+                server: *server,
+            })? {
                 return Some(false);
             }
-            let Some(&client) = herdr::clients(*server, socket)?.first() else {
+            let Some(&client) = herdr::clients(*server, socket, session.as_deref())?.first() else {
                 // No terminal shows it at all.
                 return Some(false);
             };
@@ -908,10 +948,16 @@ fn detached_at(pid: u32, located: &Located, depth: u32) -> Option<(String, Vec<S
             server,
             program,
         } => {
-            if !herdr_holds(pid, *server) || !herdr::has_pane(&herdr::Target { socket, pane }) {
+            if !herdr_holds(pid, *server)
+                || !herdr::has_pane(&herdr::Target {
+                    socket,
+                    pane,
+                    server: *server,
+                })
+            {
                 return None;
             }
-            match herdr::clients(*server, socket)?.first() {
+            match herdr::clients(*server, socket, session.as_deref())?.first() {
                 None => Some((program.clone(), herdr::attach_arguments(session.as_deref()))),
                 Some(&client) => detached_at(client, &locate(client)?, depth + 1),
             }

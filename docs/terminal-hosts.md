@@ -141,9 +141,19 @@ found for Open or Reply.
   screen-reading detection or its own hooks. Openbar doesn't read them: the
   island already has each session's state from the agent's own hooks and
   records, which say more (the tool, the question, the plan).
-- **Windows.** Herdr also runs natively on Windows (x64, in beta), where
-  its socket API is a named pipe. Openbar doesn't reach Herdr on Windows
-  yet.
+- **Windows.** Herdr runs natively there too (x64, in beta; it runs on
+  ARM64 Windows under emulation). `HERDR_SOCKET_PATH` is then a small file,
+  `%APPDATA%\herdr\sessions\<name>\herdr.sock`, holding the server's pid
+  and a stamp (`9632:1795872492618554900`), and the API is a named pipe
+  named after that path (`\\.\pipe\C:\Users\…\herdr.sock`). Openbar
+  opens the pipe only when the file names the session's own server and
+  Windows says that process serves the pipe (`GetNamedPipeServerProcessId`),
+  since any process could open a pipe of that name first. A pipe's other end
+  can't be seen from outside, so a `herdr.exe` counts as the session's
+  client when it started the server or when its command line attaches that
+  session (`herdr --session <name>`, `herdr session attach <name>`, a plain
+  `herdr` for the default one); the console or Windows Terminal it runs in
+  comes forward as for zellij.
 
 ## Windows
 
@@ -154,6 +164,7 @@ found for Open or Reply.
 | JetBrains IDEs, with the bridge plugin | project window, then the terminal tab | yes | the plugin, registered in `%LOCALAPPDATA%\Openbar\terminals\<IDE pid>.json` with a loopback port and a key (`hosts/jetbrains.rs`, `hosts/bridge.rs`) |
 | JetBrains IDEs without it | project window | no, says so | the project Claude Code's lock file lists, given to the IDE's launcher (`bin\idea64.exe <folder>`), else the IDE's window whose title names the folder |
 | zellij 0.44+ (native; zellij runs on Windows since 0.44) | tab and pane, then the console its client runs in | yes | `zellij.exe --session <name> action`, as on the Mac (`hosts/zellij.rs`) |
+| Herdr 0.9+ (native) | workspace, tab and pane, then the console or Windows Terminal its client runs in | yes | Herdr's socket API over its named pipe, as on Linux (`hosts/herdr.rs`) |
 | WezTerm | tab and pane, then the window | yes | `wezterm.exe` beside the session's `wezterm-gui.exe`, by `WEZTERM_PANE` and `WEZTERM_UNIX_SOCKET`; only those two variables are read from the session's environment block (`process::environment_values`) |
 | Git Bash (mintty), Alacritty, Warp, Tabby, Hyper, ConEmu, Rio | window | no, says so | named from the process tree |
 
@@ -307,7 +318,13 @@ compared without spending tokens.
   for a session with no client). Nested both ways on the Mac and on Linux: a
   session in tmux or zellij run in a Herdr pane is tmux's or zellij's, and
   Open brings Herdr's pane forward around it; a session in Herdr run in a
-  tmux pane is Herdr's, and Open selects the tmux pane too.
+  tmux pane is Herdr's, and Open selects the tmux pane too. On Windows 11
+  ARM64 (the VM, Herdr's x64 build under emulation, its client in Windows
+  Terminal) the app found the three panes, Open raised Windows Terminal
+  over Notepad on the right workspace, a reply reached only its pane,
+  `sessions_terminal_shown` was true only for the focused pane with Windows
+  Terminal in front, and with the client closed Open offered Attach, which
+  opened `herdr session attach work` in a new Windows Terminal window.
 
 ## Questions the issue asked first
 
@@ -334,8 +351,8 @@ compared without spending tokens.
 
 - tmux on Windows (it would come through WSL, above).
 - zellij on remote hosts: remote sessions are reached through tmux only.
-- Herdr on Windows (above), and Herdr on remote hosts (`herdr --remote`,
-  saved machines): a session there is reached like any other remote one.
+- Herdr on remote hosts (`herdr --remote`, saved machines): a session there
+  is reached like any other remote one.
 - Typing into one tab of Warp, Alacritty, mintty: none of them offer a way
   that targets one tab safely.
 - JetBrains on Windows and Linux with real IDEs (stand-ins and unit tests
