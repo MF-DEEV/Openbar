@@ -381,15 +381,7 @@ export function Island() {
   let content;
   switch (shown.kind) {
     case "picker":
-      content = (
-        <ActivityPicker
-          geometry={geometry}
-          size={shown.size}
-          visible
-          vertical={vertical}
-          edge={edge === "right" ? "right" : "left"}
-        />
-      );
+      content = <ActivityPicker geometry={geometry} size={shown.size} visible vertical={vertical} edge={edge} />;
       break;
     case "expanded":
       content = state.capturePreview ? (
@@ -412,13 +404,7 @@ export function Island() {
       break;
     case "activity":
       content = (
-        <ActivityPicker
-          geometry={geometry}
-          size={shown.size}
-          visible={false}
-          vertical={vertical}
-          edge={edge === "right" ? "right" : "left"}
-        />
+        <ActivityPicker geometry={geometry} size={shown.size} visible={false} vertical={vertical} edge={edge} />
       );
       break;
     default:

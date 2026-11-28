@@ -50,7 +50,7 @@ export function ActivityPicker({
   size: Size;
   visible: boolean;
   vertical?: boolean;
-  edge?: "left" | "right";
+  edge?: "top" | "bottom" | "left" | "right";
 }) {
   useLocale();
   const state = useIsland();
@@ -102,7 +102,7 @@ export function ActivityPicker({
   const scaleY = vertical || naturalSize ? 1 : drawn.height / strip.height;
   return (
     <div
-      className={`n-compact-activity${visible ? " is-choosing" : ""}${vertical ? " is-vertical" : ""}`}
+      className={`n-compact-activity${visible ? " is-choosing" : ""}${vertical ? " is-vertical" : ""}${edge === "bottom" ? " is-bottom" : ""}`}
       style={{ width: layout.size.width, height: layout.size.height }}
     >
       <div
@@ -137,7 +137,12 @@ export function ActivityPicker({
             exit={{ opacity: 0, filter: reduce ? "blur(0px)" : "blur(4px)" }}
             transition={{ duration: reduce ? 0 : 0.12 }}
           >
-            <div style={{ transform: `scale(${scaleX}, ${scaleY})`, transformOrigin: "50% 0" }}>
+            <div
+              style={{
+                transform: `scale(${scaleX}, ${scaleY})`,
+                transformOrigin: edge === "bottom" ? "50% 100%" : "50% 0",
+              }}
+            >
               <DrawnSize.Provider value={strip}>
                 <MascotActivityVisit geometry={geometry} strip={strip}>
                   <div className={vertical ? "n-activity-portrait" : undefined}>
@@ -154,9 +159,9 @@ export function ActivityPicker({
           <motion.div
             className="n-activity-picker"
             key="choices"
-            initial={vertical ? false : { opacity: 0, y: reduce ? 0 : -4 }}
+            initial={vertical ? false : { opacity: 0, y: reduce ? 0 : edge === "bottom" ? 4 : -4 }}
             animate={vertical ? { opacity: menuOpacity, x: 0, y: 0 } : { opacity: 1, y: 0 }}
-            exit={vertical ? undefined : { opacity: 0, y: reduce ? 0 : -4 }}
+            exit={vertical ? undefined : { opacity: 0, y: reduce ? 0 : edge === "bottom" ? 4 : -4 }}
             transition={{ duration: vertical || reduce ? 0 : 0.12 }}
             style={
               vertical
