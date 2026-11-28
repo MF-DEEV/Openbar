@@ -32,10 +32,12 @@ command -v bun >/dev/null || curl -fsSL https://bun.sh/install | bash >/dev/null
 
 # A copy, so the source can stay read-only and the host's node_modules stay
 # out. The app also embeds files from Resources (the price list, the remote
-# agent script).
+# agent script) and the JetBrains bridge plugin's jar.
 rm -rf "$WORK" && mkdir -p "$WORK"
 tar -C "$SRC" --exclude=node_modules --exclude=target --exclude=dist --exclude=dist-linux -cf - windows Resources |
   tar -C "$WORK" -xf -
+mkdir -p "$WORK/Tools/JetBrainsBridge/dist"
+cp "$SRC/Tools/JetBrainsBridge/dist/openbar-terminal-bridge.jar" "$WORK/Tools/JetBrainsBridge/dist/"
 cd "$WORK/windows"
 bun install --frozen-lockfile
 
