@@ -53,25 +53,23 @@ export function ActivityPicker({ geometry, size, visible, vertical = false, edge
   );
   const activity = state.activities[selected]!;
   const strip = vertical ? portraitActivitySize(activitySize(geometry, activity.wing, activity.capsuleContent), geometry.screen, selected) : activitySize(geometry, activity.wing, activity.capsuleContent);
-  // Keep the side menu at its final layout size even while the surface closes.
-  // The surface clips it; squeezing the flex row to the compact strip width
-  // moved and truncated its buttons before their exit animation had finished.
+  // The side strip must follow the surface's drawn size, not the menu's final
+  // width. A flex row at the final width pushed it outside the growing capsule.
   const pickerSize = vertical ? portraitPickerSize(strips, geometry.screen, choices) : size;
   const expansion = vertical
     ? Math.max(0, Math.min(1, (drawn.width - strip.width) / Math.max(1, pickerSize.width - strip.width)))
     : 1;
-  const menuLayout = vertical && (visible || expansion > 0.06);
   const layout = vertical
-    ? { size: menuLayout ? pickerSize : size, headerHeight: drawn.height, horizontal: 0, columns: 1 }
+    ? { size: drawn, headerHeight: drawn.height, horizontal: 0, columns: 1 }
     : activityPickerLayout(geometry, strips);
   const menuOpacity = Math.max(0, Math.min(1, (expansion - 0.82) / 0.18));
   const fullSidePadding = vertical ? capsuleBody(pickerSize.width, pickerSize.height, geometry.floatingGap ?? 0).x + 8 : 0;
-  const sidePadding = menuLayout ? fullSidePadding * expansion : 0;
-  // The right-edge frame's origin moves as its width changes. Cancel that
-  // motion for the chooser while its buttons fade in or out.
-  const menuX = vertical ? edge === "right"
-    ? drawn.width - pickerSize.width + fullSidePadding - sidePadding
-    : fullSidePadding - sidePadding + 10 * (1 - expansion) : 0;
+  const sidePadding = fullSidePadding * expansion;
+  const headerLeft = edge === "right" ? drawn.width - strip.width - sidePadding : sidePadding;
+  const menuHeight = Math.min(choices.length * 36 + Math.max(0, choices.length - 1) * 10, Math.max(1, pickerSize.height - 24));
+  const menuLeft = edge === "right"
+    ? drawn.width - strip.width - fullSidePadding - 114
+    : fullSidePadding + strip.width + 10;
   // Keep the header at its natural size while the taller chooser closes.
   // Hover, however, rides the surface's actual springs on both axes instead
   // of running a second animation toward its destination size.
@@ -84,10 +82,11 @@ export function ActivityPicker({ geometry, size, visible, vertical = false, edge
   return (
     <div
       className={`n-compact-activity${visible ? " is-choosing" : ""}${vertical ? " is-vertical" : ""}`}
-      style={{ width: layout.size.width, height: layout.size.height,
-        ...(vertical ? { boxSizing: "border-box" as const, paddingInline: sidePadding, columnGap: menuLayout ? 10 * expansion : 0 } : {}) }}
+      style={{ width: layout.size.width, height: layout.size.height }}
     >
-      <div className="n-activity-picker-header" style={vertical ? { width: strip.width, height: layout.headerHeight, order: edge === "right" ? 2 : 0 } : { height: layout.headerHeight }}
+      <div className="n-activity-picker-header" style={vertical ? {
+        width: strip.width, height: strip.height, left: headerLeft, top: Math.max(0, (drawn.height - strip.height) / 2),
+      } : { height: layout.headerHeight }}
         onClick={(event) => {
           if (!visible && !(event.target as Element).closest(".n-activity-picker-strip,button,[role=button]"))
             useIsland.getState().clickClosed();
@@ -100,7 +99,7 @@ export function ActivityPicker({ geometry, size, visible, vertical = false, edge
               width: strip.width,
               height: strip.height,
               left: vertical ? 0 : `calc(50% - ${strip.width / 2}px)`,
-              top: vertical ? Math.max(0, (layout.headerHeight - strip.height) / 2) : 0,
+              top: 0,
             }}
             initial={{ opacity: 0, filter: reduce ? "blur(0px)" : "blur(4px)" }}
             animate={{ opacity: 1, filter: "blur(0px)" }}
@@ -125,10 +124,13 @@ export function ActivityPicker({ geometry, size, visible, vertical = false, edge
             className="n-activity-picker"
             key="choices"
             initial={vertical ? false : { opacity: 0, y: reduce ? 0 : -4 }}
-            animate={vertical ? { opacity: menuOpacity, x: menuX, y: 0 } : { opacity: 1, y: 0 }}
+            animate={vertical ? { opacity: menuOpacity, x: 0, y: 0 } : { opacity: 1, y: 0 }}
             exit={vertical ? undefined : { opacity: 0, y: reduce ? 0 : -4 }}
             transition={{ duration: vertical || reduce ? 0 : 0.12 }}
-            style={vertical ? { width: 104, flex: "none", display: menuLayout ? undefined : "none", pointerEvents: visible ? "auto" : "none" } : undefined}
+            style={vertical ? {
+              width: 104, height: menuHeight, left: menuLeft, top: (drawn.height - menuHeight) / 2,
+              pointerEvents: visible && expansion > 0.82 ? "auto" : "none",
+            } : undefined}
           >
             <div
               className="n-activity-picker-choices"

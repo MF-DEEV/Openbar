@@ -381,7 +381,10 @@ export async function checkIslandPosition({ send, evaluate, base }) {
         const box=button?.getBoundingClientRect();
         const active=selected?.getBoundingClientRect();
         const white=highlight?.getBoundingClientRect();
+        const strip=menu?.parentElement?.querySelector('.n-activity-picker-strip')?.getBoundingClientRect();
+        const surface=document.querySelector('.island-backdrop path[id]')?.getBoundingClientRect();
         samples.push({same:menu===original,width:box?.width,height:box?.height,left:box?.left,
+          stripLeft:strip?.left,stripRight:strip?.right,surfaceRight:surface?.right,
           opacity:menu?Number(getComputedStyle(menu).opacity):0,
           highlightInside:!!white&&!!active&&white.left>=active.left-0.5&&white.right<=active.right+0.5&&
             white.top>=active.top-0.5&&white.bottom<=active.bottom+0.5});
@@ -389,6 +392,10 @@ export async function checkIslandPosition({ send, evaluate, base }) {
     }
     return samples;
   })()`);
+  assert(pickerMotion.every(s=>s.surfaceRight-s.stripRight>=-5&&s.surfaceRight-s.stripRight<32),
+    `Right-edge activity strip escaped the animated surface: ${JSON.stringify(pickerMotion.filter(s=>s.surfaceRight-s.stripRight < -5).slice(0,3))}`);
+  assert(pickerMotion.every((s,i)=>!i||Math.abs(s.stripLeft-pickerMotion[i-1].stripLeft)<8),
+    "Right-edge activity icons jumped between animation frames");
   assert(pickerMotion.every(s=>s.same&&Math.abs(s.width-104)<0.1&&s.height===36&&s.highlightInside),
     `Side picker buttons or selection moved during rapid toggles: ${JSON.stringify(pickerMotion.filter(s=>!s.same||Math.abs(s.width-104)>=0.1||s.height!==36||!s.highlightInside).slice(0,3))}`);
   assert(pickerMotion.some(s=>s.opacity>0&&s.opacity<1),
@@ -398,6 +405,28 @@ export async function checkIslandPosition({ send, evaluate, base }) {
     if(shown.length>1) assert(Math.max(...shown.map(s=>s.left))-Math.min(...shown.map(s=>s.left))<4,
       `Side picker choices drifted while visible: ${JSON.stringify(shown.map(s=>s.left))}`);
   }
+  const leftMotion=await evaluate(`(async()=>{
+    const {useIsland}=await import('/src/island/store.ts');
+    useIsland.setState(s=>({activityPickerOpen:false,pickedActivity:'sessions',
+      settings:{...s.settings,position:{x:0,y:0.5}}}));
+    await new Promise(r=>setTimeout(r,500));
+    const read=()=>{const strip=document.querySelector('.n-activity-picker-strip')?.getBoundingClientRect();
+      const surface=document.querySelector('.island-backdrop path[id]')?.getBoundingClientRect();
+      return {left:strip?.left,gap:strip?.left-surface?.left};};
+    const start=read();const samples=[];
+    for(const open of [true,false,true,false]){
+      useIsland.setState({activityPickerOpen:open});
+      for(let i=0;i<15;i++){await new Promise(requestAnimationFrame);samples.push(read());}
+    }
+    await new Promise(r=>setTimeout(r,500));
+    return {start,finish:read(),samples};
+  })()`);
+  assert(leftMotion.samples.every(s=>s.gap>=-5&&s.gap<32),
+    `Left-edge activity strip escaped the animated surface: ${JSON.stringify(leftMotion.samples.filter(s=>s.gap < -5).slice(0,3))}`);
+  assert(leftMotion.samples.every((s,i)=>!i||Math.abs(s.left-leftMotion.samples[i-1].left)<8),
+    "Left-edge activity icons jumped between animation frames");
+  assert(Math.abs(leftMotion.finish.left-leftMotion.start.left)<1,
+    `Left-edge activity icons did not return to their closed position: ${JSON.stringify(leftMotion)}`);
   const fourChoices=await evaluate(`(async()=>{
     const {useIsland}=await import('/src/island/store.ts');
     useIsland.setState({activityPickerOpen:true,pickedActivity:'sessions',activities:{
