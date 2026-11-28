@@ -11,28 +11,34 @@ each was checked.
 The host is read from the session's own environment, innermost terminal
 first:
 
-1. `ZELLIJ`, `ZELLIJ_SESSION_NAME` and `ZELLIJ_PANE_ID` (zellij, #235). They
+1. `HERDR_ENV`, `HERDR_PANE_ID`, `HERDR_SOCKET_PATH` and `HERDR_SESSION`
+   (Herdr, #328). They count only when a Herdr server (`herdr server`) is an
+   ancestor of the session with no zellij or tmux server between: Herdr
+   starts each pane's program itself, while a tmux or zellij started in a
+   pane runs its own server, whose sessions are that one's. Herdr sets
+   `TERM_PROGRAM=herdr` over the outer terminal's.
+2. `ZELLIJ`, `ZELLIJ_SESSION_NAME` and `ZELLIJ_PANE_ID` (zellij, #235). They
    count only when a zellij server is an ancestor of the session: zellij
    starts each pane's program itself, while an editor, or a tmux, started
    from a pane runs apart from it. zellij leaves the outer terminal's
    `TERM_PROGRAM` alone, so its variables are read first.
-2. `TMUX` and `TMUX_PANE` (tmux). The pane's device is checked against the
+3. `TMUX` and `TMUX_PANE` (tmux). The pane's device is checked against the
    session's before it counts, since an editor opened from tmux keeps those
    variables too.
-3. `TERM`. kitty (`xterm-kitty`), Ghostty (`xterm-ghostty`) and Alacritty
+4. `TERM`. kitty (`xterm-kitty`), Ghostty (`xterm-ghostty`) and Alacritty
    (`alacritty`) set it, and kitty and Alacritty leave a `TERM_PROGRAM` they
    inherited alone.
-4. `TERMINAL_EMULATOR=JetBrains-JediTerm`, set by a JetBrains IDE's
+5. `TERMINAL_EMULATOR=JetBrains-JediTerm`, set by a JetBrains IDE's
    terminal (#329), when no terminal named itself in `TERM_PROGRAM`. The IDE
    is the app macOS holds responsible for the process, as for `vscode`
    below, so an editor or terminal started from an IDE's terminal is told
    apart from it.
-5. `TERM_PROGRAM`, set by the terminal itself: `Apple_Terminal`,
+6. `TERM_PROGRAM`, set by the terminal itself: `Apple_Terminal`,
    `iTerm.app`, `ghostty`, `WezTerm`, `WarpTerminal`, `vscode`. For `vscode`
    the editor comes from the app macOS holds responsible for the process,
    since an editor started from another one's terminal inherits that one's
    bundle identifier.
-6. `__CFBundleIdentifier`, which the app that started the shell put there. A
+7. `__CFBundleIdentifier`, which the app that started the shell put there. A
    JetBrains IDE's identifier counts too (any app with a
    `Contents/Resources/product-info.json`).
 
@@ -44,6 +50,7 @@ first:
 | tmux on a remote host over SSH ([remote hosts](remote-hosts.md)) | pane and window in the host's tmux | yes | the host's `tmux` through the island's `ssh` link: `paste-buffer -p`, `send-keys Enter` | the host set up in Settings |
 | tmux, in any of these | pane, window, and the terminal attached to it | yes | `tmux -S <socket>` of the pane's own server: `paste-buffer -p`, `send-keys Enter`, `select-window`, `select-pane`, `switch-client` | nothing |
 | zellij 0.44+, in any of these | tab and pane, and the terminal attached to it | yes | `zellij --session <name> action` with the server's own binary: `paste --pane-id`, `send-keys --pane-id … Enter`, `go-to-tab-by-id`, `focus-pane-id` | nothing |
+| Herdr 0.9+, in any of these | workspace, tab and pane, and the terminal attached to it | yes | Herdr's socket API on the pane's `HERDR_SOCKET_PATH`: `pane.send_input` (a paste, bracketed when the pane asks for it), `pane.send_keys`, `pane.focus` | nothing |
 | WezTerm | tab and pane, then the window | yes | `wezterm cli` with the pane's socket: `send-text`, `activate-tab`, `activate-pane`, pane checked by `tty_name` | nothing (Accessibility to raise one window of several) |
 | kitty, remote control on | window | yes | `kitten @ --to $KITTY_LISTEN_ON`, window checked to list the session's pid | `allow_remote_control` and `listen_on` in kitty.conf |
 | kitty, remote control off | app | no, says so | | |
@@ -55,17 +62,19 @@ first:
 The reply is always one bracketed paste per image path and one for the text,
 then Return, as `ClaudeTyping.steps` lays out, so line breaks stay text.
 
-A tmux or zellij can be nested in the other. Open goes from the innermost
-pane outward: the multiplexer selects the pane, then the terminal its client
-runs in is brought forward the way a session in it would be, a pane of the
-outer multiplexer included.
+tmux, zellij and Herdr can be nested in one another. Open goes from the
+innermost pane outward: the multiplexer selects the pane, then the terminal
+its client runs in is brought forward the way a session in it would be, a
+pane of the outer multiplexer included.
 
 ### No terminal attached (#235)
 
-When the session's tmux or zellij, or a multiplexer around it, has no client
-at all, Open says so on its button ("Detached · Attach") for ten seconds.
-Pressing it runs `zellij attach <name>` or `tmux -S <socket> attach-session -t
-<session>` in a new window of the terminal the person's sessions use. On
+When the session's tmux, zellij or Herdr, or a multiplexer around it, has no
+client at all, Open says so on its button ("Detached · Attach") for ten
+seconds. Pressing it runs `zellij attach <name>`, `tmux -S <socket>
+attach-session -t <session>`, or `herdr session attach <name>` (plain `herdr`
+for Herdr's default session) in a new window of the terminal the person's
+sessions use. On
 Windows and Linux the service works that line out again when Attach is
 pressed; the page never sends one. Replies still reach a detached pane.
 
@@ -94,6 +103,48 @@ pressed; the page never sends one. Replies still reach a detached pane.
 - Client and server have to be the same version, so the server's own binary
   (`proc_pidpath`, `/proc/<pid>/exe`, the process image) runs every action.
 
+### Herdr, how it is reached (#328)
+
+Herdr ([herdrdev/herdr](https://github.com/herdrdev/herdr), herdr.dev,
+0.9.5 when this was written) is a multiplexer made for coding agents. Its own
+CLI and agents talk to its server over a socket API, one JSON request per
+line (`{"id":…,"method":"pane.focus","params":{"pane_id":"w1:p2"}}`) and one
+answer per line; Openbar speaks it directly, so no `herdr` binary has to be
+found for Open or Reply.
+
+- Every pane's environment holds `HERDR_ENV=1`, the pane (`HERDR_PANE_ID`,
+  `w1:p2`), its workspace and tab, the server's API socket
+  (`HERDR_SOCKET_PATH`, `~/.config/herdr/sessions/<name>/herdr.sock`, or
+  `~/.config/herdr/herdr.sock` for the default session) and, for a named
+  session, `HERDR_SESSION`. Openbar talks only to a socket of the person's
+  own (checked with `lstat`), never to a path the environment points at
+  otherwise.
+- Pane ids are never given again once a pane closes, and a moved pane's old
+  id still finds it.
+- **Reply:** `pane.send_input` with the text, which Herdr wraps in bracketed
+  paste when the pane asked for it, then `pane.send_keys` `enter`. Neither
+  moves the focus.
+- **Open:** `pane.get` checks the pane is there, `pane.focus` switches to its
+  workspace and tab and focuses it. Herdr keeps one focus for the whole
+  session, which every attached terminal shows. The terminal that comes
+  forward is the one of the client used last, found as for zellij: the
+  client is a `herdr` process on a terminal whose unix socket's peer is one
+  of the server's sockets other than the API socket (a `herdr pane …` run
+  from some terminal talks over that one and is no client), `lsof -U` on the
+  Mac, `ss -xn` and `/proc/<pid>/fd` on Linux.
+- **Which pane is in front (#210):** `session.snapshot`'s
+  `focused_pane_id` is the pane and a terminal is attached, then that
+  terminal is asked as below.
+- The server starts as a child of the first client and stays when the client
+  goes (`herdr server`, or `herdr server --handoff-import …` after an update).
+- **Herdr's own agent states** (idle, working, blocked, done) come from its
+  screen-reading detection or its own hooks. Openbar doesn't read them: the
+  island already has each session's state from the agent's own hooks and
+  records, which say more (the tool, the question, the plan).
+- **Windows.** Herdr also runs natively on Windows (x64, in beta), where
+  its socket API is a named pipe. Openbar doesn't reach Herdr on Windows
+  yet.
+
 ## Windows
 
 | Host | Open | Reply | How |
@@ -117,6 +168,7 @@ The sound when a session waits stays quiet when the session's own tab or pane is
 | kitty, remote control on | `kitten @ ls`: `is_focused` on the OS window, the tab and the window |
 | tmux | `#{pane_active}#{window_active}` is `11`, then the terminal of the client used last on that session is asked the same (Linux: kitty, WezTerm, or a tmux or zellij around it) |
 | zellij | every attached client has the pane focused (`list-clients`), then the terminal of the client used last is asked the same; none has it: hidden; only some: can't tell |
+| Herdr | Herdr's one focus (`session.snapshot`) is the pane, then the terminal of the client used last is asked the same; no terminal attached: hidden |
 | Classic console (Windows) | its window is the foreground window and not minimised |
 | Windows Terminal | its window is in front, and the selected tab (UI Automation) bears the console's title (`GetConsoleTitleW`) and no other tab does |
 | JetBrains IDEs, with the bridge plugin | the IDE is in front, and the plugin says the session's project window is the active one, its terminal tool window is open and the session's tab is the one selected there |
@@ -234,6 +286,29 @@ compared without spending tokens.
   forward (the IDE's launcher does), and the "Restart to load it" note
   stayed after the restart.
 
+- Herdr (#328), 0.9.5 from Homebrew on the Mac and the release binary on
+  Linux (arm64 VM, Xvfb with xfwm4, kitty), with stand-in sessions in three
+  panes of one Herdr session: one beside a shell, one in a second tab and one
+  in a second workspace. On the Mac, through an isolated test copy's island
+  (Accessibility presses): each row carried a "Herdr" chip and "Open in Herdr
+  in Terminal"; Open from another app switched Herdr to the session's
+  workspace, tab and pane and brought the Terminal window of the Herdr client
+  used last forward; a two-line reply reached its pane only, as one
+  bracketed paste and a return, while Herdr's focus stayed on another pane.
+  A probe built from the app's sources said "shown" for the focused pane
+  with its Terminal window in front, and "hidden" for the other panes, with
+  another app in front, and with another Terminal window in front. The
+  waiting sound stayed quiet for the focused pane and played for another.
+  With the client closed, Open said "Herdr · detached" and Attach opened
+  `herdr session attach <name>` in a new Terminal window. On Linux the live
+  test `hosts::tests::live_session_reply_reaches_its_host` did the same
+  (Open from another window raised kitty on the right pane, a reply reached
+  only that pane, `shown` true and false as above, `herdr session attach`
+  for a session with no client). Nested both ways on the Mac and on Linux: a
+  session in tmux or zellij run in a Herdr pane is tmux's or zellij's, and
+  Open brings Herdr's pane forward around it; a session in Herdr run in a
+  tmux pane is Herdr's, and Open selects the tmux pane too.
+
 ## Questions the issue asked first
 
 - **tmux.** Reproduced before the change: a process in a tmux pane started
@@ -259,6 +334,8 @@ compared without spending tokens.
 
 - tmux on Windows (it would come through WSL, above).
 - zellij on remote hosts: remote sessions are reached through tmux only.
+- Herdr on Windows (above), and Herdr on remote hosts (`herdr --remote`,
+  saved machines): a session there is reached like any other remote one.
 - Typing into one tab of Warp, Alacritty, mintty: none of them offer a way
   that targets one tab safely.
 - JetBrains on Windows and Linux with real IDEs (stand-ins and unit tests
