@@ -5,7 +5,8 @@ island next to local ones, with the host's name on them. Permission requests
 from them can be allowed or denied from the island, and replies reach them
 when they run inside tmux on the host. Codex sessions on the host show up
 too (issue #200), with nothing to set up there. This works on the Mac and on
-Windows.
+Windows. Sessions inside Docker containers and devcontainers come through the
+same agent script over `docker exec`: see [containers.md](containers.md).
 
 ## Setting it up
 

@@ -60,6 +60,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             agents
             bridge
             RemoteHostsSettings()
+            ContainersSettings()
         }
         .onAppear {
             service.checkHooks()

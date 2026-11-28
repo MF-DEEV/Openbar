@@ -985,6 +985,10 @@ enum DefaultsKey {
     static let notchSessionsRemoteHostsEnabled = "notchSessionsRemoteHostsEnabled"
     /// The hosts, as JSON: `[{"alias": "<ssh config alias>"}]`.
     static let notchSessionsRemoteHosts = "notchSessionsRemoteHosts"
+    /// Sessions inside Docker containers and devcontainers (issue #330); off until turned on.
+    static let notchSessionsContainersEnabled = "notchSessionsContainersEnabled"
+    /// The containers picked, as JSON: `[{"folder": "<devcontainer folder>"}, {"name": "<container>"}]`.
+    static let notchSessionsContainers = "notchSessionsContainers"
     /// The language voice replies are recognized in; empty follows the app's.
     static let notchSessionsVoiceLanguage = "notchSessionsVoiceLanguage"
     /// A voice reply goes to the session by itself once the person stops talking.

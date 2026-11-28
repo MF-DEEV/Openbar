@@ -19,6 +19,7 @@ pub mod batch_log;
 pub mod claude_desktop;
 pub mod cline;
 pub mod codex;
+pub mod containers;
 pub mod droid;
 pub mod engine;
 pub mod file_diff;

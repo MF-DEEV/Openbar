@@ -65,12 +65,30 @@ pub struct HookConnection {
     stream: HookStream,
 }
 
-/// The pipe a local hook connects to, or the loopback connection a remote
-/// host's hook arrives on through its `ssh` (sessions::remote).
+/// The pipe a local hook connects to, the loopback connection a remote
+/// host's hook arrives on through its `ssh` (sessions::remote), or a
+/// container's relay (issue #330).
 #[cfg_attr(not(windows), allow(dead_code))]
 enum HookStream {
     Local(Stream),
     Tcp(std::net::TcpStream),
+    Relay(RelayReply),
+}
+
+/// The way back to a hook inside a container: the answer is gathered and
+/// sent as one line once the connection is done with, answered or not, so a
+/// hook let go without an answer ends at once too.
+pub struct RelayReply {
+    answer: Vec<u8>,
+    send: Option<Box<dyn FnOnce(Vec<u8>) + Send>>,
+}
+
+impl Drop for RelayReply {
+    fn drop(&mut self) {
+        if let Some(send) = self.send.take() {
+            send(std::mem::take(&mut self.answer));
+        }
+    }
 }
 
 impl Write for HookStream {
@@ -78,17 +96,39 @@ impl Write for HookStream {
         match self {
             HookStream::Local(s) => s.write(buf),
             HookStream::Tcp(s) => s.write(buf),
+            HookStream::Relay(r) => {
+                r.answer.extend_from_slice(buf);
+                Ok(buf.len())
+            }
         }
     }
     fn flush(&mut self) -> io::Result<()> {
         match self {
             HookStream::Local(s) => s.flush(),
             HookStream::Tcp(s) => s.flush(),
+            HookStream::Relay(_) => Ok(()),
         }
     }
 }
 
 impl HookConnection {
+    /// A hook from inside a container, handed on by its relay; `send` takes
+    /// the answer back, empty when there is none.
+    pub fn relayed(
+        payload: Vec<u8>,
+        peer_pid: Option<u32>,
+        send: Box<dyn FnOnce(Vec<u8>) + Send>,
+    ) -> HookConnection {
+        HookConnection {
+            payload,
+            peer_pid,
+            stream: HookStream::Relay(RelayReply {
+                answer: Vec::new(),
+                send: Some(send),
+            }),
+        }
+    }
+
     /// Writes the answer and closes, waiting at most two seconds.
     pub fn reply(mut self, answer: &[u8]) -> io::Result<()> {
         self.stream.write_all(answer)?;

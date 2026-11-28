@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Vorssaint
 #
-# Runs on a remote host Openbar reaches over SSH (issue #189); the Mac and the
-# Windows island send this same file. Plain POSIX sh, so it runs under dash,
+# Runs on a remote host Openbar reaches over SSH (issue #189), or inside a
+# container it reaches with `docker exec` (issue #330); the Mac, Windows and
+# Linux islands send this same file. Plain POSIX sh, so it runs under dash,
 # bash, busybox ash or macOS sh, whatever the login shell is. Openbar starts
 #
 #   exec sh -c 'IFS= read -r s; eval "$(printf %s "$s" | base64 -d)"'
@@ -13,13 +14,17 @@
 # break or a space inside it can't end a field.
 #
 # Modes:
-#   probe <socket> <app>  prepares ~/.openbar, says what the host has
+#   probe <socket> <app> [container]
+#                         prepares ~/.openbar, says what the host has
 #   read                  the Claude Code settings and the copy kept at setup
 #   install               writes new settings, keeping the original once
 #   remove                takes the hooks out again
 #   agent                 answers requests until the connection ends
 #   codex                 joins standard input and output to Codex's
-#                         app-server socket (issue #200, Windows islands)
+#                         app-server socket (issue #200, Windows islands,
+#                         and containers)
+#   relay <app>           carries a container's hooks over standard input
+#                         and output (issue #330): no socket, port or network
 #
 # Agent requests: snap (N host time, X Codex's socket is there, R records,
 # J transcripts, T new bytes, G gone), paste, enter, focus, ping.
@@ -238,8 +243,11 @@ ob_probe() {
         echo "A no"
     fi
     ob_settings
+    # A container's hooks carry their own marker (ob_relay).
+    ob_kind=remote
+    [ "$3" = container ] && ob_kind=container
     case $2 in '' | *[!0-9A-Za-z.-]*) ;; *)
-        if [ -f "$ob_file" ] && grep -q "openbar-remote-hook $2\"" "$ob_file"; then echo "I yes"; else echo "I no"; fi ;;
+        if [ -f "$ob_file" ] && grep -q "openbar-$ob_kind-hook $2\"" "$ob_file"; then echo "I yes"; else echo "I no"; fi ;;
     esac
     ob_end
 }
@@ -293,8 +301,9 @@ ob_remove() {
     if [ "$(ob_sum "$ob_file")" != "$ob_expected" ]; then echo "F changed"; ob_end; return; fi
     case $ob_how in
     restore)
-        # Nothing else changed: the file goes back byte for byte.
-        if [ -f "$ob_copy" ]; then cp -p "$ob_copy" "$ob_file"; else rm -f "$ob_file"; fi
+        # Nothing else changed: the file goes back byte for byte. Copied
+        # into the file there, it keeps that file's mode (the copy is 600).
+        if [ -f "$ob_copy" ]; then cp "$ob_copy" "$ob_file"; else rm -f "$ob_file"; fi
         ;;
     write | keep)
         IFS= read -r ob_new
@@ -335,20 +344,117 @@ while True:
         d=s.recv(65536)
         if not d:break
         while d:d=d[os.write(o,d):]' "$ob_sock"
+    elif command -v node > /dev/null 2>&1; then
+        # Codex and Claude Code installed with npm bring node along.
+        exec node -e 'const s=require("net").connect(process.argv[1]);
+s.on("connect",()=>{process.stdin.pipe(s);s.pipe(process.stdout)});
+s.on("error",()=>process.exit(1));s.on("close",()=>process.exit(0));
+process.stdin.on("end",()=>s.end())' "$ob_sock"
     fi
     echo "E client"
     ob_end
+}
+
+# A container's hooks (issue #330). `docker exec` has no way to forward a
+# socket, so each hook hands its event over through files in a folder only
+# this user can open, and this relay, running on the island's
+# `docker exec -i`, passes them on as lines:
+#
+#   to the island    H <id> <event, base64>
+#   from the island  A <id> <answer, base64, or - for none>
+#
+# A hook says it is there by writing its id to a FIFO the relay reads, so
+# nothing polls until an answer is due. Hooks need only sh, base64 and mkfifo,
+# which every image with a shell has. When the island goes, its end of
+# standard input closes, the relay ends, and waiting hooks let Claude Code
+# ask in its terminal.
+ob_hook_script() {
+    cat <<'OB_HOOK'
+# Openbar's hook for this container (issue #330), written by the relay at
+# each connection. It ends at once while no island is connected.
+d=${0%/*}
+a=${0##*/}
+a=${a%.hook}
+q="$d/$a.q"
+p=$(cat "$d/$a.pid" 2>/dev/null) || exit 0
+case $p in '' | *[!0-9]*) exit 0 ;; esac
+kill -0 "$p" 2>/dev/null || exit 0
+[ -p "$d/$a.fifo" ] || exit 0
+i=$$
+trap 'rm -f "$q/$i.req" "$q/$i.res" "$q/$i.tmp"; exit 0' HUP INT TERM
+rm -f "$q/$i.res"
+cat > "$q/$i.tmp" || exit 0
+mv -f "$q/$i.tmp" "$q/$i.req" || exit 0
+# Opened for reading and writing, the FIFO never blocks the hook, even if
+# the relay ended just now; the id is a few bytes, written in one piece.
+printf '%s\n' "$i" 1<> "$d/$a.fifo"
+while [ ! -f "$q/$i.res" ]; do
+    kill -0 "$p" 2>/dev/null || { rm -f "$q/$i.req"; exit 0; }
+    sleep 0.05 2>/dev/null || sleep 1
+done
+cat "$q/$i.res"
+rm -f "$q/$i.res"
+exit 0
+OB_HOOK
+}
+
+ob_relay() {
+    case $1 in '' | */* | .* | *[!0-9A-Za-z.-]*) echo "E name"; ob_end; return ;; esac
+    command -v mkfifo > /dev/null 2>&1 || { echo "E mkfifo"; ob_end; return; }
+    ob_app=$1
+    ob_d="$HOME/.openbar"
+    ob_q="$ob_d/$1.q"
+    ob_fifo="$ob_d/$1.fifo"
+    mkdir -p "$ob_q" && chmod 700 "$ob_d" "$ob_q" || { echo "E folder"; ob_end; return; }
+    # Whatever the last connection left is stale now.
+    rm -f "$ob_q"/* "$ob_fifo"
+    mkfifo "$ob_fifo" || { echo "E fifo"; ob_end; return; }
+    ob_hook_script > "$ob_d/$1.hook.tmp" && mv -f "$ob_d/$1.hook.tmp" "$ob_d/$1.hook" || { echo "E hook"; ob_end; return; }
+    echo "$$" > "$ob_d/$1.pid"
+    echo "HELLO 1"
+    ob_end
+    # Without job control a background list reads /dev/null, so standard
+    # input is handed over on another descriptor first.
+    exec 4<&0 3<> "$ob_fifo"
+    (
+        while IFS= read -r ob_line; do
+            # shellcheck disable=SC2086
+            set -- $ob_line
+            [ "$1" = A ] || continue
+            case $2 in '' | *[!0-9]*) continue ;; esac
+            if [ "${3:--}" = - ]; then
+                : > "$ob_q/$2.part"
+            else
+                ob_unb64 "$3" > "$ob_q/$2.part"
+            fi
+            mv -f "$ob_q/$2.part" "$ob_q/$2.res"
+        done
+        # The island went away: no hook waits on this relay any more.
+        rm -f "$ob_d/$ob_app.pid" "$ob_fifo"
+        rm -rf "$ob_q"
+        kill "$$" 2>/dev/null
+    ) <&4 &
+    exec 4<&-
+    while IFS= read -r ob_id <&3; do
+        case $ob_id in '' | *[!0-9]*) continue ;; esac
+        [ -f "$ob_q/$ob_id.req" ] || continue
+        printf 'H %s ' "$ob_id"
+        ob_b64 < "$ob_q/$ob_id.req"
+        echo
+        rm -f "$ob_q/$ob_id.req"
+    done
 }
 
 IFS= read -r ob_mode_line
 # shellcheck disable=SC2086
 set -- $ob_mode_line
 case $1 in
-probe) ob_probe "$2" "$3" ;;
+probe) ob_probe "$2" "$3" "$4" ;;
 read) ob_read ;;
 install) ob_install ;;
 remove) ob_remove ;;
 agent) ob_agent ;;
 codex) ob_codex ;;
+relay) ob_relay "$2" ;;
 *) echo "E mode"; ob_end ;;
 esac

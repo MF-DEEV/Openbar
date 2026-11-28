@@ -34,6 +34,7 @@ import { SessionReminders } from "./SessionReminders";
 import { SessionAutoMode } from "./SessionAutoMode";
 import { BatchApprovals } from "./BatchApprovals";
 import { DiagnosticsSubRow } from "./DiagnosticsDialog";
+import { Containers } from "./Containers";
 
 /** Accounts for designing the page in a plain browser. */
 const DEMO_ACCOUNTS: ClaudeAccount[] = [
@@ -928,6 +929,7 @@ export function SessionsOptions() {
       ) : null}
       <VoiceReplies prefs={prefs} set={set} />
       <RemoteHosts />
+      <Containers />
       <DiagnosticsSubRow />
     </>
   );

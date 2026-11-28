@@ -287,7 +287,8 @@ final class ClaudeSessionService: ObservableObject {
         // A switch turned on or off puts its agent's hooks in or takes them out.
         if running, agents != lastShownAgents { syncAgentHooks() }
         let remote = RemoteHostPrefs.active()
-        if running { queue.async { [self] in syncRemote(remote) } }
+        let containers = ContainerPrefs.active()
+        if running { queue.async { [self] in syncRemote(remote); syncContainers(containers) } }
         lastShownAgents = agents
         guard !running else { return }
         running = true
@@ -305,6 +306,7 @@ final class ClaudeSessionService: ObservableObject {
             schedule(Self.activeTick)
             refresh()
             syncRemote(remote)
+            syncContainers(containers)
         }
         let home = home
         actions.async {
@@ -368,6 +370,7 @@ final class ClaudeSessionService: ObservableObject {
             listeners = [:]
             hookAgents.prune(now: Date()) { _ in false }
             syncRemote([])
+            syncContainers([])
             server?.stop()
             server = nil
             codex?.stop()
@@ -2200,9 +2203,13 @@ final class ClaudeSessionService: ObservableObject {
             // Its pane comes forward in the host's tmux; no window here shows it.
             queue.async { [self] in
                 guard let link = remoteLinks[alias] else { return DispatchQueue.main.async { completion(.missing) } }
+                let pane = remoteSnapshots[alias]?.panes[session.id]
                 link.perform { link in
                     let found = link.focus(pid: session.pid, session: session.id)
-                    DispatchQueue.main.async { completion(found ? .opened : .missing) }
+                    // A container's session: its devcontainer's VS Code window,
+                    // else a terminal attached to its tmux (issue #330).
+                    let opened = link.isContainer ? ContainerOpen.open(link: link, pane: found ? pane : nil) : nil
+                    DispatchQueue.main.async { completion(opened ?? (found ? .opened : .missing)) }
                 }
             }
             return
@@ -2266,56 +2273,95 @@ final class ClaudeSessionService: ObservableObject {
     /// Starts a connection for each host turned on and ends the others. On the queue.
     private func syncRemote(_ wanted: [RemoteHost]) {
         let aliases = Set(wanted.map(\.alias))
-        for (alias, link) in remoteLinks where !aliases.contains(alias) {
-            link.stop()
-            if let client = remoteCodex.removeValue(forKey: alias) {
-                // Waits a moment for its thread, so not on the queue.
-                DispatchQueue.global(qos: .utility).async { client.stop() }
-                publish(now: Date())
-            }
-            remoteLinks[alias] = nil
-            remoteSnapshots[alias] = nil
-            remoteTails = remoteTails.filter { !$0.key.hasPrefix(alias + "\n") }
-        }
+        for (alias, link) in remoteLinks where !link.isContainer && !aliases.contains(alias) { dropLink(alias) }
         // Connections reach the island through its socket, so they wait for it.
         guard let socket = server?.path else { return publishRemoteStates() }
         for host in wanted where remoteLinks[host.alias] == nil {
             let link = RemoteHostLink(alias: host.alias, bundle: Self.bundleID, localSocket: socket)
-            let alias = host.alias
-            link.onState = { [weak self, weak link] state in
-                guard let self, let link else { return }
-                if !state.isConnected {
-                    // A host that went away takes its sessions with it, and
-                    // nothing else waits on it.
-                    queue.async { [self] in
-                        guard self.remoteLinks[alias] === link, self.remoteSnapshots.removeValue(forKey: alias) != nil else { return }
-                        self.refresh()
-                    }
-                }
-                DispatchQueue.main.async { [self] in
-                    guard self.running else { return }
-                    if self.remoteStates[alias].map(Self.remoteKind) != Self.remoteKind(state) {
-                        DiagnosticsLog.info("remote", "host \(alias) \(Self.remoteKind(state))")
-                    }
-                    self.remoteStates[alias] = state
-                }
-            }
-            link.onSnapshot = { [weak self, weak link] snapshot in
-                self?.queue.async { [weak self] in
-                    guard let self, let link, remoteLinks[alias] === link else { return }
-                    ingestRemote(alias, snapshot)
-                }
-            }
-            remoteLinks[alias] = link
+            attach(link)
             // The host's Codex, joined like this Mac's once its socket is
             // forwarded and its daemon runs (issue #200).
-            let client = CodexSessionClient(socket: URL(fileURLWithPath: link.codexSocket), remoteAlias: alias,
+            let client = CodexSessionClient(socket: URL(fileURLWithPath: link.codexSocket), remoteAlias: host.alias,
                                             ready: { [weak link] in link?.codexReady ?? false })
-            remoteCodex[alias] = client
-            client.start { [weak self] in self?.queue.async { self?.publish(now: Date()) } }
+            startRemoteCodex(client, alias: host.alias)
             link.start()
         }
         publishRemoteStates()
+    }
+
+    /// Starts a connection for each container picked and ends the others
+    /// (issue #330, docs/containers.md). On the queue.
+    private func syncContainers(_ wanted: [ContainerTarget]) {
+        let aliases = Set(wanted.map(\.alias))
+        for (alias, link) in remoteLinks where link.isContainer && !aliases.contains(alias) { dropLink(alias) }
+        // The relay hands every hook to the island's server, so it waits for it.
+        guard let server else { return publishRemoteStates() }
+        let hooks = hookQueue
+        for target in wanted where remoteLinks[target.alias] == nil {
+            let link = RemoteHostLink(container: target, bundle: Self.bundleID) { [weak server] descriptor, peer in
+                hooks.async {
+                    guard let server, server.isRunning else { _ = Darwin.close(descriptor); return }
+                    server.adopt(descriptor, peer: peer)
+                }
+            }
+            attach(link)
+            // Codex in the container, through `docker exec` to its daemon's socket.
+            let client = CodexSessionClient(connect: { [weak link] in
+                guard let command = link?.containerCommand else { throw CodexSocketError(description: "no container yet") }
+                return try ContainerCodex.connect(command)
+            }, remoteAlias: target.alias, ready: { [weak link] in link?.codexReady ?? false })
+            startRemoteCodex(client, alias: target.alias)
+            link.start()
+        }
+        publishRemoteStates()
+    }
+
+    /// Ends a host's or a container's connection and forgets what it showed. On the queue.
+    private func dropLink(_ alias: String) {
+        remoteLinks[alias]?.stop()
+        if let client = remoteCodex.removeValue(forKey: alias) {
+            // Waits a moment for its thread, so not on the queue.
+            DispatchQueue.global(qos: .utility).async { client.stop() }
+            publish(now: Date())
+        }
+        remoteLinks[alias] = nil
+        remoteSnapshots[alias] = nil
+        remoteTails = remoteTails.filter { !$0.key.hasPrefix(alias + "\n") }
+    }
+
+    private func startRemoteCodex(_ client: CodexSessionClient, alias: String) {
+        remoteCodex[alias] = client
+        client.start { [weak self] in self?.queue.async { self?.publish(now: Date()) } }
+    }
+
+    /// Hands the link's states and looks on to the island. On the queue.
+    private func attach(_ link: RemoteHostLink) {
+        let alias = link.alias
+        link.onState = { [weak self, weak link] state in
+            guard let self, let link else { return }
+            if !state.isConnected {
+                // A host that went away takes its sessions with it, and
+                // nothing else waits on it.
+                queue.async { [self] in
+                    guard self.remoteLinks[alias] === link, self.remoteSnapshots.removeValue(forKey: alias) != nil else { return }
+                    self.refresh()
+                }
+            }
+            DispatchQueue.main.async { [self] in
+                guard self.running else { return }
+                if self.remoteStates[alias].map(Self.remoteKind) != Self.remoteKind(state) {
+                    DiagnosticsLog.info("remote", "host \(alias) \(Self.remoteKind(state))")
+                }
+                self.remoteStates[alias] = state
+            }
+        }
+        link.onSnapshot = { [weak self, weak link] snapshot in
+            self?.queue.async { [weak self] in
+                guard let self, let link, remoteLinks[alias] === link else { return }
+                ingestRemote(alias, snapshot)
+            }
+        }
+        remoteLinks[alias] = link
     }
 
     /// Settings forgets hosts that are no longer listed.
@@ -2381,26 +2427,36 @@ final class ClaudeSessionService: ObservableObject {
             }
             link.perform { [self] link in
                 var info = link.info
-                if info == nil, let probe = RemoteOneShot.run(alias, mode: "probe \(RemoteSSH.socketName(bundle: bundle)) \(bundle)").lines {
+                let name = RemoteSSH.socketName(bundle: bundle)
+                if info == nil, let probe = link.oneShot(mode: "probe \(name) \(bundle)\(link.isContainer ? " container" : "")").lines {
                     info = RemoteAnswer.probe(probe)
+                    if link.isContainer { info?.client = .relay }
                 }
+                let run: RemoteHostSetup.Runner = { link.oneShot(mode: $0, input: $1) }
                 let failure: RemoteHostSetup.Failure?
                 if install {
-                    failure = info.map { RemoteHostSetup.install(alias, info: $0, bundle: bundle) } ?? .unreachable("")
+                    failure = info.map { RemoteHostSetup.install(run, info: $0, bundle: bundle) } ?? .unreachable("")
                 } else {
-                    failure = RemoteHostSetup.remove(alias, bundle: bundle)
+                    let marker = link.isContainer ? RemoteHookInstaller.containerMarker(bundle: bundle)
+                        : RemoteHookInstaller.marker(bundle: bundle)
+                    failure = RemoteHostSetup.remove(run, marker: marker, bundle: bundle)
                 }
                 if failure == nil {
                     link.markHooks(installed: install)
                     // The hooks write to the socket the connection forwards; a
-                    // fresh one is sure to have it.
-                    if install { link.reconnectNow() }
+                    // fresh one is sure to have it. A container's relay runs on.
+                    if install, !link.isContainer { link.reconnectNow() }
                 }
                 let state = link.state
+                let setUp = link.container?.id
                 DispatchQueue.main.async { [self] in
                     remoteBusy.remove(alias)
                     remoteFailures[alias] = failure.map(RemoteHostStrings.describe)
                     if let state, running { remoteStates[alias] = state }
+                    // A rebuilt container is told apart by the one set up.
+                    if failure == nil, case .container(let target) = link.transport {
+                        ContainerPrefs.markSetUp(target, container: install ? setUp : nil)
+                    }
                 }
             }
         }

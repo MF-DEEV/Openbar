@@ -1525,6 +1525,15 @@ select {
   color: var(--st-text);
 }
 
+/* #330: a devcontainer's folder on this machine, under its name. */
+.st-container-folder {
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
 .st-remote-input {
   width: 220px;
 }
