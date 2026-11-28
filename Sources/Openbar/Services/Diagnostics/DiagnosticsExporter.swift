@@ -285,7 +285,7 @@ enum DiagnosticsExporter {
         var terminals = terminalApps.filter { workspace.urlForApplication(withBundleIdentifier: $0) != nil }
             .map(ClaudeTerminalApps.name(of:))
         let folders = (path ?? "").split(separator: ":").map(String.init) + ["/opt/homebrew/bin", "/usr/local/bin"]
-        for tool in ["tmux", "zellij", "screen"]
+        for tool in ["tmux", "zellij", "herdr", "screen"]
         where folders.contains(where: { FileManager.default.isExecutableFile(atPath: "\($0)/\(tool)") }) {
             terminals.append(tool)
         }

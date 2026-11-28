@@ -480,6 +480,141 @@ enum ClaudeSessionReaderTests {
                      "a session name with a space is quoted for the attach line")
     }
 
+    /// #328: a session in a Herdr pane, told by Herdr's variables and
+    /// checked against the process tree, reached through Herdr's socket API.
+    static func herdrHosts(_ suite: TestSuite) {
+        let herdr = ["HERDR_ENV": "1", "HERDR_PANE_ID": "w1:p2", "HERDR_SESSION": "work",
+                     "HERDR_SOCKET_PATH": "/Users/x/.config/herdr/sessions/work/herdr.sock",
+                     "TERM_PROGRAM": "herdr", "TERM": "xterm-256color"]
+        let pane = ClaudeHerdrPane(environment: herdr)
+        suite.expect(pane?.pane == "w1:p2" && pane?.session == "work" && pane?.server == 0
+                     && pane?.socket == "/Users/x/.config/herdr/sessions/work/herdr.sock", "Herdr names its pane, session and socket")
+        var unnamed = herdr
+        unnamed["HERDR_SESSION"] = nil
+        suite.expect(ClaudeHerdrPane(environment: unnamed)?.session == nil, "the default session has no name")
+        var bad: [[String: String]] = []
+        for (key, value) in [("HERDR_ENV", "0"), ("HERDR_PANE_ID", "p2"), ("HERDR_PANE_ID", "w1:p"), ("HERDR_PANE_ID", "w1:p2;x"),
+                             ("HERDR_PANE_ID", "w:p2"), ("HERDR_SOCKET_PATH", "herdr.sock"), ("HERDR_SOCKET_PATH", "/a\nb"),
+                             ("HERDR_SOCKET_PATH", "/" + String(repeating: "s", count: 120))] {
+            var environment = herdr
+            environment[key] = value
+            bad.append(environment)
+        }
+        var noFlag = herdr
+        noFlag["HERDR_ENV"] = nil
+        bad.append(noFlag)
+        suite.expect(bad.allSatisfy { ClaudeHerdrPane(environment: $0) == nil }, "a malformed Herdr variable names no pane")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.apple.Terminal", tty: "/dev/ttys040", port: nil, environment: herdr)
+                     == .herdr(pane!), "a session in Herdr in Terminal is a Herdr pane")
+        var withZellij = herdr
+        withZellij["ZELLIJ"] = "0"
+        withZellij["ZELLIJ_SESSION_NAME"] = "z"
+        withZellij["ZELLIJ_PANE_ID"] = "1"
+        withZellij["TMUX"] = "/private/tmp/tmux-501/default,51484,0"
+        withZellij["TMUX_PANE"] = "%1"
+        suite.expect(ClaudeSessionHosts.classify(bundle: nil, tty: "/dev/ttys041", port: nil, environment: withZellij) == .herdr(pane!),
+                     "with other multiplexers' variables Herdr is asked first; the process tree settles which holds it")
+
+        var named = pane!
+        named.outer = "com.apple.Terminal"
+        suite.expect(ClaudeSessionHost.herdr(named).displayName == "Herdr in Terminal"
+                     && ClaudeSessionHost.herdr(pane!).displayName == "Herdr", "Herdr is named with the terminal showing it")
+        suite.expect(ClaudeSessionHost.herdr(pane!).multiplexer == "Herdr" && ClaudeSessionHost.herdr(pane!).acceptsReplies
+                     && ClaudeSessionHost.herdr(pane!).bundle == nil && ClaudeTyping.takesKeys(.herdr(pane!))
+                     && UsageStatsSupport.terminalID(.herdr(pane!)) == "herdr", "a Herdr pane takes replies and keys, with a chip")
+
+        // 500 (session) → 400 (shell) → 300 (herdr server) → 1; 700 → 650 (zellij server) → 300.
+        let parents: [Int32: Int32] = [500: 400, 400: 300, 300: 1, 700: 650, 650: 300, 800: 750, 750: 1]
+        suite.expect(ClaudeHerdr.server(of: 500, parent: { parents[$0] }, isServer: { $0 == 300 }, isOtherServer: { _ in false }) == 300,
+                     "the session runs under its Herdr server")
+        suite.expect(ClaudeHerdr.server(of: 700, parent: { parents[$0] }, isServer: { $0 == 300 }, isOtherServer: { $0 == 650 }) == nil,
+                     "a zellij run in a Herdr pane is the innermost: its sessions aren't Herdr's")
+        suite.expect(ClaudeHerdr.server(of: 800, parent: { parents[$0] }, isServer: { $0 == 300 }, isOtherServer: { _ in false }) == nil,
+                     "a process no Herdr server runs isn't in a Herdr pane, whatever its variables say")
+        suite.expect(ClaudeHerdr.isServer(arguments: ["/opt/homebrew/bin/herdr", "server"])
+                     && ClaudeHerdr.isServer(arguments: ["herdr", "server", "--handoff-import", "/s", "t"])
+                     && !ClaudeHerdr.isServer(arguments: ["herdr", "server", "stop"])
+                     && !ClaudeHerdr.isServer(arguments: ["herdr", "--session", "work"])
+                     && !ClaudeHerdr.isServer(arguments: ["/bin/sh", "server"]), "a server is herdr server")
+
+        let snapshot: [String: Any] = ["focused_pane_id": "w1:p2", "focused_tab_id": "w1:t1"]
+        suite.expect(ClaudeHerdr.focusedPane(snapshot) == "w1:p2" && ClaudeHerdr.focusedPane([:]) == nil,
+                     "the snapshot names the one pane Herdr shows")
+        suite.expect(ClaudeHerdr.result(Data(#"{"id":"openbar","result":{"type":"ok"}}"#.utf8))?["type"] as? String == "ok"
+                     && ClaudeHerdr.result(Data(#"{"id":"openbar","error":{"code":"pane_not_found"}}"#.utf8)) == nil
+                     && ClaudeHerdr.result(Data("nope".utf8)) == nil, "an answer's result, nothing on an error")
+
+        let lsof = """
+            p300
+            f4
+            d0x6f81
+            n/Users/x/.config/herdr/sessions/work/herdr.sock
+            f11
+            d0xb403
+            n/Users/x/.config/herdr/sessions/work/herdr-client.sock
+            f12
+            d0xa001
+            n/Users/x/.config/herdr/sessions/work/herdr.sock
+            p810
+            f4
+            d0x1aea
+            n->0xb403
+            p820
+            f3
+            d0x8978
+            n->0xa001
+            """
+        suite.expect(ClaudeHerdr.clients(lsof: lsof, server: 300, api: "/Users/x/.config/herdr/sessions/work/herdr.sock") == [810],
+                     "a client keeps a socket to the server's client socket; a herdr command asking the API is none")
+
+        // The socket API itself, against a stand-in server: a request is one
+        // line, and only a socket of this user's is spoken to.
+        let folder = URL(fileURLWithPath: "/tmp/ob328t-\(getpid())")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let path = folder.appendingPathComponent("h.sock").path
+        let server = socket(AF_UNIX, SOCK_STREAM, 0)
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &address.sun_path) { raw in
+            let bytes = Array(path.utf8)
+            raw.copyBytes(from: bytes)
+            raw[bytes.count] = 0
+        }
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(server, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        listen(server, 1)
+        let received = LockedBox("")
+        let answered = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            let client = accept(server, nil, nil)
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            let count = read(client, &buffer, buffer.count)
+            received.value = String(decoding: buffer.prefix(max(0, count)), as: UTF8.self)
+            let reply = Array(#"{"id":"openbar","result":{"type":"ok"}}"#.utf8) + [0x0A]
+            _ = write(client, reply, reply.count)
+            close(client)
+            answered.signal()
+        }
+        var target = ClaudeHerdrPane(environment: herdr.merging(["HERDR_SOCKET_PATH": path]) { $1 })!
+        target.server = 300
+        let ok = ClaudeHerdr.request(target, "pane.send_keys", ["pane_id": "w1:p2", "keys": ["enter"]])
+        _ = answered.wait(timeout: .now() + 3)
+        close(server)
+        let sent = (try? JSONSerialization.jsonObject(with: Data(received.value.utf8))) as? [String: Any]
+        suite.expect(bound == 0 && ok?["type"] as? String == "ok" && received.value.hasSuffix("\n")
+                     && sent?["method"] as? String == "pane.send_keys"
+                     && (sent?["params"] as? [String: Any])?["pane_id"] as? String == "w1:p2",
+                     "a request goes as one JSON line and its answer is read")
+        let file = folder.appendingPathComponent("plain").path
+        FileManager.default.createFile(atPath: file, contents: Data())
+        suite.expect(!ClaudeHerdr.ownSocket(file) && !ClaudeHerdr.ownSocket(folder.appendingPathComponent("none").path),
+                     "a path that isn't a socket is never spoken to")
+        suite.expect(ClaudeHerdr.request(ClaudeHerdrPane(environment: herdr.merging(["HERDR_SOCKET_PATH": file]) { $1 })!,
+                                         "pane.focus", ["pane_id": "w1:p2"]) == nil, "nothing is sent to a plain file")
+    }
+
     /// Issue #121: every terminal is told apart by what the session's own
     /// environment says, and reached by its device, pane or window.
     static func terminalHosts(_ suite: TestSuite) {
@@ -559,6 +694,7 @@ enum ClaudeSessionReaderTests {
                      && ClaudeSessionHost.iterm(tty: "/dev/ttys1").displayName != nil, "the host is named as the person knows it")
 
         zellijHosts(suite)
+        herdrHosts(suite)
 
         let clients = "/dev/ttys001\t100\t$1\t50\n/dev/ttys002\t200\t$0\t40\n/dev/ttys003\t300\t$0\t90\nbad line\n"
         suite.expect(ClaudeTmux.client(from: clients, session: "$0") == ClaudeTmuxClient(tty: "/dev/ttys003", pid: 300, elsewhere: false),
@@ -645,5 +781,16 @@ enum ClaudeSessionReaderTests {
                      "by default only where the session runs is kept")
         suite.expect(ClaudeSessionRegistryReader.processStart(getpid()) != nil
                      && ClaudeSessionRegistryReader.processStart(-1) == nil, "a running process has a start time")
+    }
+}
+
+/// A value one thread writes and another reads, for the stand-in servers.
+final class LockedBox<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+    init(_ value: Value) { stored = value }
+    var value: Value {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }

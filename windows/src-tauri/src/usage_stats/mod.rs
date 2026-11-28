@@ -351,6 +351,7 @@ pub fn terminal_id(host: HostKind, name: Option<&str>) -> Option<&'static str> {
         HostKind::Wezterm => "wezterm",
         HostKind::Tmux => "tmux",
         HostKind::Zellij => "zellij",
+        HostKind::Herdr => "herdr",
         HostKind::Kitty => "kitty",
         HostKind::Background => "background",
         HostKind::Remote => "remote",
