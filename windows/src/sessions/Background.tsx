@@ -82,12 +82,13 @@ export function RemoteHostMark({ alias }: { alias: string }) {
   );
 }
 
-/** The multiplexer a session's pane belongs to, local tmux or zellij (#235). */
-export function multiplexerOf(session: Session): "tmux" | "zellij" | null {
+/** The multiplexer a session's pane belongs to, local tmux, zellij or Herdr (#235, #328). */
+export function multiplexerOf(session: Session): "tmux" | "zellij" | "Herdr" | null {
+  if (session.host === "herdr") return "Herdr";
   return session.host === "tmux" || session.host === "zellij" ? session.host : null;
 }
 
-/** The tmux or zellij a session's pane belongs to, beside its name (#235). */
+/** The tmux, zellij or Herdr a session's pane belongs to, beside its name (#235, #328). */
 export function MultiplexerMark({ name, detached = false }: { name: string; detached?: boolean }) {
   useLocale();
   const help = detached ? S.detachedHelp(name) : S.multiplexerHelp(name);

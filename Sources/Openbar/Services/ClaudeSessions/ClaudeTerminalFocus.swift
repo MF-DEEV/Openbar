@@ -50,6 +50,15 @@ enum ClaudeTerminalFocus {
             // used last decides the rest.
             guard let client = ClaudeZellij.client(of: target) else { return .unknown }
             return state(hostOf(client.pid), pid: client.pid, depth: depth + 1, hostOf: hostOf)
+        case .herdr(let target):
+            // Herdr keeps one focus that every attached terminal shows (#328).
+            guard depth < 3, ClaudeHerdr.holds(target, pid: pid),
+                  let focused = ClaudeHerdr.focused(target, timeout: askTimeout) else { return .unknown }
+            guard focused else { return .hidden }
+            guard let clients = ClaudeHerdr.clients(of: target) else { return .unknown }
+            // No terminal shows it at all.
+            guard let client = ClaudeHerdr.lastUsed(clients) else { return .hidden }
+            return state(hostOf(client.pid), pid: client.pid, depth: depth + 1, hostOf: hostOf)
         case .jetbrains(let bundle, let ide):
             // Only the bridge plugin knows which tab is selected (#329).
             guard let ide, ClaudeJetBrains.listening(ide: ide), let shell = ClaudeTerminalBridge.shell(of: pid) else { return .unknown }

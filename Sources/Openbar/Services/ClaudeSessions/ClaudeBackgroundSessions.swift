@@ -599,6 +599,7 @@ enum ClaudeTerminalLauncher {
                 // A tmux's own terminal is not known without asking tmux; its pane names it when it could.
                 case .tmux(let target): return target.outer.flatMap { others.contains($0) || $0 == ClaudeSessionHosts.terminal ? $0 : nil }
                 case .zellij(let target): return target.outer.flatMap { others.contains($0) || $0 == ClaudeSessionHosts.terminal ? $0 : nil }
+                case .herdr(let target): return target.outer.flatMap { others.contains($0) || $0 == ClaudeSessionHosts.terminal ? $0 : nil }
                 default: return session.host.bundle.flatMap { others.contains($0) ? $0 : nil }
                 }
             }

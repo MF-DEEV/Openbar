@@ -1407,6 +1407,7 @@ impl Service {
                                     | HostKind::Wezterm
                                     | HostKind::Tmux
                                     | HostKind::Zellij
+                                    | HostKind::Herdr
                                     | HostKind::Kitty
                             )
                         }
@@ -2983,6 +2984,7 @@ fn host_kind(host: &hosts::Host) -> HostKind {
         hosts::Host::Wezterm { .. } => HostKind::Wezterm,
         hosts::Host::Tmux { .. } => HostKind::Tmux,
         hosts::Host::Zellij { .. } => HostKind::Zellij,
+        hosts::Host::Herdr { .. } => HostKind::Herdr,
         hosts::Host::Kitty { .. } => HostKind::Kitty,
         hosts::Host::App { .. } => HostKind::App,
         hosts::Host::Unknown => HostKind::Unknown,

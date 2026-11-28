@@ -251,6 +251,9 @@ struct NotchClaudeSessionDetailView: View {
                 Text(openFailed ? text.openFailed : detachedLine != nil ? text.detachedAttach : text.open)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
+                    // The header gives the label the width Open had; Attach
+                    // came out as "…" without its own.
+                    .fixedSize()
             }
             .foregroundStyle(.white.opacity(openFailed ? 0.6 : 0.9))
             .padding(.horizontal, 9)
