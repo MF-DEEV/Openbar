@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { resolve, join, dirname, basename } from "node:path";
 import { createServer } from "vite";
 import { checkSettingsSelect } from "./settings-select-cases.mjs";
+import { checkIslandPosition } from "./island-position-cases.mjs";
 import { checkQuickAccessEditor } from "./quick-access-cases.mjs";
 import { checkActivityPicker } from "./activity-picker-cases.mjs";
 import { checkAutoAllow } from "./auto-allow-cases.mjs";
@@ -36,6 +37,7 @@ import { checkSessionGrouping } from "./session-grouping-cases.mjs";
 import { checkI18n } from "./i18n-cases.mjs";
 import { checkMusicQueue } from "./music-queue-cases.mjs";
 import { checkMusicQueueArtwork } from "./music-queue-artwork-cases.mjs";
+import { checkMusicStability } from "./music-stability-cases.mjs";
 import { checkCalendar } from "./calendar-cases.mjs";
 
 const browserPath = [
@@ -107,9 +109,12 @@ try {
     return result.result.value;
   };
   await send("Runtime.enable");
+  // The island's window covers its whole display, so the screen is as large as the page.
   await send("Emulation.setDeviceMetricsOverride", {
     width: 1440,
     height: 1000,
+    screenWidth: 1440,
+    screenHeight: 1000,
     deviceScaleFactor: 1.25,
     mobile: false,
   });
@@ -138,6 +143,8 @@ try {
     await checkMusicSources({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--music-equalizer")) {
     await checkMusicEqualizer({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--music-stability")) {
+    await checkMusicStability({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--mascot")) {
     await checkMascot({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--camera")) {
@@ -172,6 +179,8 @@ try {
     await checkActivityPicker({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--quick-access")) {
     await checkQuickAccessEditor({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--position")) {
+    await checkIslandPosition({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--settings")) {
     await checkSettingsSelect({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else {

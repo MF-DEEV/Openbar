@@ -6,9 +6,11 @@
 
 import { useLocale } from "../i18n";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { bridge, inTauri } from "../shared/bridge";
 import { roomHeight } from "./room";
+import { constrainIslandPosition, insetUsableEdge, islandEdge, placeIsland, usableDisplayArea } from "./placement";
+import { activitySize, alongInset, outlineGeometry, restingSize } from "./geometry";
 import { arrivalTime, type Size } from "./motion";
 import { MODULES } from "./modules";
 import { closeTopLayer } from "./pageLayer";
@@ -18,19 +20,22 @@ import {
   modulesOf,
   type Presentation,
   presentation,
+  compactActivities,
+  visibleActivity,
   showsActivityPicker,
   transitionBetween,
   useIsland,
 } from "./store";
 import { ContentStage } from "./surface/ContentStage";
 import { IslandSurface } from "./surface/IslandSurface";
+import { DrawnSize } from "./surface/DrawnSize";
 import { clearAreas } from "./surface/hits";
 import { NoticeView, noticeWidth, Peek, Resting } from "./views/Closed";
 import { NotificationPreview, previewSize } from "../notifications/NotificationPreview";
 import { useNotifications } from "../notifications/store";
 import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
-import { ActivityPicker } from "./views/ActivityPicker";
+import { ActivityPicker, fitPortraitSize, portraitActivitySize, portraitPickerSize } from "./views/ActivityPicker";
 import { useSessions } from "../sessions/store";
 import { useVoice } from "../sessions/voice";
 import { presentedSnapshot } from "../sessions/presentation";
@@ -47,9 +52,9 @@ import { useGestures } from "./useGestures";
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
   useEffect(() => {
-    // The island window spans its display's width; the display's height comes from the screen.
+    // The native canvas spans the selected monitor, including its taskbar.
     const update = () =>
-      setScreen({ width: window.innerWidth, height: window.screen.height }, window.devicePixelRatio || 1);
+      setScreen({ width: window.innerWidth, height: window.innerHeight }, window.devicePixelRatio || 1);
     update();
     window.addEventListener("resize", update);
     const changed = bridge.onDisplayChanged(update);
@@ -191,6 +196,29 @@ function Disabled() {
   return null;
 }
 
+const inner = (size: Size, along: number): Size => ({
+  width: size.width,
+  height: Math.max(0, size.height - 2 * along),
+});
+
+/** Lays landscape content out between the ears at a side panel's ends. */
+function AlongInset(props: { inset: number; children: React.ReactNode }) {
+  const drawn = useContext(DrawnSize);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 0,
+        top: props.inset,
+        width: drawn?.width,
+        height: drawn ? Math.max(0, drawn.height - 2 * props.inset) : undefined,
+      }}
+    >
+      <DrawnSize.Provider value={drawn ? inner(drawn, props.inset) : drawn}>{props.children}</DrawnSize.Provider>
+    </div>
+  );
+}
+
 export function Island() {
   useLocale();
   useWindowScreen();
@@ -202,9 +230,42 @@ export function Island() {
   usePointer(frame);
 
   const state = useIsland();
+  const usable = usableDisplayArea(state.screen);
+  const position = constrainIslandPosition(state.settings.position, state.screen, usable);
+  const edge = islandEdge(position, state.screen, usable);
+  const side = edge === "left" || edge === "right";
+  // Content lays out as on a capsule away from the top edge (no camera strip
+  // beside the header); the outline keeps the chosen silhouette, turned onto the edge.
+  const attached = state.settings.silhouette === "notch";
   const geometry = useMemo(
-    () => geometryOf(state),
-    [state.settings, state.screen.width, state.screen.height, state.devicePixelRatio],
+    () =>
+      geometryOf({
+        ...state,
+        screen: { width: usable.right - usable.left, height: usable.bottom - usable.top },
+        settings: {
+          ...state.settings,
+          silhouette: edge === "top" ? state.settings.silhouette : "capsule",
+          // A notch hangs from its edge; only a capsule floats the saved distance away.
+          capsuleFit:
+            edge !== "top" && attached ? { ...state.settings.capsuleFit, drop: 0 } : state.settings.capsuleFit,
+        },
+      }),
+    [
+      state.settings,
+      state.screen.width,
+      state.screen.height,
+      state.devicePixelRatio,
+      usable.left,
+      usable.right,
+      usable.top,
+      usable.bottom,
+      edge,
+      attached,
+    ],
+  );
+  const outline = useMemo(
+    () => (edge === "top" ? geometry : outlineGeometry(geometry, state.settings.silhouette)),
+    [geometry, edge, state.settings.silhouette],
   );
   const replyTo = useNotifications((s) => s.replyTo);
   const measured: Size | undefined = state.notice
@@ -216,7 +277,74 @@ export function Island() {
   const playing = useMusic((s) => s.playback?.isPlaying ?? false);
   const idleContent = visibleIdleContent(state.settings, battery, playing);
   const mascot = useMascot();
-  const shown = presentation(state, geometry, measured, idleContent, mascotShows(state, geometry, mascot));
+  const mascotShown = mascotShows(state, geometry, mascot);
+  const vertical = side;
+  let shown = presentation(state, geometry, measured, idleContent, mascotShown);
+  if (vertical) {
+    const workHeight = usable.bottom - usable.top;
+    const workWidth = usable.right - usable.left;
+    const work = { width: workWidth, height: workHeight };
+    switch (shown.kind) {
+      case "resting":
+        shown = { ...shown, size: fitPortraitSize({ width: shown.size.height, height: shown.size.width }, work) };
+        break;
+      case "activity": {
+        const activity = visibleActivity(state);
+        if (activity) shown = { ...shown, size: portraitActivitySize(shown.size, work, activity) };
+        break;
+      }
+      case "picker":
+        shown = {
+          ...shown,
+          size: portraitPickerSize(
+            compactActivities(state).map((id) => {
+              const spec = state.activities[id]!;
+              return activitySize(geometry, spec.wing, spec.capsuleContent);
+            }),
+            work,
+            compactActivities(state),
+          ),
+        };
+        break;
+    }
+  }
+  // Only the closed strips stand upright on a side edge. Panels, notices and
+  // previews keep their landscape layout and grow out of the edge, their ends
+  // lengthened by the outline's ears so the content clears them.
+  const landscape = side && !["resting", "activity", "picker"].includes(shown.kind);
+  let along = 0;
+  if (landscape) {
+    const grown = { width: shown.size.width, height: shown.size.height + 28 };
+    along = alongInset(outline, grown, edge);
+    const height = Math.min(shown.size.height + 2 * along, usable.bottom - usable.top - 16);
+    shown = { ...shown, size: { width: Math.min(shown.size.width, usable.right - usable.left - 72), height } };
+  }
+  const previousPlacement = useRef({ edge, size: shown.size, kind: shown.kind });
+  const smoothPosition =
+    shown.kind === "resting" &&
+    previousPlacement.current.kind === "resting" &&
+    previousPlacement.current.edge === edge &&
+    previousPlacement.current.size.width === shown.size.width &&
+    previousPlacement.current.size.height === shown.size.height;
+  // Record what was committed, not what a render (or React's second dev
+  // render) only proposed, or a jump to a new place would animate as a glide.
+  useLayoutEffect(() => {
+    previousPlacement.current = { edge, size: shown.size, kind: shown.kind };
+  });
+  const resting = restingSize(geometry, idleContent !== "none");
+  const closedAnchorSize = vertical
+    ? fitPortraitSize({ width: resting.height, height: resting.width }, geometry.screen)
+    : resting;
+  const placement = placeIsland(
+    position,
+    state.screen,
+    shown.size,
+    insetUsableEdge(usable, edge, geometry.floatingDrop, state.screen),
+    shown.kind === "expanded",
+    closedAnchorSize.height,
+    closedAnchorSize.width,
+  );
+  const top = placement.top;
   const waiting = useSessions((s) => presentedSnapshot(s).counts.waiting);
   useEffect(() => {
     void bridge.attention.compactSessions(
@@ -253,32 +381,34 @@ export function Island() {
   let content;
   switch (shown.kind) {
     case "picker":
-      content = <ActivityPicker geometry={geometry} size={shown.size} visible />;
+      content = <ActivityPicker geometry={geometry} size={shown.size} visible vertical={vertical} edge={edge} />;
       break;
     case "expanded":
       content = state.capturePreview ? (
-        <CapturePresentation id={state.capturePreview} geometry={geometry} size={shown.size} />
+        <CapturePresentation id={state.capturePreview} geometry={geometry} size={inner(shown.size, along)} />
       ) : (
-        <Expanded geometry={geometry} size={shown.size} hasRow={shown.hasRow} />
+        <Expanded geometry={geometry} size={inner(shown.size, along)} hasRow={shown.hasRow} />
       );
       break;
     case "notice":
-      content = <NoticeView notice={state.notice!} geometry={geometry} size={shown.size} />;
+      content = <NoticeView notice={state.notice!} geometry={geometry} size={inner(shown.size, along)} />;
       break;
     case "noticePreview":
-      content = <NotificationPreview notice={state.notice!} geometry={geometry} size={shown.size} />;
+      content = <NotificationPreview notice={state.notice!} geometry={geometry} size={inner(shown.size, along)} />;
       break;
     case "peek":
-      content = <Peek geometry={geometry} size={shown.size} />;
+      content = <Peek geometry={geometry} size={inner(shown.size, along)} edge={edge} />;
       break;
     case "dropHint":
-      content = <DropHint geometry={geometry} size={shown.size} />;
+      content = <DropHint geometry={geometry} size={inner(shown.size, along)} />;
       break;
     case "activity":
-      content = <ActivityPicker geometry={geometry} size={shown.size} visible={false} />;
+      content = (
+        <ActivityPicker geometry={geometry} size={shown.size} visible={false} vertical={vertical} edge={edge} />
+      );
       break;
     default:
-      content = <Resting size={shown.size} geometry={geometry} idleContent={idleContent} />;
+      content = <Resting size={shown.size} geometry={geometry} idleContent={idleContent} vertical={vertical} />;
   }
 
   // Hidden until hover: the closed island stays where it is (the pointer
@@ -291,21 +421,45 @@ export function Island() {
     (shown.kind === "resting" ||
       ((shown.kind === "activity" || shown.kind === "notice") && !state.settings.hiddenShowsActivity));
 
+  if (along > 0) content = <AlongInset inset={along}>{content}</AlongInset>;
+
   return (
     <div className={`island-root${hidden ? " is-hidden" : ""}`} ref={frame} onContextMenu={contextMenu.onContextMenu}>
-      <IslandSurface geometry={geometry} target={shown.size}>
+      <IslandSurface
+        geometry={geometry}
+        outline={outline}
+        target={shown.size}
+        left={placement.left}
+        top={top}
+        edge={edge}
+        position={position}
+        smoothPosition={smoothPosition}
+      >
         <ContentStage
           contentKey={shown.kind === "activity" || shown.kind === "picker" ? "compact:activity" : shown.key}
           transition={transition.current}
           width={shown.size.width}
           height={shown.size.height}
+          edge={edge}
+          position={position}
         >
           {content}
         </ContentStage>
       </IslandSurface>
-      <QuickAccess geometry={geometry} size={shown.size} visible={shown.kind === "expanded"} delay={bubbleDelay} />
+      <QuickAccess
+        geometry={geometry}
+        size={shown.size}
+        visible={shown.kind === "expanded"}
+        delay={bubbleDelay}
+        left={placement.left}
+        top={top}
+        edge={edge}
+        smoothPosition={smoothPosition}
+      />
       {contextMenu.menu}
-      {state.settings.display === "all" ? <MirrorSource geometry={geometry} idleContent={idleContent} /> : null}
+      {state.settings.display === "all" ? (
+        <MirrorSource geometry={geometry} outline={outline} idleContent={idleContent} />
+      ) : null}
     </div>
   );
 }

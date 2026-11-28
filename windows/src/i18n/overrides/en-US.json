@@ -1058,5 +1058,14 @@
   "windows.settings.sessions.jetbrainsRestart": "Restart %@ to load it",
   "windows.settings.sessions.jetbrainsRestartRemoved": "Restart %@ to unload it",
   "windows.settings.sessions.jetbrainsInUse": "Close %@ first: it has the plugin open",
-  "windows.settings.sessions.jetbrainsNoFolder": "This IDE's settings folder couldn't be found"
+  "windows.settings.sessions.jetbrainsNoFolder": "This IDE's settings folder couldn't be found",
+  "windows.settings.layout.dragIsland": "Drag the island",
+  "windows.settings.layout.positionHint": "Drag the island along any screen edge. Its position is saved.",
+  "windows.settings.layout.restorePosition": "Restore default position",
+  "windows.settings.layout.fromBottom": "Distance from bottom",
+  "windows.settings.layout.fromLeft": "Distance from left",
+  "windows.settings.layout.fromRight": "Distance from right",
+  "windows.settings.layout.capsuleFitCaptionBottom": "Resizes the capsule and raises it from the bottom of the screen.",
+  "windows.settings.layout.capsuleFitCaptionSide": "Resizes the capsule and moves it in from the side of the screen.",
+  "windows.settings.layout.capsulePreviewCaptionEdge": "Preview of width, height, corner rounding and distance from the screen edge."
 }

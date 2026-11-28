@@ -24,8 +24,6 @@ use tauri::{
 
 pub const LABEL: &str = "island";
 const MIRROR_LABEL: &str = "island-mirror-";
-/// Room for the closed island and the companion's hops above nothing else.
-const MIRROR_HEIGHT: f64 = 120.0;
 /// A display change comes as a burst of messages (spec 01-shell §6.1).
 const DISPLAY_SETTLE: Duration = Duration::from_millis(100);
 
@@ -84,7 +82,19 @@ pub struct MirrorFrame {
     pub styles: Vec<String>,
     pub css: String,
     pub width: f64,
+    #[serde(default)]
+    pub height: f64,
+    #[serde(default)]
+    pub edge_gap: f64,
+    #[serde(default)]
+    pub position: Option<MirrorPosition>,
     pub hit: HitRect,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+pub struct MirrorPosition {
+    pub x: f64,
+    pub y: f64,
 }
 
 /// A display in physical pixels.
@@ -95,16 +105,25 @@ struct Display {
     width: u32,
     height: u32,
     scale: f64,
+    work_x: i32,
+    work_y: i32,
+    work_width: u32,
+    work_height: u32,
 }
 
 impl From<&tauri::Monitor> for Display {
     fn from(monitor: &tauri::Monitor) -> Self {
+        let work = monitor.work_area();
         Display {
             x: monitor.position().x,
             y: monitor.position().y,
             width: monitor.size().width,
             height: monitor.size().height,
             scale: monitor.scale_factor(),
+            work_x: work.position.x,
+            work_y: work.position.y,
+            work_width: work.size.width,
+            work_height: work.size.height,
         }
     }
 }
@@ -118,8 +137,45 @@ impl Display {
     fn over(&self, frame: &MirrorFrame, px: f64, py: f64) -> bool {
         let x = (px - self.x as f64) / self.scale;
         let y = (py - self.y as f64) / self.scale;
-        let left = (self.width as f64 / self.scale - frame.width) / 2.0;
-        frame.hit.contains(x - left, y)
+        let (left, top) = self.frame_origin(frame);
+        frame.hit.contains(x - left, y - top)
+    }
+
+    fn frame_origin(&self, frame: &MirrorFrame) -> (f64, f64) {
+        let mut work_left = (self.work_x - self.x) as f64 / self.scale;
+        let mut work_top = (self.work_y - self.y) as f64 / self.scale;
+        let mut work_right = work_left + self.work_width as f64 / self.scale;
+        let mut work_bottom = work_top + self.work_height as f64 / self.scale;
+        let position = frame.position.unwrap_or(MirrorPosition { x: 0.5, y: 0.0 });
+        let x = if position.x.is_finite() {
+            position.x.clamp(0.0, 1.0)
+        } else {
+            0.5
+        };
+        let y = if position.y.is_finite() {
+            position.y.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let gap = if frame.edge_gap.is_finite() {
+            frame.edge_gap.max(0.0)
+        } else {
+            0.0
+        };
+        if x == 0.0 {
+            work_left += gap.min(work_right - work_left);
+        } else if x == 1.0 {
+            work_right -= gap.min(work_right - work_left);
+        } else if y == 0.0 {
+            work_top += gap.min(work_bottom - work_top);
+        } else if y == 1.0 {
+            work_bottom -= gap.min(work_bottom - work_top);
+        }
+        let left = (work_left + x * (work_right - work_left - frame.width).max(0.0))
+            .clamp(work_left, (work_right - frame.width).max(work_left));
+        let top = (work_top + y * (work_bottom - work_top - frame.height).max(0.0))
+            .clamp(work_top, (work_bottom - frame.height).max(work_top));
+        (left, top)
     }
 }
 
@@ -423,10 +479,7 @@ fn set_mirroring<R: Runtime>(app: &AppHandle<R>, state: &IslandState, on: bool) 
 
 fn position_mirror<R: Runtime>(window: &WebviewWindow<R>, display: &Display) -> tauri::Result<()> {
     window.set_position(PhysicalPosition::new(display.x, display.y))?;
-    window.set_size(PhysicalSize::new(
-        display.width,
-        (MIRROR_HEIGHT * display.scale).round() as u32,
-    ))
+    window.set_size(PhysicalSize::new(display.width, display.height))
 }
 
 fn open_mirror<R: Runtime>(
@@ -440,7 +493,10 @@ fn open_mirror<R: Runtime>(
     );
     let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("mirror.html".into()))
         .title("Openbar Island")
-        .inner_size(display.width as f64 / display.scale, MIRROR_HEIGHT)
+        .inner_size(
+            display.width as f64 / display.scale,
+            display.height as f64 / display.scale,
+        )
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -902,7 +958,9 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
-    use super::{Display, DisplayChoice, DisplaySettle, HitRect, MirrorFrame, mirrored};
+    use super::{
+        Display, DisplayChoice, DisplaySettle, HitRect, MirrorFrame, MirrorPosition, mirrored,
+    };
     use std::time::{Duration, Instant};
 
     fn display(x: i32, width: u32, scale: f64) -> Display {
@@ -912,6 +970,10 @@ mod tests {
             width,
             height: 1080,
             scale,
+            work_x: x,
+            work_y: 0,
+            work_width: width,
+            work_height: 1080,
         }
     }
 
@@ -964,6 +1026,46 @@ mod tests {
         );
         let left = display(-1280, 1280, 1.0);
         assert!(left.over(&frame, -640.0, 10.0));
+    }
+
+    #[test]
+    fn a_mirror_answers_at_the_saved_position_near_the_bottom() {
+        let frame = MirrorFrame {
+            width: 200.0,
+            height: 30.0,
+            position: Some(MirrorPosition { x: 0.9, y: 0.95 }),
+            hit: HitRect {
+                width: 200.0,
+                height: 30.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let display = display(-1920, 1920, 1.0);
+        let (left, top) = display.frame_origin(&frame);
+        assert_eq!((left, top), (1548.0, 997.5));
+        assert!(display.over(&frame, -1920.0 + left + 100.0, top + 15.0));
+        assert!(!display.over(&frame, -1920.0 + 960.0, 15.0));
+    }
+
+    #[test]
+    fn a_mirror_applies_capsule_gap_from_its_current_edge() {
+        let display = display(0, 1920, 1.0);
+        let mut frame = MirrorFrame {
+            width: 200.0,
+            height: 30.0,
+            edge_gap: 15.0,
+            ..Default::default()
+        };
+        for (position, expected) in [
+            (MirrorPosition { x: 0.5, y: 0.0 }, (860.0, 15.0)),
+            (MirrorPosition { x: 0.5, y: 1.0 }, (860.0, 1035.0)),
+            (MirrorPosition { x: 0.0, y: 0.5 }, (15.0, 525.0)),
+            (MirrorPosition { x: 1.0, y: 0.5 }, (1705.0, 525.0)),
+        ] {
+            frame.position = Some(position);
+            assert_eq!(display.frame_origin(&frame), expected);
+        }
     }
 
     #[test]

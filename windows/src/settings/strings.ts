@@ -340,6 +340,33 @@ export const T = {
     get fromTop() {
       return t("notch.fromTop");
     },
+    get fromBottom() {
+      return t("windows.settings.layout.fromBottom");
+    },
+    get fromLeft() {
+      return t("windows.settings.layout.fromLeft");
+    },
+    get fromRight() {
+      return t("windows.settings.layout.fromRight");
+    },
+    get dragIsland() {
+      return t("windows.settings.layout.dragIsland");
+    },
+    get positionHint() {
+      return t("windows.settings.layout.positionHint");
+    },
+    get restorePosition() {
+      return t("windows.settings.layout.restorePosition");
+    },
+    get capsuleFitCaptionBottom() {
+      return t("windows.settings.layout.capsuleFitCaptionBottom");
+    },
+    get capsuleFitCaptionSide() {
+      return t("windows.settings.layout.capsuleFitCaptionSide");
+    },
+    get capsulePreviewCaptionEdge() {
+      return t("windows.settings.layout.capsulePreviewCaptionEdge");
+    },
     get outline() {
       return t("notch.showOutline");
     },

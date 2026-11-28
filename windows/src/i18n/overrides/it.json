@@ -1058,5 +1058,14 @@
   "windows.settings.sessions.jetbrainsRestart": "Riavvia %@ per caricarlo",
   "windows.settings.sessions.jetbrainsRestartRemoved": "Riavvia %@ per scaricarlo",
   "windows.settings.sessions.jetbrainsInUse": "Chiudi prima %@: ha il plugin aperto",
-  "windows.settings.sessions.jetbrainsNoFolder": "Impossibile trovare la cartella delle impostazioni di questo IDE"
+  "windows.settings.sessions.jetbrainsNoFolder": "Impossibile trovare la cartella delle impostazioni di questo IDE",
+  "windows.settings.layout.dragIsland": "Trascina l’isola",
+  "windows.settings.layout.positionHint": "Trascina l’isola lungo qualsiasi bordo dello schermo. La posizione viene salvata.",
+  "windows.settings.layout.restorePosition": "Ripristina posizione predefinita",
+  "windows.settings.layout.fromBottom": "Distanza dal basso",
+  "windows.settings.layout.fromLeft": "Distanza da sinistra",
+  "windows.settings.layout.fromRight": "Distanza da destra",
+  "windows.settings.layout.capsuleFitCaptionBottom": "Ridimensiona la capsula e la solleva dal bordo inferiore dello schermo.",
+  "windows.settings.layout.capsuleFitCaptionSide": "Ridimensiona la capsula e la allontana dal lato dello schermo.",
+  "windows.settings.layout.capsulePreviewCaptionEdge": "Anteprima di larghezza, altezza, arrotondamento degli angoli e distanza dal bordo dello schermo."
 }

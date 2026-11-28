@@ -82,9 +82,20 @@ function useSecond(): number {
 }
 
 /** Only the minutes roll; the seconds change in place (everySecond: false). */
-function Clock({ text, ongoing }: { text: string; ongoing: boolean }) {
+function Clock({ text, ongoing, vertical = false }: { text: string; ongoing: boolean; vertical?: boolean }) {
   useLocale();
   const colon = text.lastIndexOf(":");
+  if (vertical)
+    return (
+      <span className={`cal-strip-clock is-vertical${ongoing ? " is-ongoing" : ""}`}>
+        {text.split(":").map((part, i) => (
+          <span key={i}>
+            {i ? null : <RollingDigits text={part} />}
+            {i ? part : null}
+          </span>
+        ))}
+      </span>
+    );
   return (
     <span className={`cal-strip-clock${ongoing ? " is-ongoing" : ""}`}>
       <RollingDigits text={text.slice(0, colon)} />
@@ -115,6 +126,27 @@ export function CalendarStrip({ geometry, size }: ActivityViewProps) {
     title,
     "aria-label": `${C.stripLabel(ongoing, title)}, ${C.remaining(seconds)}`,
   };
+
+  if (size.height > size.width) {
+    const initials = title
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase();
+    return (
+      <button {...common} className="cal-strip is-portrait" style={{ width: size.width, height: size.height }}>
+        {dot}
+        <span className="cal-strip-title" aria-hidden="true">
+          {initials}
+        </span>
+        <span className="cal-strip-reading">
+          <Clock text={remaining} ongoing={ongoing} vertical />
+        </span>
+      </button>
+    );
+  }
 
   if (capsule(geometry)) {
     const padding = CAPSULE_END + shoulder(geometry.stripHeight);

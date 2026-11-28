@@ -39,6 +39,9 @@ export interface MirrorFrame {
   styles: string[];
   css: string;
   width: number;
+  height?: number;
+  edgeGap?: number;
+  position?: { x: number; y: number };
   hit: HitRect;
 }
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;

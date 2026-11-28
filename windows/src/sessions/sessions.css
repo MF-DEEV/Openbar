@@ -246,7 +246,8 @@
   align-items: center;
   gap: 4px;
   height: 28px;
-  max-width: 260px;
+  width: fit-content;
+  max-width: min(260px, 100%);
   padding: 0 8px 0 4px;
   margin-left: -4px;
   border-radius: 9px;
@@ -255,6 +256,7 @@
 }
 
 .s-back span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

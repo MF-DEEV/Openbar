@@ -9,7 +9,8 @@ import { useLocale } from "../../i18n";
 
 import { type ReactNode, useContext, useLayoutEffect, useRef, useState } from "react";
 import type { ContentTransition } from "../store";
-import { DrawnSize } from "./DrawnSize";
+import { DrawnOffset, DrawnSize } from "./DrawnSize";
+import { surfaceOffset, type IslandEdge, type IslandPosition } from "../placement";
 
 interface Layer {
   /** Stable for the layer's life, so turning to leave does not remount it. */
@@ -92,11 +93,14 @@ export function ContentStage(props: {
   transition: ContentTransition;
   width: number;
   height: number;
+  edge?: IslandEdge;
+  position?: IslandPosition;
   children: ReactNode;
 }) {
   useLocale();
   const { contentKey, transition, width, height, children } = props;
   const drawn = useContext(DrawnSize);
+  const offsetOf = useContext(DrawnOffset);
   const nextId = useRef(1);
   const [layers, setLayers] = useState<Layer[]>([
     { id: 0, key: contentKey, node: children, width, height, leaving: false },
@@ -151,6 +155,9 @@ export function ContentStage(props: {
         // Compact views share the surface's live dimensions, including their
         // centering. Expanded pages keep a stable layout during reveal.
         const size = !layer.leaving && !layer.key.startsWith("expanded:") && drawn ? drawn : layer;
+        const offset = offsetOf
+          ? offsetOf(size)
+          : surfaceOffset({ width, height }, size, props.edge ?? "top", props.position);
         return (
           <div
             key={layer.id}
@@ -162,9 +169,17 @@ export function ContentStage(props: {
             style={{
               width: size.width,
               height: size.height,
-              left: `calc(50% - ${size.width / 2}px)`,
+              left: offset.x,
+              top: offset.y,
               pointerEvents: layer.leaving ? "none" : undefined,
-              transformOrigin: "50% 0",
+              transformOrigin:
+                props.edge === "bottom"
+                  ? `${(props.position?.x ?? 0.5) * 100}% 100%`
+                  : props.edge === "left"
+                    ? `0 ${(props.position?.y ?? 0.5) * 100}%`
+                    : props.edge === "right"
+                      ? `100% ${(props.position?.y ?? 0.5) * 100}%`
+                      : `${(props.position?.x ?? 0.5) * 100}% 0`,
             }}
           >
             <DrawnSize.Provider value={size}>{layer.node}</DrawnSize.Provider>

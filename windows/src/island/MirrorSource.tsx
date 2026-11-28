@@ -10,13 +10,15 @@ import { useLocale } from "../i18n";
 
 import { useEffect, useId, useRef, useState } from "react";
 import { bridge, type MirrorFrame } from "../shared/bridge";
-import { type Geometry, hitShape, islandPath } from "./geometry";
+import { type Geometry, edgeHitShape, edgePath } from "./geometry";
 import type { IdleContent } from "./settings";
 import { mirrorSurface, useIsland } from "./store";
 import { DrawnSize } from "./surface/DrawnSize";
 import { ActivityPicker } from "./views/ActivityPicker";
 import { Resting } from "./views/Closed";
 import { mascotShows, useMascot } from "../mascot/service";
+import { constrainIslandPosition, islandEdge, usableDisplayArea } from "./placement";
+import { fitPortraitSize, portraitActivitySize } from "./views/ActivityPicker";
 
 /** Four times a second is enough for a clock, and cheap beside a full second page. */
 const SEND_EVERY_MS = 250;
@@ -52,7 +54,16 @@ function pageStyles(): { styles: string[]; css: string } {
   };
 }
 
-export function MirrorSource({ geometry, idleContent }: { geometry: Geometry; idleContent: IdleContent }) {
+export function MirrorSource({
+  geometry,
+  outline,
+  idleContent,
+}: {
+  geometry: Geometry;
+  /** The drawn shape when it differs from the content's geometry (a notch on another edge). */
+  outline: Geometry;
+  idleContent: IdleContent;
+}) {
   useLocale();
   const [mirroring, setMirroring] = useState(false);
   useEffect(() => {
@@ -66,26 +77,50 @@ export function MirrorSource({ geometry, idleContent }: { geometry: Geometry; id
       void off.then((f) => f());
     };
   }, []);
-  return mirroring ? <Source geometry={geometry} idleContent={idleContent} /> : null;
+  return mirroring ? <Source geometry={geometry} outline={outline} idleContent={idleContent} /> : null;
 }
 
-function Source({ geometry, idleContent }: { geometry: Geometry; idleContent: IdleContent }) {
+function Source({
+  geometry,
+  outline,
+  idleContent,
+}: {
+  geometry: Geometry;
+  outline: Geometry;
+  idleContent: IdleContent;
+}) {
   useLocale();
   const state = useIsland();
   const mascot = useMascot();
-  const surface = mirrorSurface(state, geometry, idleContent, mascotShows(state, geometry, mascot));
+  const mascotShown = mascotShows(state, geometry, mascot);
+  const original = mirrorSurface(state, geometry, idleContent, mascotShown);
+  const position = constrainIslandPosition(state.settings.position, state.screen, usableDisplayArea(state.screen));
+  const edge = islandEdge(position, state.screen, usableDisplayArea(state.screen));
+  const vertical = edge === "left" || edge === "right";
+  const surface =
+    original && vertical
+      ? {
+          ...original,
+          size: original.activity
+            ? portraitActivitySize(original.size, geometry.screen, original.activity)
+            : fitPortraitSize({ width: original.size.height, height: original.size.width }, geometry.screen),
+        }
+      : original;
   const holder = useRef<HTMLDivElement>(null);
   const clipId = `mirror-clip-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const size = surface?.size;
-  const hit = size ? hitShape(geometry, size) : null;
-  const frameInfo = useRef<Pick<MirrorFrame, "width" | "hit"> | null>(null);
+  const hit = size ? edgeHitShape(outline, size, edge) : null;
+  const frameInfo = useRef<Pick<MirrorFrame, "width" | "height" | "edgeGap" | "hit" | "position"> | null>(null);
   frameInfo.current =
     size && hit
       ? {
           width: size.width,
+          height: size.height,
+          edgeGap: geometry.floatingDrop,
+          position,
           hit: {
             x: hit.rect.x,
-            y: geometry.floatingDrop + hit.rect.y,
+            y: hit.rect.y,
             width: hit.rect.width,
             height: hit.rect.height,
             topRadius: hit.topRadius,
@@ -113,21 +148,21 @@ function Source({ geometry, idleContent }: { geometry: Geometry; idleContent: Id
     };
   }, []);
 
-  const d = size ? islandPath(geometry, size) : "";
+  const d = size ? edgePath(outline, size, edge) : "";
   return (
     <div ref={holder} className="island-mirror-source" aria-hidden inert>
       {size ? (
-        <div className="island-frame" style={{ width: size.width, height: size.height, top: geometry.floatingDrop }}>
+        <div className="island-frame" style={{ width: size.width, height: size.height, top: 0 }}>
           <svg className="island-backdrop" width={size.width} height={size.height} aria-hidden>
             <clipPath id={clipId}>
               <path d={d} />
             </clipPath>
-            <path d={d} fill="#000" />
+            <path d={d} fill="#000" stroke="#000" strokeWidth={2} />
             {state.settings.outline ? (
               <path
                 d={d}
                 fill="none"
-                stroke={surface?.activity === "timer" ? "rgba(255,159,10,0.65)" : "rgba(255,255,255,0.65)"}
+                stroke={surface?.activity === "timer" ? "rgba(255,159,10,0.65)" : "rgba(95,95,100,0.65)"}
                 strokeWidth={2}
                 clipPath={`url(#${clipId})`}
               />
@@ -136,9 +171,9 @@ function Source({ geometry, idleContent }: { geometry: Geometry; idleContent: Id
           <div className="island-content" style={{ clipPath: `path("${d}")` }}>
             <DrawnSize.Provider value={size}>
               {surface?.activity ? (
-                <ActivityPicker geometry={geometry} size={size} visible={false} />
+                <ActivityPicker geometry={geometry} size={size} visible={false} vertical={vertical} />
               ) : (
-                <Resting size={size} geometry={geometry} idleContent={idleContent} />
+                <Resting size={size} geometry={geometry} idleContent={idleContent} vertical={vertical} />
               )}
             </DrawnSize.Provider>
           </div>

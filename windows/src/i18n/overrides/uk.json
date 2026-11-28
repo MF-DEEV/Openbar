@@ -1058,5 +1058,14 @@
   "windows.settings.sessions.jetbrainsRestart": "Перезапустіть %@, щоб завантажити його",
   "windows.settings.sessions.jetbrainsRestartRemoved": "Перезапустіть %@, щоб вивантажити його",
   "windows.settings.sessions.jetbrainsInUse": "Спершу закрийте %@: плагін у ній відкритий",
-  "windows.settings.sessions.jetbrainsNoFolder": "Теку налаштувань цієї IDE не знайдено"
+  "windows.settings.sessions.jetbrainsNoFolder": "Теку налаштувань цієї IDE не знайдено",
+  "windows.settings.layout.dragIsland": "Перетягнути острів",
+  "windows.settings.layout.positionHint": "Перетягніть острів уздовж будь-якого краю екрана. Положення зберігається.",
+  "windows.settings.layout.restorePosition": "Відновити типове положення",
+  "windows.settings.layout.fromBottom": "Відступ знизу",
+  "windows.settings.layout.fromLeft": "Відступ зліва",
+  "windows.settings.layout.fromRight": "Відступ справа",
+  "windows.settings.layout.capsuleFitCaptionBottom": "Змінює розмір капсули та піднімає її від нижнього краю екрана.",
+  "windows.settings.layout.capsuleFitCaptionSide": "Змінює розмір капсули та відсуває її від бічного краю екрана.",
+  "windows.settings.layout.capsulePreviewCaptionEdge": "Попередній перегляд ширини, висоти, заокруглення кутів і відступу від краю екрана."
 }

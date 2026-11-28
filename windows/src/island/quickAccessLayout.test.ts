@@ -15,6 +15,29 @@ const buttons = (left: number, right: number, bottom: number): QuickButton[] =>
   );
 
 describe("editable quick access layout", () => {
+  it("turns the top layout onto the bottom and side edges with the panel", () => {
+    const config = buttons(2, 2, 1);
+    const size = { width: 450, height: 300 };
+    const top = placeButtons(config, size);
+    const bottom = placeButtons(config, size, undefined, "bottom");
+    expect(bottom.map((item) => item.button.id)).toEqual(top.map((item) => item.button.id));
+    expect(bottom.map((item) => [item.cx, item.cy])).toEqual(top.map((item) => [item.cx, size.height - item.cy]));
+    expect(bottom.at(-1)).toMatchObject({ cx: size.width / 2, cy: -QUICK_LAYOUT.offset });
+    // On a side the panel's along-edge length is its height: the top layout of a 300 × 450 panel, turned.
+    const side = { width: 450, height: 300 };
+    const upright = placeButtons(config, { width: side.height, height: side.width });
+    const left = placeButtons(config, side, undefined, "left");
+    const right = placeButtons(config, side, undefined, "right");
+    expect(left.map((item) => [item.cx, item.cy])).toEqual(upright.map((item) => [item.cy, item.cx]));
+    expect(right.map((item) => [item.cx, item.cy])).toEqual(upright.map((item) => [side.width - item.cy, item.cx]));
+    // Left and right columns sit off the panel's ends near the screen edge; the bottom row faces the screen.
+    for (const item of left.filter((p) => p.button.side !== "bottom")) {
+      expect(item.cy < 0 || item.cy > side.height).toBe(true);
+      expect(item.cx).toBeLessThan(side.width / 2);
+    }
+    expect(left.at(-1)).toMatchObject({ cx: side.width + QUICK_LAYOUT.offset, cy: side.height / 2 });
+    expect(right.at(-1)).toMatchObject({ cx: -QUICK_LAYOUT.offset, cy: side.height / 2 });
+  });
   it("places all circles without overlap for every supported arrangement", () => {
     for (const silhouette of ["notch", "capsule"] as const) {
       const geometry = makeGeometry({

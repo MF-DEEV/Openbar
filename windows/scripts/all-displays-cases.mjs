@@ -21,6 +21,7 @@ const BACKEND = `(()=>{
       if(cmd==='plugin:event|listen'){(listeners[args.event]||=[]).push(args.handler);return next++}
       if(cmd.startsWith('plugin:'))return null;
       window.__calls.push(cmd);
+      if(cmd==='locale_settings')return {preferred:['en-US'],region:'US',hourCycle:'h12',firstWeekday:0};
       if(cmd==='prefs_get')return {island:{display:'all'}};
       if(cmd==='island_mirroring')return true;
       if(cmd==='island_mirror_update'){window.__frame=args.frame;return null}
@@ -106,10 +107,27 @@ export async function checkAllDisplays({ send, evaluate, base }) {
   const drawn = await evaluate(`(()=>{const f=document.querySelector('.island-frame');const b=f.getBoundingClientRect();
     return {box:[b.left,b.top,b.width,b.height],position:getComputedStyle(f).position,strip:!!document.querySelector('.dl-strip'),
       background:getComputedStyle(document.body).backgroundColor}})()`);
-  assert.deepEqual(drawn.box, mainBox, "The mirror's island sits where the island does");
+  assert.deepEqual(drawn.box.slice(2), mainBox.slice(2), "The mirror keeps the island's size");
+  assert.equal(drawn.box[0], mainBox[0], "The default mirror matches the island's work area placement");
+  assert.equal(drawn.box[1], mainBox[1], "The default mirror stays at the top");
   assert.equal(drawn.position, "absolute", "The page's styles reached the mirror");
   assert.equal(drawn.strip, true);
   await shoot("all-displays-mirror");
+  await evaluate(`__emit('island://mirror-frame',{...${JSON.stringify(sent)},position:{x:0.9,y:0.8}})`);
+  await wait(100);
+  const moved = await evaluate(`(()=>{const b=document.querySelector('.island-frame').getBoundingClientRect();
+    const s=window.screen; const left=(s.availLeft??s.left??0)-(s.left??0);
+    const top=(s.availTop??s.top??0)-(s.top??0);
+    return {x:b.x,y:b.y,width:b.width,height:b.height,screenWidth:innerWidth,screenHeight:innerHeight,
+      left,top,right:left+s.availWidth,bottom:top+s.availHeight};})()`);
+  assert(
+    Math.abs(moved.x - (moved.right - moved.width)) < 1,
+    "The mirror snaps the saved position to the nearest right edge",
+  );
+  assert(
+    Math.abs(moved.y - (moved.top + 0.8 * (moved.bottom - moved.top - moved.height))) < 1,
+    `The mirror follows the saved position along the right edge: ${JSON.stringify(moved)}`,
+  );
   await evaluate(`document.querySelector('.island-frame').click()`);
   await wait(100);
   assert((await evaluate(`__calls`)).includes("island_mirror_open"), "A click brings the island here");

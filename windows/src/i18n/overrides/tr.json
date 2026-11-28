@@ -1058,5 +1058,14 @@
   "windows.settings.sessions.jetbrainsRestart": "Yüklemek için %@ uygulamasını yeniden başlatın",
   "windows.settings.sessions.jetbrainsRestartRemoved": "Kaldırmak için %@ uygulamasını yeniden başlatın",
   "windows.settings.sessions.jetbrainsInUse": "Önce %@ uygulamasını kapatın: eklenti açık",
-  "windows.settings.sessions.jetbrainsNoFolder": "Bu IDE’nin ayar klasörü bulunamadı"
+  "windows.settings.sessions.jetbrainsNoFolder": "Bu IDE’nin ayar klasörü bulunamadı",
+  "windows.settings.layout.dragIsland": "Adayı sürükle",
+  "windows.settings.layout.positionHint": "Adayı ekranın herhangi bir kenarı boyunca sürükleyin. Konumu kaydedilir.",
+  "windows.settings.layout.restorePosition": "Varsayılan konumu geri yükle",
+  "windows.settings.layout.fromBottom": "Alttan uzaklık",
+  "windows.settings.layout.fromLeft": "Soldan uzaklık",
+  "windows.settings.layout.fromRight": "Sağdan uzaklık",
+  "windows.settings.layout.capsuleFitCaptionBottom": "Kapsülü yeniden boyutlandırır ve ekranın altından yukarı kaldırır.",
+  "windows.settings.layout.capsuleFitCaptionSide": "Kapsülü yeniden boyutlandırır ve ekranın yanından içeri taşır.",
+  "windows.settings.layout.capsulePreviewCaptionEdge": "Genişlik, yükseklik, köşe yuvarlaklığı ve ekran kenarına uzaklık önizlemesi."
 }

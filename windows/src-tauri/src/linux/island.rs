@@ -475,9 +475,10 @@ pub fn shape_mirrors<R: Runtime>(app: &AppHandle<R>, state: &IslandState, mirror
         let shapes: Vec<Drawn> = frame
             .iter()
             .map(|frame: &MirrorFrame| {
-                let left = (mirror.display.width as f64 / mirror.display.scale - frame.width) / 2.0;
+                let (left, top) = mirror.display.frame_origin(frame);
                 HitRect {
                     x: frame.hit.x + left,
+                    y: frame.hit.y + top,
                     ..frame.hit
                 }
                 .into()

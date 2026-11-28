@@ -9,8 +9,9 @@
 // before the island has grown into it (island.rs, `reshape`).
 
 import { bridge, type HitRect } from "../../shared/bridge";
-import { type Geometry, hitShape } from "../geometry";
+import { type Geometry, edgeHitShape } from "../geometry";
 import type { Size } from "../motion";
+import { surfaceOffset, type IslandEdge, type IslandPosition } from "../placement";
 
 export interface Area {
   reach: HitRect;
@@ -30,12 +31,25 @@ if (windowIsCut && typeof document !== "undefined") document.documentElement.cla
  * The outline of an island of `size`, centred in a frame of the target's width that starts at `left`:
  * where the pointer is answered, or what is painted.
  */
-function outlineAt(geometry: Geometry, target: Size, left: number, size: Size, part: "reach" | "painted"): HitRect {
-  const hit = hitShape(geometry, size);
+type OffsetOf = (size: Size) => { x: number; y: number };
+
+function outlineAt(
+  geometry: Geometry,
+  target: Size,
+  left: number,
+  size: Size,
+  part: "reach" | "painted",
+  top = geometry.floatingDrop,
+  edge: IslandEdge = "top",
+  position?: IslandPosition,
+  offsetOf?: OffsetOf,
+): HitRect {
+  const hit = edgeHitShape(geometry, size, edge);
   const shape = part === "painted" ? hit.painted : hit;
+  const offset = offsetOf ? offsetOf(size) : surfaceOffset(target, size, edge, position);
   return {
-    x: left + (target.width - size.width) / 2 + shape.rect.x,
-    y: geometry.floatingDrop + shape.rect.y,
+    x: left + offset.x + shape.rect.x,
+    y: top + offset.y + shape.rect.y,
     width: shape.rect.width,
     height: shape.rect.height,
     topRadius: shape.topRadius,
@@ -48,11 +62,21 @@ function outlineAt(geometry: Geometry, target: Size, left: number, size: Size, p
  * The island drawn at `size`, on its way to `target`: it answers to the larger of the two.
  * `held` is the size the window may be cut to, which is never more than `size`.
  */
-export function surfaceArea(geometry: Geometry, target: Size, size: Size, held: Size, left: number): Area {
+export function surfaceArea(
+  geometry: Geometry,
+  target: Size,
+  size: Size,
+  held: Size,
+  left: number,
+  top = geometry.floatingDrop,
+  edge: IslandEdge = "top",
+  position?: IslandPosition,
+  offsetOf?: OffsetOf,
+): Area {
   const reach = { width: Math.max(size.width, target.width), height: Math.max(size.height, target.height) };
   return {
-    reach: outlineAt(geometry, target, left, reach, "reach"),
-    drawn: outlineAt(geometry, target, left, held, "painted"),
+    reach: outlineAt(geometry, target, left, reach, "reach", top, edge, position, offsetOf),
+    drawn: outlineAt(geometry, target, left, held, "painted", top, edge, position, offsetOf),
   };
 }
 
@@ -105,11 +129,13 @@ interface Circle {
 }
 
 let surface: Area | null = null;
+let transitionOrigin: HitRect | null = null;
 let circles: Circle[] = [];
 /** How much of its size each button is drawn at now; 0 while it is not on screen. */
 const scales = new Map<string, number>();
 let published = "";
 let queued = false;
+let sending = false;
 
 function flush() {
   queued = false;
@@ -117,12 +143,19 @@ function flush() {
     const scale = scales.get(c.id) ?? 0;
     return scale > 0 ? [circleDrawn(c.reach, scale)] : [];
   });
-  const rects = [...(surface ? [surface.reach] : []), ...circles.map((c) => c.reach)];
+  const rects = [
+    ...(surface ? [surface.reach, ...(transitionOrigin ? [transitionOrigin] : [])] : []),
+    ...circles.map((c) => c.reach),
+  ];
   const drawn = [...(surface ? [surface.drawn] : []), ...shown];
   const key = JSON.stringify([rects, drawn]);
-  if (key === published) return;
+  if (key === published || sending) return;
   published = key;
-  void bridge.setHitRects(rects, drawn);
+  sending = true;
+  void bridge.setHitRects(rects, drawn).finally(() => {
+    sending = false;
+    schedule();
+  });
 }
 
 /** Everything that changes in one frame goes out as one message. */
@@ -132,7 +165,9 @@ function schedule() {
   queueMicrotask(flush);
 }
 
-export function setSurface(area: Area) {
+export function setSurface(area: Area, settled = true) {
+  if (!settled && !transitionOrigin) transitionOrigin = surface?.drawn ?? null;
+  if (settled) transitionOrigin = null;
   surface = area;
   schedule();
 }
@@ -152,6 +187,7 @@ export function setCircleScale(id: string, scale: number) {
 /** Nothing is drawn and nothing takes the pointer. */
 export function clearAreas() {
   surface = null;
+  transitionOrigin = null;
   circles = [];
   scales.clear();
   published = "";

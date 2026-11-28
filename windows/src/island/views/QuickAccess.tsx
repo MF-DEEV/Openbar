@@ -9,13 +9,14 @@ import { useLocale, t } from "../../i18n";
 
 import { Pin, PinOff, Settings, LayoutGrid, Undo2, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { bridge } from "../../shared/bridge";
 import { type Geometry } from "../geometry";
 import { moduleInfo } from "../modules";
 import type { Size } from "../motion";
 import { placeButtons, QUICK_LAYOUT, type PlacedQuickButton as Placed } from "../quickAccessLayout";
+import type { IslandEdge } from "../placement";
 import { modulesOf, useIsland } from "../store";
 import { setCircles, setCircleScale, windowIsCut } from "../surface/hits";
 
@@ -31,12 +32,27 @@ function reveal(delay: number) {
   return { scale: 1, opacity: 1, transition };
 }
 
-export function QuickAccess(props: { geometry: Geometry; size: Size; visible: boolean; delay: number }) {
+export function QuickAccess(props: {
+  geometry: Geometry;
+  size: Size;
+  visible: boolean;
+  delay: number;
+  left?: number;
+  top?: number;
+  edge?: IslandEdge;
+  smoothPosition?: boolean;
+}) {
   useLocale();
+  const container = useRef<HTMLDivElement>(null);
   const settings = useIsland((s) => s.settings);
   const modules = modulesOf({ settings });
   const shown = settings.quickAccess.filter((b) => b.action.kind !== "module" || modules.includes(b.action.module));
-  const placed = placeButtons(shown, props.size, props.geometry);
+  // Closing, the buttons shrink where they were instead of following the
+  // island's closed size into the panel.
+  const open = useRef({ size: props.size, left: props.left, top: props.top });
+  if (props.visible) open.current = { size: props.size, left: props.left, top: props.top };
+  const { size, left, top } = props.visible ? props : open.current;
+  const placed = placeButtons(shown, size, props.geometry, props.edge);
 
   // The circles take the pointer while they show; the gaps between them do not.
   useEffect(() => {
@@ -44,26 +60,40 @@ export function QuickAccess(props: { geometry: Geometry; size: Size; visible: bo
       setCircles([]);
       return;
     }
-    const frameLeft = (window.innerWidth - props.size.width) / 2;
-    setCircles(
-      placed.map((p) => ({
-        id: p.button.id,
-        reach: {
-          x: frameLeft + p.cx - DIAMETER / 2,
-          y: props.geometry.floatingDrop + p.cy - DIAMETER / 2,
-          width: DIAMETER,
-          height: DIAMETER,
-          topRadius: DIAMETER / 2,
-          bottomRadius: DIAMETER / 2,
-        },
-      })),
-    );
-    return () => setCircles([]);
+    let raf = 0;
+    const started = performance.now();
+    const follow = () => {
+      const bounds = container.current?.getBoundingClientRect();
+      const frameLeft = bounds?.left ?? left ?? (window.innerWidth - size.width) / 2;
+      const frameTop = bounds?.top ?? top ?? props.geometry.floatingDrop;
+      setCircles(
+        placed.map((p) => ({
+          id: p.button.id,
+          reach: {
+            x: frameLeft + p.cx - DIAMETER / 2,
+            y: frameTop + p.cy - DIAMETER / 2,
+            width: DIAMETER,
+            height: DIAMETER,
+            topRadius: DIAMETER / 2,
+            bottomRadius: DIAMETER / 2,
+          },
+        })),
+      );
+      if (performance.now() - started < 220) raf = requestAnimationFrame(follow);
+    };
+    follow();
+    return () => {
+      cancelAnimationFrame(raf);
+      setCircles([]);
+    };
   }, [
     props.visible,
     props.size.width,
     props.size.height,
     props.geometry,
+    props.edge,
+    props.left,
+    props.top,
     settings.quickAccess,
     settings.hiddenModules,
     settings.sections,
@@ -71,8 +101,15 @@ export function QuickAccess(props: { geometry: Geometry; size: Size; visible: bo
 
   return (
     <div
-      className="n-quick"
-      style={{ width: props.size.width, height: props.size.height, top: props.geometry.floatingDrop }}
+      ref={container}
+      className={`n-quick${props.smoothPosition ? " is-position-moving" : ""}`}
+      style={{
+        width: size.width,
+        height: size.height,
+        left,
+        top: top ?? props.geometry.floatingDrop,
+        transform: left === undefined ? undefined : "none",
+      }}
     >
       <AnimatePresence>
         {placed.map((p) => (

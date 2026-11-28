@@ -137,7 +137,7 @@ export interface Rect {
 export function capsuleBody(width: number, height: number, gap: number): Rect {
   const w = Math.max(0, width);
   const h = Math.max(0, height);
-  const side = Math.min(shoulder(h), w / 2);
+  const side = Math.min(shoulder(h), h > w ? w / 8 : w / 2);
   const inset = Math.min(Math.max(0, gap), h / 2);
   return { x: side, y: inset, width: w - side * 2, height: h - inset * 2 };
 }
@@ -169,6 +169,58 @@ export function islandPath(geometry: Geometry, size: Size): string {
   return geometry.floatingGap !== null
     ? capsulePath(size.width, size.height, geometry.floatingGap, geometry.input.roundness)
     : notchPath(size.width, size.height, geometry.input);
+}
+
+/** The screen edge the island hangs from. */
+export type Edge = "top" | "bottom" | "left" | "right";
+
+/** A size as seen from its edge: `width` runs along the edge, `height` away from it. */
+export function edgeLocal(size: Size, edge: Edge): Size {
+  return edge === "left" || edge === "right" ? { width: size.height, height: size.width } : size;
+}
+
+/** A point of the top-edge drawing of a shape of screen `size`, turned onto `edge`. */
+export function fromEdge(x: number, y: number, size: Size, edge: Edge): [number, number] {
+  switch (edge) {
+    case "top":
+      return [x, y];
+    case "bottom":
+      return [x, size.height - y];
+    case "left":
+      return [y, x];
+    case "right":
+      return [size.width - y, x];
+  }
+}
+
+/**
+ * The drawing geometry of an island on `edge`: a notch stays a notch on every
+ * edge (flat against it, ears at its ends), a capsule stays a floating pill.
+ */
+export function outlineGeometry(geometry: Geometry, silhouette: Silhouette): Geometry {
+  if (geometry.silhouette === silhouette) return geometry;
+  return {
+    ...geometry,
+    silhouette,
+    floatingGap: silhouette === "notch" ? null : (geometry.floatingGap ?? 2),
+  };
+}
+
+/** `islandPath` drawn as if the edge were the top, then turned onto `edge`. */
+export function edgePath(geometry: Geometry, size: Size, edge: Edge = "top"): string {
+  const d = islandPath(geometry, edgeLocal(size, edge));
+  if (edge === "top") return d;
+  return d.replace(/(-?\d*\.?\d+(?:e-?\d+)?) (-?\d*\.?\d+(?:e-?\d+)?)/g, (_, x, y) => {
+    const [sx, sy] = fromEdge(Number(x), Number(y), size, edge);
+    return `${sx} ${sy}`;
+  });
+}
+
+/** How far the outline's ends sit in from the panel's ends along its edge. */
+export function alongInset(geometry: Geometry, size: Size, edge: Edge): number {
+  const local = edgeLocal(size, edge);
+  if (geometry.floatingGap !== null) return capsuleBody(local.width, local.height, geometry.floatingGap).x;
+  return notchMetrics(local.width, local.height, geometry.input).s;
 }
 
 export interface HitShape {
@@ -211,6 +263,32 @@ export function hitShape(geometry: Geometry, size: Size): HitShape {
     bottomRadius: b,
     painted: { rect, topRadius: 0, bottomRadius: b },
     ...(s > 0 && rise > 0 ? { ears: { width: s, rise } } : {}),
+  };
+}
+
+/**
+ * `hitShape` turned onto `edge`. A rect only rounds its top and bottom corners,
+ * so on a side edge the corners stay square: a few pixels of extra reach.
+ */
+export function edgeHitShape(geometry: Geometry, size: Size, edge: Edge = "top"): HitShape {
+  const local = hitShape(geometry, edgeLocal(size, edge));
+  if (edge === "top") return local;
+  const turn = (rect: Rect): Rect => {
+    switch (edge) {
+      case "bottom":
+        return { ...rect, y: size.height - rect.y - rect.height };
+      case "left":
+        return { x: rect.y, y: rect.x, width: rect.height, height: rect.width };
+      default:
+        return { x: size.width - rect.y - rect.height, y: rect.x, width: rect.height, height: rect.width };
+    }
+  };
+  const radii = (top: number, bottom: number) =>
+    edge === "bottom" ? { topRadius: bottom, bottomRadius: top } : { topRadius: 0, bottomRadius: 0 };
+  return {
+    rect: turn(local.rect),
+    ...radii(local.topRadius, local.bottomRadius),
+    painted: { rect: turn(local.painted.rect), ...radii(local.painted.topRadius, local.painted.bottomRadius) },
   };
 }
 
@@ -420,6 +498,31 @@ export function activityPickerLayout(geometry: Geometry, strips: Size[]) {
       height: headerHeight + 12 + rows * 32 + (rows - 1) * 6 + Math.max(12, insets.bottom),
     },
   };
+}
+
+/** Space a compact strip's mark keeps from the silhouette across the strip. */
+export const STRIP_MARK_MARGIN = 3.5;
+/** How much of the strip's thickness a mark may take. */
+export const STRIP_MARK_SHARE = 0.64;
+
+/**
+ * The largest mark a compact strip of `size` can draw across its thickness
+ * and still keep STRIP_MARK_MARGIN from the outline, at the same share of
+ * the thickness in every shape: a capsule's body is
+ * thinner than its frame, and a strip standing on a side edge is as wide as
+ * the island is thick elsewhere.
+ */
+export function stripMarkRoom(geometry: Geometry, size: Size): number {
+  const portrait = size.height > size.width;
+  const body =
+    geometry.floatingGap !== null
+      ? capsuleBody(portrait ? size.height : size.width, portrait ? size.width : size.height, geometry.floatingGap)
+          .height
+      : portrait
+        ? size.width
+        : size.height;
+  // About the share of the strip the Mac's mark takes (20 of 32), never closer than the margin.
+  return Math.max(6, Math.min(Math.floor(body - 2 * STRIP_MARK_MARGIN), Math.round(body * STRIP_MARK_SHARE)));
 }
 
 /**

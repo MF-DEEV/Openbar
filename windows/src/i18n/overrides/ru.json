@@ -1058,5 +1058,14 @@
   "windows.settings.sessions.jetbrainsRestart": "Перезапустите %@, чтобы загрузить его",
   "windows.settings.sessions.jetbrainsRestartRemoved": "Перезапустите %@, чтобы выгрузить его",
   "windows.settings.sessions.jetbrainsInUse": "Сначала закройте %@: плагин в нём открыт",
-  "windows.settings.sessions.jetbrainsNoFolder": "Папка настроек этой IDE не найдена"
+  "windows.settings.sessions.jetbrainsNoFolder": "Папка настроек этой IDE не найдена",
+  "windows.settings.layout.dragIsland": "Перетащить остров",
+  "windows.settings.layout.positionHint": "Перетащите остров вдоль любого края экрана. Положение сохраняется.",
+  "windows.settings.layout.restorePosition": "Восстановить положение по умолчанию",
+  "windows.settings.layout.fromBottom": "Отступ снизу",
+  "windows.settings.layout.fromLeft": "Отступ слева",
+  "windows.settings.layout.fromRight": "Отступ справа",
+  "windows.settings.layout.capsuleFitCaptionBottom": "Меняет размер капсулы и поднимает её от нижнего края экрана.",
+  "windows.settings.layout.capsuleFitCaptionSide": "Меняет размер капсулы и отодвигает её от бокового края экрана.",
+  "windows.settings.layout.capsulePreviewCaptionEdge": "Предпросмотр ширины, высоты, скругления углов и отступа от края экрана."
 }
