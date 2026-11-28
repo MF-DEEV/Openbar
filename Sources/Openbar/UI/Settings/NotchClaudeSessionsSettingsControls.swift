@@ -70,6 +70,13 @@ struct NotchClaudeSessionsSettingsControls: View {
             service.checkBridge()
             service.checkJetBrains()
         }
+        // A restarted IDE has loaded the plugin by now; its restart note goes.
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { _ in
+            service.checkJetBrains()
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didTerminateApplicationNotification)) { _ in
+            service.checkJetBrains()
+        }
     }
 
     private var placement: NotchSessionsPlacement {
@@ -360,7 +367,7 @@ struct NotchClaudeSessionsSettingsControls: View {
                         }
                     }
                     switch service.jetbrainsNotes[status.id] {
-                    case .restart(let note)?:
+                    case .restart(let note, _)?:
                         Label(note, systemImage: "arrow.clockwise")
                             .font(.caption)
                             .foregroundStyle(.secondary)

@@ -1644,11 +1644,17 @@ final class ClaudeSessionService: ObservableObject {
 
     func checkJetBrains() {
         let home = home
+        let notes = jetbrainsNotes
         actions.async {
             let found = ClaudeJetBrains.installed(home: home).map { ide in
                 ClaudeJetBrainsStatus(ide: ide, state: ClaudeJetBrains.state(ide, home: home))
             }
-            DispatchQueue.main.async { self.jetbrains = found }
+            // An IDE that restarted or quit since the change has loaded or dropped the plugin.
+            let done = found.filter { notes[$0.id]?.done(running: ClaudeJetBrains.processes($0.ide)) == true }.map(\.id)
+            DispatchQueue.main.async {
+                self.jetbrains = found
+                for id in done where self.jetbrainsNotes[id] == notes[id] { self.jetbrainsNotes[id] = nil }
+            }
         }
     }
 
@@ -1658,9 +1664,10 @@ final class ClaudeSessionService: ObservableObject {
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         actions.async {
             let failure = install ? ClaudeJetBrains.install(ide, home: home) : ClaudeJetBrains.remove(ide, home: home)
+            let running = ClaudeJetBrains.processes(ide)
             let note: ClaudeJetBrainsNote? = switch failure {
-            case nil where ClaudeJetBrains.isRunning(ide):
-                .restart(install ? text.jetbrainsRestart(ide.name) : text.jetbrainsRestartRemoved(ide.name))
+            case nil where !running.isEmpty:
+                .restart(install ? text.jetbrainsRestart(ide.name) : text.jetbrainsRestartRemoved(ide.name), until: running)
             case nil: nil
             case .missing?: .failed(text.jetbrainsMissing)
             case .other(let reason)?: .failed(reason)
@@ -2979,23 +2986,34 @@ enum ClaudeHostFocus {
             return true
         }
         if let ide, let project = ClaudeJetBrains.openProject(cwd: cwd, ide: ide, homes: homes),
-           let url = app.bundleURL, openProject(project, in: url) {
+           let launcher = app.executableURL, showProject(project, launcher: launcher) {
             return true
         }
         return raiseWindow(of: app) { ClaudeJetBrains.window(for: cwd, titles: $0) } || activated
     }
 
-    /// Asks the IDE to open a project it has open, which brings its window forward.
-    private static func openProject(_ folder: String, in app: URL) -> Bool {
+    /// Asks the IDE to open a project it already has open, which brings that
+    /// project's window forward and opens nothing new. The IDE's launcher hands
+    /// the folder to the running IDE and exits; `open -a` doesn't raise an
+    /// open project's window. A launcher that doesn't find the running IDE
+    /// (one started with other settings) starts a second one instead, so a
+    /// launcher still running after a few seconds is stopped.
+    private static func showProject(_ folder: String, launcher: URL) -> Bool {
         var directory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: folder, isDirectory: &directory), directory.boolValue else { return false }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-a", app.path, folder]
+        process.executableURL = launcher
+        process.arguments = [folder]
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         guard (try? process.run()) != nil else { return false }
-        process.waitUntilExit()
+        let deadline = Date().addingTimeInterval(5)
+        while process.isRunning, Date() < deadline { usleep(50_000) }
+        guard !process.isRunning else {
+            process.terminate()
+            return false
+        }
         return process.terminationStatus == 0
     }
 
@@ -3161,12 +3179,6 @@ struct ClaudeJetBrainsStatus: Equatable, Identifiable {
     let ide: ClaudeJetBrainsIDE
     let state: ClaudeJetBrains.State
     var id: String { ide.id }
-}
-
-/// What Settings says under an IDE after a change.
-enum ClaudeJetBrainsNote: Equatable {
-    case restart(String)
-    case failed(String)
 }
 
 /// An editor on this Mac and the state of the extension in it.

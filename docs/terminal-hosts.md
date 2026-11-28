@@ -49,7 +49,7 @@ first:
 | kitty, remote control off | app | no, says so | | |
 | VS Code, Insiders, Cursor, Windsurf, VSCodium, Antigravity | window holding the folder, then the terminal | yes | the bridge extension (`Tools/AntigravityBridge`), installed per editor from Settings | the extension |
 | JetBrains IDEs (IntelliJ IDEA, PyCharm, WebStorm, GoLand, PhpStorm, RubyMine, CLion, Rider, RustRover, Android Studio …), with the bridge plugin | project window, then the terminal tab | yes | the bridge plugin (`Tools/JetBrainsBridge`) in the IDE, on `~/.openbar/terminals/<IDE pid>.sock` | the plugin, installed per IDE from Settings, and a restart of the IDE |
-| JetBrains IDEs without the plugin | project window | no: "Install the JetBrains bridge to reply", with a way to Settings | the project Claude Code's JetBrains plugin lists as open in that IDE, opened again with `open -a <IDE> <folder>`, which brings its window forward; else the window whose title names the session's folder (Accessibility) | nothing |
+| JetBrains IDEs without the plugin | project window | no: "Install the JetBrains bridge to reply", with a way to Settings | the project Claude Code's JetBrains plugin lists as open in that IDE, opened again through the IDE's launcher (`<IDE>.app/Contents/MacOS/<launcher> <folder>`), which brings its window forward (`open -a` doesn't); else the window whose title names the session's folder (Accessibility) | nothing |
 | Warp, Alacritty, anything else | app | no, says so ("Replies aren't available in Warp yet") | | |
 
 The reply is always one bracketed paste per image path and one for the text,
@@ -217,6 +217,22 @@ compared without spending tokens.
   folder, like the native launcher; `hosts::locate` named it PyCharm, Open
   and a reply with the registration's key reached the right one of two tabs.
   The plugin's tests run with JDK 17 on the Mac and Linux.
+- JetBrains (#329) in real IDEs on the Mac: IntelliJ IDEA 2026.3 with two
+  projects (three terminal tabs in one, one in the other) and PyCharm 2026.3
+  with a third, stand-in sessions in the tabs. Settings installed the plugin
+  into IntelliJ IDEA, PyCharm and WebStorm, updated WebStorm's outdated copy
+  and removed it again; after a restart IntelliJ IDEA and PyCharm logged the
+  plugin listening. Open (from the menu bar panel and from a probe) raised
+  the right project window, across the two IDEs too, and selected the right
+  tab, in the reworked terminal and, after switching IntelliJ IDEA to the
+  classic one, there too; `shown` said yes for that tab only, and no while
+  another app was in front. Replies reached a tab that wasn't selected, as
+  one bracketed paste and a return, and keys arrived. Without the plugin the
+  reply field asked for it and Open raised the window by its title, or gave
+  the IDE the folder from Claude Code's lock file. That run found two bugs,
+  both fixed: `open -a <IDE> <folder>` doesn't bring an open project
+  forward (the IDE's launcher does), and the "Restart to load it" note
+  stayed after the restart.
 
 ## Questions the issue asked first
 
@@ -245,9 +261,15 @@ compared without spending tokens.
 - zellij on remote hosts: remote sessions are reached through tmux only.
 - Typing into one tab of Warp, Alacritty, mintty: none of them offer a way
   that targets one tab safely.
-- JetBrains: a run in real IDEs (the plugin finding a tab of the classic and
-  the reworked terminal, raising the project window among two projects and
-  across two IDEs, typing into it), and the whole of it on Windows.
+- JetBrains on Windows and Linux with real IDEs (stand-ins and unit tests
+  only), and WebStorm with the plugin loaded (its first start waited on
+  macOS's "downloaded from the internet" prompt).
+- IntelliJ IDEA 2026.3 warns "Cannot update plugin: unable to identify where
+  Openbar Terminal Bridge was installed from" for any plugin put in its
+  plugins folder rather than installed from a repository. Openbar keeps the
+  plugin up to date itself; the warning would go if the plugin were on
+  JetBrains Marketplace. Claiming Marketplace as its source without being
+  there would let whoever takes the plugin's id there update it.
 - The name "tmux in Ghostty" is worked out when the island first sees the
   session; a tmux attached to another terminal later keeps the old name until
   the session restarts. Open always looks again.

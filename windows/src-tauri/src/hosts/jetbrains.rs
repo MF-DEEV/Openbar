@@ -141,15 +141,18 @@ impl Ide {
         plugins_folder(&self.vendor, &self.data_dir)
     }
 
-    /// The IDE runs now, so a change to its plugins waits for its restart.
-    pub fn running(&self) -> bool {
+    /// The IDE's processes running now; while one runs, a change to its
+    /// plugins waits for its restart.
+    pub fn pids(&self) -> Vec<u32> {
         let Some(name) = self.launcher.as_deref().and_then(Path::file_name) else {
-            return false;
+            return Vec::new();
         };
         super::process::pids_named(&name.to_string_lossy())
             .into_iter()
-            .filter_map(super::process::image_path)
-            .any(|image| image.starts_with(&self.home))
+            .filter(|&pid| {
+                super::process::image_path(pid).is_some_and(|image| image.starts_with(&self.home))
+            })
+            .collect()
     }
 }
 
@@ -439,11 +442,19 @@ pub fn open_project(cwd: &str, ide_pid: u32, homes: &[PathBuf]) -> Option<String
 
 /// Asks the IDE to open a project it already has open, which brings that
 /// project's window forward and opens nothing new. The launcher hands the
-/// folder to the running IDE and exits.
+/// folder to the running IDE and exits. A launcher that doesn't find the
+/// running IDE (one started with other settings) starts a second one
+/// instead, so a launcher still running after a few seconds is stopped.
 pub fn show_project(ide: &Ide, folder: &str) -> bool {
     let Some(launcher) = ide.launcher.as_deref().filter(|l| l.is_file()) else {
         return false;
     };
+    hand_over(launcher, folder, Duration::from_secs(5))
+}
+
+/// Runs `launcher <folder>` and waits up to `wait` for it to hand the
+/// folder over and exit; one still running then is stopped.
+fn hand_over(launcher: &Path, folder: &str, wait: Duration) -> bool {
     if !Path::new(folder).is_dir() {
         return false;
     }
@@ -461,13 +472,16 @@ pub fn show_project(ide: &Ide, folder: &str) -> bool {
     let Ok(mut child) = command.spawn() else {
         return false;
     };
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + wait;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => return status.success(),
             Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(50)),
-            // Still running: the IDE took it; the launcher lingers on its own.
-            Ok(None) => return true,
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return false;
+            }
             Err(_) => return false,
         }
     }
@@ -489,6 +503,8 @@ pub struct IdeStatus {
     pub state: State,
     /// It runs now: a change waits for it to restart.
     pub running: bool,
+    /// Its processes, so a restart note goes once they are gone.
+    pub pids: Vec<u32>,
 }
 
 /// The JetBrains IDEs found and the bridge plugin in each.
@@ -497,12 +513,16 @@ pub async fn jetbrains_bridge_status() -> Vec<IdeStatus> {
     tauri::async_runtime::spawn_blocking(|| {
         installed()
             .into_iter()
-            .map(|ide| IdeStatus {
-                id: ide.id(),
-                state: state(&ide),
-                running: ide.running(),
-                name: ide.name,
-                version: ide.version,
+            .map(|ide| {
+                let pids = ide.pids();
+                IdeStatus {
+                    id: ide.id(),
+                    state: state(&ide),
+                    running: !pids.is_empty(),
+                    pids,
+                    name: ide.name,
+                    version: ide.version,
+                }
             })
             .collect()
     })
@@ -549,6 +569,46 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_launcher_that_starts_a_second_ide_is_stopped() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp("launcher");
+        let script = |name: &str, body: &str| {
+            let path = dir.join(name);
+            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            path
+        };
+        let folder = dir.to_string_lossy().into_owned();
+        let hands_over = script("hands-over", "exit 0");
+        assert!(hand_over(&hands_over, &folder, Duration::from_secs(5)));
+        let refuses = script("refuses", "exit 3");
+        assert!(!hand_over(&refuses, &folder, Duration::from_secs(5)));
+        // Its own pid in a file, then the life of a whole IDE.
+        let marker = dir.join("pid");
+        let lingers = script(
+            "lingers",
+            &format!("echo $$ > '{}'; exec sleep 30", marker.display()),
+        );
+        let started = Instant::now();
+        assert!(!hand_over(&lingers, &folder, Duration::from_millis(300)));
+        assert!(started.elapsed() < Duration::from_secs(5));
+        let pid = std::fs::read_to_string(&marker).unwrap().trim().to_owned();
+        let alive = std::process::Command::new("kill")
+            .args(["-0", &pid])
+            .status()
+            .unwrap()
+            .success();
+        assert!(!alive, "the lingering launcher was stopped");
+        assert!(!hand_over(
+            &hands_over,
+            "/no/such/folder",
+            Duration::from_secs(5)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

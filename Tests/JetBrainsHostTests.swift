@@ -13,6 +13,15 @@ enum JetBrainsHostTests {
         suite.run("sessions JetBrains IDEs") { ides(suite) }
         suite.run("sessions JetBrains lock file") { lockFile(suite) }
         suite.run("sessions JetBrains bridge") { bridge(suite) }
+        suite.run("sessions JetBrains notes") { notes(suite) }
+    }
+
+    static func notes(_ suite: TestSuite) {
+        let restart = ClaudeJetBrainsNote.restart("Restart PyCharm", until: [400, 401])
+        suite.expect(!restart.done(running: [401, 900]), "a restart note stays while a process it waited on runs")
+        suite.expect(restart.done(running: [900]), "a restart note goes once the IDE restarted")
+        suite.expect(restart.done(running: []), "a restart note goes once the IDE quit")
+        suite.expect(!ClaudeJetBrainsNote.failed("No room").done(running: []), "a failure stays")
     }
 
     private static let jetbrains = ["TERMINAL_EMULATOR": "JetBrains-JediTerm"]
@@ -161,7 +170,7 @@ enum JetBrainsHostTests {
         suite.expect(ClaudeJetBrains.remove(ide, home: home) == nil && ClaudeJetBrains.state(ide, home: home, bundled: bundled) == .missing,
                      "Remove takes it out")
         suite.expect(ClaudeJetBrains.remove(ide, home: home) == nil, "removing it again is no failure")
-        suite.expect(!ClaudeJetBrains.isRunning(ide), "a copy nobody started isn't running")
+        suite.expect(ClaudeJetBrains.processes(ide).isEmpty, "a copy nobody started isn't running")
     }
 
     static func lockFile(_ suite: TestSuite) {

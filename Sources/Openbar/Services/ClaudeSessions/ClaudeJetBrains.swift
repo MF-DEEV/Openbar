@@ -258,9 +258,11 @@ enum ClaudeJetBrains {
     }
 
     /// Whether the IDE runs now, so a change waits for its restart.
-    static func isRunning(_ ide: ClaudeJetBrainsIDE) -> Bool {
-        NSRunningApplication.runningApplications(withBundleIdentifier: ide.bundle)
-            .contains { $0.bundleURL?.standardizedFileURL == ide.app }
+    /// The IDE's running processes.
+    static func processes(_ ide: ClaudeJetBrainsIDE) -> Set<Int32> {
+        Set(NSRunningApplication.runningApplications(withBundleIdentifier: ide.bundle)
+            .filter { $0.bundleURL?.standardizedFileURL == ide.app }
+            .map(\.processIdentifier))
     }
 
     /// The plugin is loaded and listening in the IDE process `ide`: its
@@ -314,5 +316,18 @@ enum ClaudeJetBrains {
             folder.deleteLastPathComponent()
         }
         return nil
+    }
+}
+
+/// What Settings says under an IDE after a change.
+enum ClaudeJetBrainsNote: Equatable {
+    /// Restart the IDE: shown until none of the processes `until` runs any more.
+    case restart(String, until: Set<Int32>)
+    case failed(String)
+
+    /// A restart note is done once the IDE processes it waited on are gone.
+    func done(running: Set<Int32>) -> Bool {
+        guard case .restart(_, let until) = self else { return false }
+        return until.isDisjoint(with: running)
     }
 }
