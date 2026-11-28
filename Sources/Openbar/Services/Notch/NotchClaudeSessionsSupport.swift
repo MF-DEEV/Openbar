@@ -338,6 +338,13 @@ enum NotchClaudeSessionsSupport {
         return session.host.acceptsReplies
     }
 
+    /// A session in a JetBrains IDE that replies can't reach yet: its reply
+    /// field leads to the bridge plugin in Settings (#329).
+    static func needsJetBrainsBridge(_ session: ClaudeSession) -> Bool {
+        guard case .jetbrains = session.host else { return false }
+        return !repliesReach(session)
+    }
+
     static let replyLimit = 4000
 
     /// How many colors projects are told apart by.

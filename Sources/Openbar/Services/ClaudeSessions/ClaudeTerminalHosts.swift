@@ -67,6 +67,7 @@ extension ClaudeSessionHost {
             if RemoteHostName.isContainer(alias) { return tmux ? "tmux in " + title : title }
             return tmux ? "tmux on " + alias : alias
         }
+        if case .jetbrains(let bundle, let ide) = self { return ClaudeJetBrains.name(bundle: bundle, ide: ide) }
         return bundle.map(ClaudeTerminalApps.name(of:))
     }
 }
@@ -126,6 +127,19 @@ enum ClaudeTypingStep: Equatable {
     /// Keys pressed, never pasted: arrows at an agent's menu (Hermes's
     /// prompt, #244).
     case keys([ClaudeKey])
+}
+
+extension ClaudeTypingStep {
+    /// The step as the bridges' `steps` request spells it: pauses in milliseconds.
+    var bridgeStep: [String: Any] {
+        switch self {
+        case .paste(let text): return ["paste": text]
+        case .wait(let seconds): return ["wait": Int((seconds * 1000).rounded())]
+        case .enter: return ["enter": true]
+        case .interrupt: return ["text": "\u{3}"]
+        case .keys(let keys): return ["text": keys.map(\.bytes).joined()]
+        }
+    }
 }
 
 /// A key the island presses at an agent's menu.
@@ -228,6 +242,8 @@ enum ClaudeTyping {
         switch host {
         case .terminal, .iterm, .tmux, .zellij, .wezterm: return true
         case .kitty(_, let socket): return socket != nil
+        // The JetBrains bridge types keys as they are (#329).
+        case .jetbrains(_, let ide): return ide.map { ClaudeJetBrains.listening(ide: $0) } ?? false
         case .ghostty, .ide, .background, .app, .remote, .unknown: return false
         }
     }

@@ -1048,5 +1048,15 @@
   "windows.settings.sessions.placementTray": "托盘",
   "windows.settings.sessions.placementBoth": "两者",
   "windows.settings.sessions.trayOpensPanel": "会话需要你时打开面板",
-  "windows.settings.sessions.trayOpensPanelCaption": "仅当你在桌面或 Openbar 中时打开，与小岛相同。否则图标会闪烁，请求会继续等待。"
+  "windows.settings.sessions.trayOpensPanelCaption": "仅当你在桌面或 Openbar 中时打开，与小岛相同。否则图标会闪烁，请求会继续等待。",
+  "windows.sessions.replyJetBrainsBridge": "安装 JetBrains 桥接即可回复",
+  "windows.sessions.openBridgeSettings": "打开设置",
+  "windows.settings.sessions.jetbrains": "JetBrains 桥接",
+  "windows.settings.sessions.jetbrainsCaption": "“打开”会在任何 JetBrains IDE 中找到会话的项目窗口。装上桥接插件后，还会选中会话的终端标签页，回复会输入到那里。每个 IDE 在重启时加载插件。",
+  "windows.settings.sessions.jetbrainsNone": "未找到 JetBrains IDE",
+  "windows.settings.sessions.jetbrainsRemove": "移除",
+  "windows.settings.sessions.jetbrainsRestart": "重启 %@ 以加载",
+  "windows.settings.sessions.jetbrainsRestartRemoved": "重启 %@ 以卸载",
+  "windows.settings.sessions.jetbrainsInUse": "请先关闭 %@：插件正在使用中",
+  "windows.settings.sessions.jetbrainsNoFolder": "找不到此 IDE 的设置文件夹"
 }

@@ -928,6 +928,24 @@ export const T = {
         return t("windows.settings.sessions.bridgeFailures.timedOut");
       },
     } as Record<string, string>,
+    get jetbrains() {
+      return t("windows.settings.sessions.jetbrains");
+    },
+    get jetbrainsCaption() {
+      return t("windows.settings.sessions.jetbrainsCaption");
+    },
+    get jetbrainsNone() {
+      return t("windows.settings.sessions.jetbrainsNone");
+    },
+    get jetbrainsRemove() {
+      return t("windows.settings.sessions.jetbrainsRemove");
+    },
+    jetbrainsRestart: (ide: string) => tf("windows.settings.sessions.jetbrainsRestart", ide),
+    jetbrainsRestartRemoved: (ide: string) => tf("windows.settings.sessions.jetbrainsRestartRemoved", ide),
+    jetbrainsInUse: (ide: string) => tf("windows.settings.sessions.jetbrainsInUse", ide),
+    get jetbrainsNoFolder() {
+      return t("windows.settings.sessions.jetbrainsNoFolder");
+    },
     get codexCaption() {
       return t("windows.settings.sessions.codexCaption");
     },

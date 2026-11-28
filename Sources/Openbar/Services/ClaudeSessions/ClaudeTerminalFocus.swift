@@ -50,6 +50,15 @@ enum ClaudeTerminalFocus {
             // used last decides the rest.
             guard let client = ClaudeZellij.client(of: target) else { return .unknown }
             return state(hostOf(client.pid), pid: client.pid, depth: depth + 1, hostOf: hostOf)
+        case .jetbrains(let bundle, let ide):
+            // Only the bridge plugin knows which tab is selected (#329).
+            guard let ide, ClaudeJetBrains.listening(ide: ide), let shell = ClaudeTerminalBridge.shell(of: pid) else { return .unknown }
+            guard inFront(bundle) else { return .hidden }
+            switch ClaudeTerminalBridge.shown(shell: shell, folder: ClaudeTerminalBridge.folder(), timeout: askTimeout) {
+            case true?: return .shown
+            case false?: return .hidden
+            case nil: return .unknown
+            }
         case .ide, .app, .background, .remote, .unknown:
             return .unknown
         }

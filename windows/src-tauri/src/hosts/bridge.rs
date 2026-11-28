@@ -6,7 +6,7 @@
 //! `%LOCALAPPDATA%\Openbar\terminals`, and the window holding the session's
 //! terminal answers ok; the others say "missing".
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -14,9 +14,15 @@ use interprocess::local_socket::{GenericFilePath, Stream, ToFsName, prelude::*};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+/// Where one IDE window or process listens. The VS Code bridge names a pipe
+/// (a socket on Linux); the JetBrains one a pipe on Linux and a loopback
+/// port on Windows, where Java has no named pipe server (#329).
 #[derive(Deserialize)]
 struct Registration {
-    pipe: String,
+    #[serde(default)]
+    pipe: Option<String>,
+    #[serde(default)]
+    port: Option<u16>,
     token: String,
     pid: u32,
 }
@@ -63,9 +69,15 @@ fn registrations() -> Vec<Registration> {
 fn ask(registration: &Registration, mut request: Value, timeout: Duration) -> Option<Value> {
     request["token"] = json!(registration.token);
     let pipe = registration.pipe.clone();
+    let port = registration.port;
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let _ = tx.send(exchange(&pipe, &request));
+        let reply = match (pipe, port) {
+            (Some(pipe), _) => exchange(&pipe, &request),
+            (None, Some(port)) => exchange_tcp(port, &request, timeout),
+            (None, None) => None,
+        };
+        let _ = tx.send(reply);
     });
     rx.recv_timeout(timeout).ok().flatten()
 }
@@ -73,12 +85,27 @@ fn ask(registration: &Registration, mut request: Value, timeout: Duration) -> Op
 /// A JSON line out, the reply line back.
 fn exchange(pipe: &str, request: &Value) -> Option<Value> {
     let name = pipe.to_string().to_fs_name::<GenericFilePath>().ok()?;
-    let mut stream = Stream::connect(name).ok()?;
+    let stream = Stream::connect(name).ok()?;
+    line_exchange(stream, request)
+}
+
+/// The same over a port on the loopback address, never anywhere else.
+fn exchange_tcp(port: u16, request: &Value, timeout: Duration) -> Option<Value> {
+    let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let stream = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(2)).ok()?;
+    stream.set_read_timeout(Some(timeout)).ok()?;
+    line_exchange(stream, request)
+}
+
+fn line_exchange<S: std::io::Read + Write>(mut stream: S, request: &Value) -> Option<Value> {
     let mut line = serde_json::to_vec(request).ok()?;
     line.push(b'\n');
     stream.write_all(&line).ok()?;
     let mut reply = String::new();
-    BufReader::new(stream).read_line(&mut reply).ok()?;
+    BufReader::new(stream)
+        .take(64 * 1024)
+        .read_line(&mut reply)
+        .ok()?;
     serde_json::from_str(&reply).ok()
 }
 
@@ -110,6 +137,28 @@ pub fn focus(shell_pids: &[u32]) -> Result<(), BridgeError> {
     )
 }
 
+/// Pastes, raw text (keys), pauses in milliseconds and returns, in order:
+/// both bridges take them (#329).
+pub fn steps(shell_pids: &[u32], steps: Vec<Value>) -> Result<(), BridgeError> {
+    let waits: u64 = steps.iter().filter_map(|step| step["wait"].as_u64()).sum();
+    first_ok(
+        json!({ "command": "steps", "shellPids": shell_pids, "steps": steps }),
+        Duration::from_secs(4) + Duration::from_millis(waits),
+    )
+}
+
+/// Whether the session's tab is the one in front in its window, when a
+/// bridge holding it can tell (#210, #329).
+pub fn shown(shell_pids: &[u32]) -> Option<bool> {
+    let request = json!({ "command": "shown", "shellPids": shell_pids });
+    registrations().iter().find_map(|registration| {
+        let reply = ask(registration, request.clone(), Duration::from_secs(1))?;
+        (reply["ok"] == json!(true))
+            .then(|| reply["shown"].as_bool())
+            .flatten()
+    })
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
@@ -131,7 +180,8 @@ mod tests {
                 .unwrap();
         });
         let registration = Registration {
-            pipe: path.display().to_string(),
+            pipe: Some(path.display().to_string()),
+            port: None,
             token: "t".into(),
             pid: std::process::id(),
         };
@@ -143,5 +193,31 @@ mod tests {
         server.join().unwrap();
         let _ = std::fs::remove_file(&path);
         assert_eq!(reply, Some(json!({ "ok": true })));
+    }
+
+    #[test]
+    fn a_jetbrains_ide_is_asked_on_its_loopback_port() {
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(&stream).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(&line).unwrap();
+            let reply = json!({ "ok": request["token"] == json!("k"), "shown": true });
+            (&stream)
+                .write_all(format!("{reply}\n").as_bytes())
+                .unwrap();
+        });
+        let registration: Registration =
+            serde_json::from_str(&format!(r#"{{"port":{port},"token":"k","version":"1.0.0","ide":"PyCharm","kind":"jetbrains","pid":7}}"#))
+                .unwrap();
+        let reply = ask(
+            &registration,
+            json!({ "command": "shown", "shellPids": [5] }),
+            Duration::from_secs(2),
+        );
+        server.join().unwrap();
+        assert_eq!(reply, Some(json!({ "ok": true, "shown": true })));
     }
 }

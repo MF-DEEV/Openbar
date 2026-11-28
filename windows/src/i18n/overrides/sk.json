@@ -1048,5 +1048,15 @@
   "windows.settings.sessions.placementTray": "Lišta",
   "windows.settings.sessions.placementBoth": "Oboje",
   "windows.settings.sessions.trayOpensPanel": "Otvoriť panel, keď vás relácia potrebuje",
-  "windows.settings.sessions.trayOpensPanelCaption": "Len keď ste na ploche alebo v Openbar, ako to robí ostrov. Inak ikona pulzuje a žiadosť počká."
+  "windows.settings.sessions.trayOpensPanelCaption": "Len keď ste na ploche alebo v Openbar, ako to robí ostrov. Inak ikona pulzuje a žiadosť počká.",
+  "windows.sessions.replyJetBrainsBridge": "Na odpovedanie nainštalujte most JetBrains",
+  "windows.sessions.openBridgeSettings": "Otvoriť nastavenia",
+  "windows.settings.sessions.jetbrains": "Most JetBrains",
+  "windows.settings.sessions.jetbrainsCaption": "Otvoriť nájde okno projektu relácie v ľubovoľnom IDE od JetBrains. S pluginom mosta vyberie aj kartu terminálu relácie a odpovede sa napíšu do nej. Každé IDE načíta plugin pri reštarte.",
+  "windows.settings.sessions.jetbrainsNone": "Nenašlo sa žiadne IDE od JetBrains",
+  "windows.settings.sessions.jetbrainsRemove": "Odstrániť",
+  "windows.settings.sessions.jetbrainsRestart": "Reštartujte %@, aby sa načítal",
+  "windows.settings.sessions.jetbrainsRestartRemoved": "Reštartujte %@, aby sa uvoľnil",
+  "windows.settings.sessions.jetbrainsInUse": "Najprv zatvorte %@: má plugin otvorený",
+  "windows.settings.sessions.jetbrainsNoFolder": "Priečinok nastavení tohto IDE sa nenašiel"
 }

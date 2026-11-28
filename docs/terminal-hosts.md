@@ -22,12 +22,19 @@ first:
 3. `TERM`. kitty (`xterm-kitty`), Ghostty (`xterm-ghostty`) and Alacritty
    (`alacritty`) set it, and kitty and Alacritty leave a `TERM_PROGRAM` they
    inherited alone.
-4. `TERM_PROGRAM`, set by the terminal itself: `Apple_Terminal`,
+4. `TERMINAL_EMULATOR=JetBrains-JediTerm`, set by a JetBrains IDE's
+   terminal (#329), when no terminal named itself in `TERM_PROGRAM`. The IDE
+   is the app macOS holds responsible for the process, as for `vscode`
+   below, so an editor or terminal started from an IDE's terminal is told
+   apart from it.
+5. `TERM_PROGRAM`, set by the terminal itself: `Apple_Terminal`,
    `iTerm.app`, `ghostty`, `WezTerm`, `WarpTerminal`, `vscode`. For `vscode`
    the editor comes from the app macOS holds responsible for the process,
    since an editor started from another one's terminal inherits that one's
    bundle identifier.
-5. `__CFBundleIdentifier`, which the app that started the shell put there.
+6. `__CFBundleIdentifier`, which the app that started the shell put there. A
+   JetBrains IDE's identifier counts too (any app with a
+   `Contents/Resources/product-info.json`).
 
 | Host | Open | Reply | How it is reached | Needs |
 |---|---|---|---|---|
@@ -41,6 +48,8 @@ first:
 | kitty, remote control on | window | yes | `kitten @ --to $KITTY_LISTEN_ON`, window checked to list the session's pid | `allow_remote_control` and `listen_on` in kitty.conf |
 | kitty, remote control off | app | no, says so | | |
 | VS Code, Insiders, Cursor, Windsurf, VSCodium, Antigravity | window holding the folder, then the terminal | yes | the bridge extension (`Tools/AntigravityBridge`), installed per editor from Settings | the extension |
+| JetBrains IDEs (IntelliJ IDEA, PyCharm, WebStorm, GoLand, PhpStorm, RubyMine, CLion, Rider, RustRover, Android Studio …), with the bridge plugin | project window, then the terminal tab | yes | the bridge plugin (`Tools/JetBrainsBridge`) in the IDE, on `~/.openbar/terminals/<IDE pid>.sock` | the plugin, installed per IDE from Settings, and a restart of the IDE |
+| JetBrains IDEs without the plugin | project window | no: "Install the JetBrains bridge to reply", with a way to Settings | the project Claude Code's JetBrains plugin lists as open in that IDE, opened again through the IDE's launcher (`<IDE>.app/Contents/MacOS/<launcher> <folder>`), which brings its window forward (`open -a` doesn't); else the window whose title names the session's folder (Accessibility) | nothing |
 | Warp, Alacritty, anything else | app | no, says so ("Replies aren't available in Warp yet") | | |
 
 The reply is always one bracketed paste per image path and one for the text,
@@ -91,6 +100,8 @@ pressed; the page never sends one. Replies still reach a detached pane.
 |---|---|---|---|
 | Windows Terminal, classic console | tab, window | yes | console attach (`hosts/console.rs`) |
 | VS Code, Cursor, Antigravity, Windsurf | terminal | yes | IDE bridge (`hosts/bridge.rs`) |
+| JetBrains IDEs, with the bridge plugin | project window, then the terminal tab | yes | the plugin, registered in `%LOCALAPPDATA%\Openbar\terminals\<IDE pid>.json` with a loopback port and a key (`hosts/jetbrains.rs`, `hosts/bridge.rs`) |
+| JetBrains IDEs without it | project window | no, says so | the project Claude Code's lock file lists, given to the IDE's launcher (`bin\idea64.exe <folder>`), else the IDE's window whose title names the folder |
 | zellij 0.44+ (native; zellij runs on Windows since 0.44) | tab and pane, then the console its client runs in | yes | `zellij.exe --session <name> action`, as on the Mac (`hosts/zellij.rs`) |
 | WezTerm | tab and pane, then the window | yes | `wezterm.exe` beside the session's `wezterm-gui.exe`, by `WEZTERM_PANE` and `WEZTERM_UNIX_SOCKET`; only those two variables are read from the session's environment block (`process::environment_values`) |
 | Git Bash (mintty), Alacritty, Warp, Tabby, Hyper, ConEmu, Rio | window | no, says so | named from the process tree |
@@ -108,7 +119,62 @@ The sound when a session waits stays quiet when the session's own tab or pane is
 | zellij | every attached client has the pane focused (`list-clients`), then the terminal of the client used last is asked the same; none has it: hidden; only some: can't tell |
 | Classic console (Windows) | its window is the foreground window and not minimised |
 | Windows Terminal | its window is in front, and the selected tab (UI Automation) bears the console's title (`GetConsoleTitleW`) and no other tab does |
-| Editors, Warp, Alacritty, GNOME Terminal, Konsole, remote and background sessions | can't tell: the sound plays |
+| JetBrains IDEs, with the bridge plugin | the IDE is in front, and the plugin says the session's project window is the active one, its terminal tool window is open and the session's tab is the one selected there |
+| Editors, JetBrains IDEs without the plugin, Warp, Alacritty, GNOME Terminal, Konsole, remote and background sessions | can't tell: the sound plays |
+
+## JetBrains IDEs (#329)
+
+JetBrains has no outside scripting for its terminal, so Openbar carries a
+small plugin for every IDE on the IntelliJ Platform, 2025.1 and later
+(`Tools/JetBrainsBridge`). Settings › Sessions lists the IDEs it finds,
+each with Install, Update and Remove; the IDE loads or drops the plugin
+when it restarts. Openbar updates a plugin it installed when a newer one
+ships, and takes it out of every IDE when Openbar is uninstalled.
+
+- **Finding the IDEs.** Every IDE on the platform carries a
+  `product-info.json` (in `Contents/Resources` on the Mac, beside `bin`
+  elsewhere) naming the product, its settings folder (`PyCharm2026.3`) and
+  its launcher. The plugin goes into `~/Library/Application
+  Support/JetBrains/<folder>/plugins` on the Mac,
+  `%APPDATA%\JetBrains\<folder>\plugins` on Windows and
+  `~/.local/share/JetBrains/<folder>` on Linux (`Google` instead of
+  `JetBrains` for Android Studio). The Mac asks LaunchServices and looks in
+  `/Applications`, `~/Applications` and the folder Toolbox used before 2.0;
+  Windows in `Program Files\JetBrains`, `%LOCALAPPDATA%\Programs` and
+  Toolbox's apps folder; Linux in `/opt`, `/snap`, `~/.local/share/JetBrains/Toolbox/apps`
+  and a few more. Gateway and the remote development client are left out.
+- **Telling a session in one.** On the Mac, `TERMINAL_EMULATOR` and the app
+  responsible for the process, then the IDE process found above the session.
+  On Windows and Linux, the IDE's launcher among the session's ancestors
+  (`pycharm64.exe`, `pycharm`), or on Linux a `java` whose runtime sits in an
+  IDE's install; the IDE's own name comes from its `product-info.json`.
+- **The plugin.** One process serves all the IDE's project windows. It
+  answers the requests the VS Code bridge answers (`ping`, `focus`, `send`,
+  `send-images`, `steps`) and one more, `shown`, for the waiting sound. A
+  request names the session's shell, or all its ancestors on Windows and
+  Linux, and only the IDE holding that shell's tab says yes. It finds the
+  tab by the pid of its shell, in the classic terminal (JediTerm, whose pty
+  it writes to) and in the reworked terminal of 2025.3 and later (whose
+  classes it reaches through the loader of an open tab, since a plugin
+  outside JetBrains can't name that module). It listens on
+  `~/.openbar/terminals/<pid>.sock` on the Mac, a folder only its owner can
+  open; on Linux on a socket in the runtime folder, and on Windows on a port
+  of the loopback address, each with a random key in
+  `Openbar/terminals/<pid>.json` that every request has to bring. Nothing is
+  read from the terminals or the projects.
+- **Open.** The IDE comes forward first (on Windows the island lets it,
+  `AllowSetForegroundWindow`), then the plugin raises the tab's project
+  window, opens the terminal tool window and selects the tab. Without the
+  plugin, a project folder is only ever given to the IDE when Claude Code's
+  JetBrains plugin lists it as open in that very IDE process, so Open never
+  opens a project or a window; otherwise the IDE's window whose title names
+  the session's folder comes forward.
+- **Claude Code's lock file.** `<config>/ide/<port>.lock` also holds the
+  token of Claude's own connection to the IDE. Openbar reads the file
+  through a type with no field for it (`ClaudeIDELockFile`,
+  `jetbrains::ClaudeLock`), so it is never kept or used, and tests check
+  that. Folders written WSL-style on Windows (`/mnt/c/work/app`) are read as
+  `C:\work\app`.
 
 ## What was checked, and how
 
@@ -133,6 +199,40 @@ compared without spending tokens.
   stand-in's environment, the reply arrived with its line break and quotes,
   and Open switched to that pane's tab from another. Git Bash was checked in
   the browser build of the island only.
+- JetBrains (#329), without a JetBrains IDE running: the IDEs' first start
+  asks to accept the JetBrains User Agreement, which is the person's to
+  accept. A stand-in IDE ran the plugin's own server and protocol classes
+  with "tabs" that are stand-in sessions on a pty each, written to the way
+  the plugin writes to a pty. On the Mac it was an app with a
+  `product-info.json`, started through LaunchServices from a VS Code
+  terminal (so its sessions inherited `TERM_PROGRAM=vscode`); the island's
+  own code (a probe built from the app's sources, and the menu bar panel of
+  an isolated test copy) named the IDE, found its process and socket, typed a
+  two-line reply as one bracketed paste and a return, pressed keys, and Open
+  selected the right one of three tabs. With the socket gone the reply field
+  asked for the bridge, and Open gave the IDE the project Claude Code's lock
+  file lists. Settings listed the real IntelliJ IDEA, PyCharm and WebStorm
+  2026.3 installs and put the plugin into and out of PyCharm's plugins
+  folder. On Linux (the arm64 VM) the stand-in ran as `bin/pycharm` of an IDE
+  folder, like the native launcher; `hosts::locate` named it PyCharm, Open
+  and a reply with the registration's key reached the right one of two tabs.
+  The plugin's tests run with JDK 17 on the Mac and Linux.
+- JetBrains (#329) in real IDEs on the Mac: IntelliJ IDEA 2026.3 with two
+  projects (three terminal tabs in one, one in the other) and PyCharm 2026.3
+  with a third, stand-in sessions in the tabs. Settings installed the plugin
+  into IntelliJ IDEA, PyCharm and WebStorm, updated WebStorm's outdated copy
+  and removed it again; after a restart IntelliJ IDEA and PyCharm logged the
+  plugin listening. Open (from the menu bar panel and from a probe) raised
+  the right project window, across the two IDEs too, and selected the right
+  tab, in the reworked terminal and, after switching IntelliJ IDEA to the
+  classic one, there too; `shown` said yes for that tab only, and no while
+  another app was in front. Replies reached a tab that wasn't selected, as
+  one bracketed paste and a return, and keys arrived. Without the plugin the
+  reply field asked for it and Open raised the window by its title, or gave
+  the IDE the folder from Claude Code's lock file. That run found two bugs,
+  both fixed: `open -a <IDE> <folder>` doesn't bring an open project
+  forward (the IDE's launcher does), and the "Restart to load it" note
+  stayed after the restart.
 
 ## Questions the issue asked first
 
@@ -161,6 +261,15 @@ compared without spending tokens.
 - zellij on remote hosts: remote sessions are reached through tmux only.
 - Typing into one tab of Warp, Alacritty, mintty: none of them offer a way
   that targets one tab safely.
+- JetBrains on Windows and Linux with real IDEs (stand-ins and unit tests
+  only), and WebStorm with the plugin loaded (its first start waited on
+  macOS's "downloaded from the internet" prompt).
+- IntelliJ IDEA 2026.3 warns "Cannot update plugin: unable to identify where
+  Openbar Terminal Bridge was installed from" for any plugin put in its
+  plugins folder rather than installed from a repository. Openbar keeps the
+  plugin up to date itself; the warning would go if the plugin were on
+  JetBrains Marketplace. Claiming Marketplace as its source without being
+  there would let whoever takes the plugin's id there update it.
 - The name "tmux in Ghostty" is worked out when the island first sees the
   session; a tmux attached to another terminal later keeps the old name until
   the session restarts. Open always looks again.

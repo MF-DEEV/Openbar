@@ -1048,5 +1048,15 @@
   "windows.settings.sessions.placementTray": "Bandeja",
   "windows.settings.sessions.placementBoth": "Ambos",
   "windows.settings.sessions.trayOpensPanel": "Abrir el panel cuando una sesión te necesite",
-  "windows.settings.sessions.trayOpensPanelCaption": "Solo cuando estés en el escritorio o en Openbar, como hace la isla. Si no, el icono late y la solicitud espera."
+  "windows.settings.sessions.trayOpensPanelCaption": "Solo cuando estés en el escritorio o en Openbar, como hace la isla. Si no, el icono late y la solicitud espera.",
+  "windows.sessions.replyJetBrainsBridge": "Instala el puente de JetBrains para responder",
+  "windows.sessions.openBridgeSettings": "Abrir Ajustes",
+  "windows.settings.sessions.jetbrains": "Puente de JetBrains",
+  "windows.settings.sessions.jetbrainsCaption": "Abrir encuentra la ventana del proyecto de una sesión en cualquier IDE de JetBrains. Con el plugin puente también elige la pestaña de terminal de la sesión, y las respuestas se escriben en ella. Cada IDE carga el plugin al reiniciarse.",
+  "windows.settings.sessions.jetbrainsNone": "No se encontró ningún IDE de JetBrains",
+  "windows.settings.sessions.jetbrainsRemove": "Quitar",
+  "windows.settings.sessions.jetbrainsRestart": "Reinicia %@ para cargarlo",
+  "windows.settings.sessions.jetbrainsRestartRemoved": "Reinicia %@ para descargarlo",
+  "windows.settings.sessions.jetbrainsInUse": "Cierra primero %@: tiene el plugin abierto",
+  "windows.settings.sessions.jetbrainsNoFolder": "No se encontró la carpeta de ajustes de este IDE"
 }

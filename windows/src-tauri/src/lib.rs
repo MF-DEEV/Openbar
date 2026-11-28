@@ -179,6 +179,7 @@ pub fn remove_hooks_main() -> ! {
 /// extension out of every editor that has it.
 pub fn remove_ide_bridge_main() -> ! {
     hosts::bridge_installer::remove_everywhere();
+    hosts::jetbrains::remove_everywhere();
     std::process::exit(0)
 }
 
@@ -347,6 +348,9 @@ pub fn run() {
             onboarding::onboarding_claude_present,
             hosts::bridge_installer::ide_bridge_status,
             hosts::bridge_installer::ide_bridge_install,
+            hosts::jetbrains::jetbrains_bridge_status,
+            hosts::jetbrains::jetbrains_bridge_change,
+            hosts::jetbrains::sessions_open_bridge_settings,
             hooks::claude_hooks_status,
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
@@ -554,6 +558,7 @@ pub fn run() {
             // Followed before the island exists, so its first power_saver_on has it.
             power_saver::start(app.handle().clone());
             std::thread::spawn(hosts::bridge_installer::update_outdated);
+            std::thread::spawn(hosts::jetbrains::update_installed);
             session_lock::start(app.handle().clone());
             battery::start(app.handle().clone());
             island::create(app.handle())?;

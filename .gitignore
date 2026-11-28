@@ -1,6 +1,8 @@
 # Build artifacts
 build/
 dist/
+# The JetBrains bridge ships as a built jar, checked against its sources in CI.
+!Tools/JetBrainsBridge/dist/
 .build/
 *.dmg
 

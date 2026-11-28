@@ -639,6 +639,7 @@ struct NotchClaudeSessionComposer: View {
                     Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 }
                 NotchVoiceReplyProblemLabel(session: session, text: text, fontSize: 11)
+                NotchJetBrainsBridgeLink(session: session, text: text, fontSize: 11)
                 Spacer()
                 Text(text.pasteImages + " · " + text.sendShortcut).foregroundStyle(.tertiary)
             }
@@ -910,5 +911,28 @@ struct NotchClaudeImageInput: ViewModifier {
                 ClaudeImageAttachments.images(from: providers) { ClaudeSessionService.shared.attach($0, to: sessionID) }
                 return true
             }
+    }
+}
+
+/// The way from a JetBrains session's reply field to the bridge plugin in
+/// Settings, when replies can't reach its terminal yet (#329).
+struct NotchJetBrainsBridgeLink: View {
+    let session: ClaudeSession
+    let text: NotchClaudeSessionStrings
+    let fontSize: CGFloat
+
+    var body: some View {
+        if NotchClaudeSessionsSupport.needsJetBrainsBridge(session) {
+            Button {
+                NotchService.shared.openSettings(showing: .sessions)
+            } label: {
+                Label(text.bridgeSettings, systemImage: "gearshape")
+                    .font(.system(size: fontSize, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+            .buttonStyle(NotchButtonStyle(cornerRadius: 6))
+            .help(text.jetbrainsTitle)
+            .accessibilityLabel(text.jetbrainsTitle + ", " + text.bridgeSettings)
+        }
     }
 }

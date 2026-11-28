@@ -78,6 +78,16 @@ pub fn classify(chain: &[Entry]) -> Located {
                 ancestors,
             };
         }
+        // A JetBrains IDE starts each terminal tab's shell itself (#329).
+        if let Some(ide) = crate::hosts::jetbrains::ide_name(&name) {
+            return Located {
+                host: Host::JetBrains {
+                    ide: ide.into(),
+                    ide_pid: entry.pid,
+                },
+                ancestors,
+            };
+        }
         if let Some((_, terminal)) = TERMINALS.iter().find(|(known, _)| *known == name) {
             return Located {
                 host: Host::App {
@@ -102,6 +112,23 @@ pub fn locate(pid: u32) -> Option<Located> {
 fn locate_with(pid: u32, tmux_program: &str, kitten_program: &str) -> Option<Located> {
     let chain = process::ancestors(pid)?;
     let mut located = classify(&chain);
+    // An IDE started by its older launcher script runs as `java` from its
+    // own runtime (#329).
+    if located.host == Host::Unknown
+        && let Some(entry) = chain.iter().skip(1).find(|e| {
+            stem(&e.name) == "java"
+                && process::image_path(e.pid)
+                    .as_deref()
+                    .and_then(crate::hosts::jetbrains::Ide::of_image)
+                    .is_some()
+        })
+    {
+        located.host = Host::JetBrains {
+            ide: String::new(),
+            ide_pid: entry.pid,
+        };
+    }
+    crate::hosts::named_jetbrains(&mut located);
     // WezTerm is reached by the pane the session's environment names.
     if located.host
         == (Host::App {
@@ -344,6 +371,19 @@ mod tests {
         );
         let l = classify(&chain(&["claude", "bash", "gnome-terminal-server"]));
         assert_eq!(l.host.display_name().as_deref(), Some("GNOME Terminal"));
+        // A JetBrains IDE's native launcher starts each tab's shell (#329).
+        let l = classify(&chain(&["claude", "zsh", "webstorm", "systemd"]));
+        assert_eq!(
+            l.host,
+            Host::JetBrains {
+                ide: "WebStorm".into(),
+                ide_pid: 102
+            }
+        );
+        assert!(
+            !l.host.accepts_replies(),
+            "not without the plugin registered for it"
+        );
     }
 
     #[test]

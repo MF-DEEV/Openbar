@@ -17,7 +17,7 @@ COLORS = {"dark": ("#9198A1", "#3D444D"), "light": ("#59636E", "#D1D9E0")}
 # file stem -> (label, space above the label)
 ROWS = {
     "agents/agents": ("{n} agents", 24),
-    "terminals/terminals": ("{n} terminals and editors", 16),
+    "terminals/terminals": ("{n} terminals, editors and containers", 16),
 }
 
 LABEL_SIZE = 18

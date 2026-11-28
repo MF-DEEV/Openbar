@@ -34,6 +34,7 @@ import { SessionReminders } from "./SessionReminders";
 import { SessionAutoMode } from "./SessionAutoMode";
 import { BatchApprovals } from "./BatchApprovals";
 import { DiagnosticsSubRow } from "./DiagnosticsDialog";
+import { restartDone } from "./jetbrains";
 import { Containers } from "./Containers";
 
 /** Accounts for designing the page in a plain browser. */
@@ -280,6 +281,134 @@ function EditorExtensions() {
           )}
         </SubRow>
       ))}
+    </>
+  );
+}
+
+interface JetBrainsStatus {
+  id: string;
+  name: string;
+  version: string;
+  state: "missing" | "current" | "outdated";
+  running: boolean;
+  pids: number[];
+}
+
+/** What a row says after a change; a restart note waits on the IDE processes in `until`. */
+interface Note {
+  text: string;
+  error: boolean;
+  until?: number[];
+}
+
+/** "PyCharm 2026.3": the name and the release its settings folder belongs to. */
+function release(ide: JetBrainsStatus): string {
+  const version = ide.version.split(".").slice(0, 2).join(".");
+  return version ? `${ide.name} ${version}` : ide.name;
+}
+
+/** One row per JetBrains IDE found, each with its own plugins folder (#329). */
+function JetBrainsPlugins() {
+  useLocale();
+  const [ides, setIdes] = useState<JetBrainsStatus[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, Note>>({});
+  const refresh = useCallback(async () => {
+    const found = inTauri ? await invoke<JetBrainsStatus[]>("jetbrains_bridge_status") : [];
+    setIdes(found);
+    // An IDE that restarted or quit since the change has loaded or dropped the plugin.
+    setNotes((all) => {
+      const done = found.filter((ide) => restartDone(all[ide.id]?.until, ide.pids));
+      if (done.length === 0) return all;
+      const next = { ...all };
+      for (const ide of done) delete next[ide.id];
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    void refresh();
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refresh]);
+  // Looks again now and then while a note waits for a restart.
+  const waiting = Object.values(notes).some((note) => note.until !== undefined);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setInterval(() => void refresh(), 3000);
+    return () => window.clearInterval(timer);
+  }, [waiting, refresh]);
+  const change = async (ide: JetBrainsStatus, install: boolean) => {
+    setBusy(ide.id);
+    let note: Note | null = null;
+    try {
+      await invoke("jetbrains_bridge_change", { id: ide.id, install });
+      // A running IDE loads or drops the plugin when it restarts.
+      if (ide.running)
+        note = {
+          text: install ? T.sessions.jetbrainsRestart(ide.name) : T.sessions.jetbrainsRestartRemoved(ide.name),
+          error: false,
+          until: ide.pids,
+        };
+    } catch (e) {
+      const reason = String(e);
+      note = {
+        text:
+          reason === "inUse"
+            ? T.sessions.jetbrainsInUse(ide.name)
+            : reason === "noFolder"
+              ? T.sessions.jetbrainsNoFolder
+              : reason === "notFound"
+                ? T.sessions.bridgeFailures.notFound
+                : reason,
+        error: true,
+      };
+    }
+    setNotes((all) => {
+      const next = { ...all };
+      if (note) next[ide.id] = note;
+      else delete next[ide.id];
+      return next;
+    });
+    try {
+      await refresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <>
+      <SubRow title={T.sessions.jetbrains} caption={T.sessions.jetbrainsCaption}>
+        {ides?.length === 0 ? <Status tone="off">{T.sessions.jetbrainsNone}</Status> : null}
+      </SubRow>
+      {ides?.map((ide) => {
+        const note = notes[ide.id];
+        return (
+          <SubRow
+            key={ide.id}
+            title={release(ide)}
+            caption={note ? <div className={note.error ? "st-error" : undefined}>{note.text}</div> : undefined}
+          >
+            {ide.state === "current" ? (
+              <Status tone="ok">{T.sessions.bridgeOn}</Status>
+            ) : ide.state === "outdated" ? (
+              <Status tone="warn">{T.sessions.bridgeStale}</Status>
+            ) : (
+              <Status tone="off">{T.sessions.bridgeOff}</Status>
+            )}
+            {ide.state !== "current" ? (
+              <Button accent onClick={() => void change(ide, true)} busy={busy === ide.id} disabled={busy !== null}>
+                {ide.state === "outdated" ? T.sessions.bridgeUpdate : T.sessions.bridgeInstall}
+              </Button>
+            ) : null}
+            {ide.state !== "missing" ? (
+              <Button onClick={() => void change(ide, false)} disabled={busy !== null}>
+                {T.sessions.jetbrainsRemove}
+              </Button>
+            ) : null}
+          </SubRow>
+        );
+      })}
     </>
   );
 }
@@ -855,6 +984,7 @@ export function SessionsOptions() {
       <HooksLink />
       <ClaudeAccounts />
       <EditorExtensions />
+      <JetBrainsPlugins />
       <SubRow title={t("windows.settings.codex")} caption={T.sessions.codexCaption}>
         {codex === "connected" ? (
           <Status tone="ok">{T.sessions.codexConnected}</Status>

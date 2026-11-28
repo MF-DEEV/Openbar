@@ -309,6 +309,8 @@ export const bridge = {
       call<ReplyFailure | null>("sessions_reply", { sessionId, text, images }),
     attachImage: (dataUrl: string) => call<ReplyAttachment>("sessions_attach_image", { dataUrl }),
     clipboardImages: () => call<ReplyAttachment[]>("sessions_clipboard_images"),
+    /** Settings › Sessions, where the JetBrains bridge plugin goes in (#329). */
+    openBridgeSettings: () => call("sessions_open_bridge_settings"),
     /** What Open came to: "detached" when the session's tmux or zellij has no terminal attached (#235). */
     open: (sessionId: string) => call<"opened" | "missing" | "detached">("sessions_open", { sessionId }),
     /** Attaches that tmux or zellij in a new terminal window. */

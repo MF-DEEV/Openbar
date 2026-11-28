@@ -354,6 +354,7 @@ pub fn terminal_id(host: HostKind, name: Option<&str>) -> Option<&'static str> {
         HostKind::Kitty => "kitty",
         HostKind::Background => "background",
         HostKind::Remote => "remote",
+        HostKind::Jetbrains => "jetbrains",
         HostKind::Vscode => match name {
             Some("Cursor") => "cursor",
             Some("Windsurf") => "windsurf",

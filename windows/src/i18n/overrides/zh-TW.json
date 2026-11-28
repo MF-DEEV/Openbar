@@ -1048,5 +1048,15 @@
   "windows.settings.sessions.placementTray": "系統匣",
   "windows.settings.sessions.placementBoth": "兩者",
   "windows.settings.sessions.trayOpensPanel": "會話需要你時開啟面板",
-  "windows.settings.sessions.trayOpensPanelCaption": "僅在你位於桌面或 Openbar 時開啟，與島嶼相同。否則圖示會閃爍，請求會繼續等待。"
+  "windows.settings.sessions.trayOpensPanelCaption": "僅在你位於桌面或 Openbar 時開啟，與島嶼相同。否則圖示會閃爍，請求會繼續等待。",
+  "windows.sessions.replyJetBrainsBridge": "安裝 JetBrains 橋接即可回覆",
+  "windows.sessions.openBridgeSettings": "開啟設定",
+  "windows.settings.sessions.jetbrains": "JetBrains 橋接",
+  "windows.settings.sessions.jetbrainsCaption": "「開啟」會在任何 JetBrains IDE 中找到工作階段的專案視窗。裝上橋接外掛程式後，還會選取工作階段的終端機分頁，回覆會輸入到那裡。每個 IDE 在重新啟動時載入外掛程式。",
+  "windows.settings.sessions.jetbrainsNone": "找不到 JetBrains IDE",
+  "windows.settings.sessions.jetbrainsRemove": "移除",
+  "windows.settings.sessions.jetbrainsRestart": "重新啟動 %@ 以載入",
+  "windows.settings.sessions.jetbrainsRestartRemoved": "重新啟動 %@ 以解除載入",
+  "windows.settings.sessions.jetbrainsInUse": "請先關閉 %@：外掛程式正在使用中",
+  "windows.settings.sessions.jetbrainsNoFolder": "找不到此 IDE 的設定資料夾"
 }

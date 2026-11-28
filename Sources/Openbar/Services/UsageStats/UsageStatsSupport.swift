@@ -132,6 +132,7 @@ enum UsageStatsSupport {
         case .wezterm: return "wezterm"
         case .kitty: return "kitty"
         case .ide(let bundle, _), .app(let bundle): return appIDs[bundle] ?? "other"
+        case .jetbrains: return "jetbrains"
         case .background: return "background"
         case .remote: return "remote"
         case .unknown: return nil

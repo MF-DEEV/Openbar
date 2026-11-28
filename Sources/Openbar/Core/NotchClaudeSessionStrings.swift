@@ -448,6 +448,10 @@ struct NotchClaudeSessionStrings {
         if case .remote(let alias, _) = host {
             return RemoteHostName.isContainer(alias) ? ContainerStrings.replyNeedsTmux : RemoteHostStrings.replyNeedsTmux
         }
+        // The bridge plugin is in the IDE but waits for it to restart (#329).
+        if case .jetbrains(let bundle, let ide) = host {
+            return ClaudeJetBrains.installed(bundle: bundle) ? replyJetBrainsRestart(ClaudeJetBrains.name(bundle: bundle, ide: ide)) : replyJetBrainsBridge
+        }
         guard let bundle = host.bundle else { return replyUnavailable }
         return String(format: replyUnavailableFormat, ClaudeTerminalApps.name(of: bundle))
     }
@@ -852,4 +856,21 @@ extension NotchClaudeSessionStrings {
     var addCommandPlaceholder: String { "make check" }
     var removeCommand: String { "Remove" }
     var commandRefused: String { "Plain commands only: no quotes, ; | & > $ or *." }
+
+    // MARK: JetBrains IDEs (#329)
+
+    var replyJetBrainsBridge: String { "Install the JetBrains bridge to reply" }
+    func replyJetBrainsRestart(_ ide: String) -> String { "Restart \(ide) to reply" }
+    var bridgeSettings: String { "Settings" }
+    var jetbrainsTitle: String { "JetBrains bridge" }
+    var jetbrainsNone: String { "No JetBrains IDEs found" }
+    var jetbrainsHint: String {
+        "Open finds a session’s project window in any JetBrains IDE. With the bridge plugin it also selects the terminal tab, and replies type into it. The IDE loads the plugin when it restarts."
+    }
+    var installPlugin: String { "Install Plugin" }
+    var updatePlugin: String { "Update Plugin" }
+    var removeBridge: String { "Remove" }
+    func jetbrainsRestart(_ ide: String) -> String { "Restart \(ide) to load it" }
+    func jetbrainsRestartRemoved(_ ide: String) -> String { "Restart \(ide) to unload it" }
+    var jetbrainsMissing: String { "This build of Openbar has no JetBrains bridge." }
 }

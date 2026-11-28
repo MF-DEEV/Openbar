@@ -1048,5 +1048,15 @@
   "windows.settings.sessions.placementTray": "トレイ",
   "windows.settings.sessions.placementBoth": "両方",
   "windows.settings.sessions.trayOpensPanel": "セッションに対応が必要なときにパネルを開く",
-  "windows.settings.sessions.trayOpensPanelCaption": "島と同じく、デスクトップか Openbar を表示しているときだけ開きます。それ以外はアイコンが点滅し、リクエストは待機します。"
+  "windows.settings.sessions.trayOpensPanelCaption": "島と同じく、デスクトップか Openbar を表示しているときだけ開きます。それ以外はアイコンが点滅し、リクエストは待機します。",
+  "windows.sessions.replyJetBrainsBridge": "返信するには JetBrains ブリッジをインストールしてください",
+  "windows.sessions.openBridgeSettings": "設定を開く",
+  "windows.settings.sessions.jetbrains": "JetBrains ブリッジ",
+  "windows.settings.sessions.jetbrainsCaption": "「開く」は、どの JetBrains IDE でもセッションのプロジェクトウィンドウを見つけます。ブリッジプラグインがあれば、セッションのターミナルタブも選択し、返信はそこに入力されます。各 IDE は再起動時にプラグインを読み込みます。",
+  "windows.settings.sessions.jetbrainsNone": "JetBrains IDE が見つかりません",
+  "windows.settings.sessions.jetbrainsRemove": "削除",
+  "windows.settings.sessions.jetbrainsRestart": "読み込むには %@ を再起動してください",
+  "windows.settings.sessions.jetbrainsRestartRemoved": "外すには %@ を再起動してください",
+  "windows.settings.sessions.jetbrainsInUse": "先に %@ を閉じてください：プラグインを使用中です",
+  "windows.settings.sessions.jetbrainsNoFolder": "この IDE の設定フォルダーが見つかりません"
 }

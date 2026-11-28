@@ -321,6 +321,7 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/ClaudeTranscriptReader.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeSessionHosts.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeTerminalHosts.swift
+        Sources/Openbar/Services/ClaudeSessions/ClaudeJetBrains.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeZellij.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeTerminalFocus.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeBackgroundSessions.swift
@@ -779,6 +780,10 @@ cp Resources/remote-agent.sh "$STAGE/Contents/Resources/remote-agent.sh"
 ditto Tools/AntigravityBridge "$STAGE/Contents/Resources/AntigravityBridge"
 rm -rf build/AntigravityBridge
 ditto Tools/AntigravityBridge build/AntigravityBridge
+# The JetBrains bridge plugin (#329), built from Tools/JetBrainsBridge.
+mkdir -p "$STAGE/Contents/Resources/JetBrainsBridge" build/JetBrainsBridge
+cp Tools/JetBrainsBridge/dist/openbar-terminal-bridge.jar "$STAGE/Contents/Resources/JetBrainsBridge/"
+cp Tools/JetBrainsBridge/dist/openbar-terminal-bridge.jar build/JetBrainsBridge/
 cp Resources/com.openbar.app.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"

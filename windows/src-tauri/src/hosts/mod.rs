@@ -14,6 +14,7 @@ pub mod bridge;
 pub mod bridge_installer;
 #[cfg(windows)]
 pub mod console;
+pub mod jetbrains;
 pub mod process;
 pub mod wezterm;
 pub mod zellij;
@@ -25,6 +26,13 @@ pub enum Host {
         terminal_pid: u32,
     },
     Vscode {
+        ide: String,
+        ide_pid: u32,
+    },
+    /// The terminal of a JetBrains IDE (#329), by the IDE's name and
+    /// process, which the bridge plugin registers under.
+    #[serde(rename = "jetbrains")]
+    JetBrains {
         ide: String,
         ide_pid: u32,
     },
@@ -77,7 +85,7 @@ impl Host {
                 | Host::Tmux { .. }
                 | Host::Zellij { .. }
                 | Host::Kitty { .. }
-        )
+        ) || matches!(self, Host::JetBrains { ide_pid, .. } if jetbrains::listening(*ide_pid))
     }
 
     /// The tmux or zellij the session's pane belongs to, for the chip on
@@ -105,6 +113,7 @@ impl Host {
                 }
                 .into(),
             ),
+            Host::JetBrains { ide, .. } => Some(ide.clone()),
             Host::Wezterm { .. } => Some("WezTerm".into()),
             Host::Tmux { .. } => Some("tmux".into()),
             Host::Zellij { .. } => Some("zellij".into()),
@@ -231,6 +240,16 @@ pub fn classify(chain: &[process::Entry]) -> Located {
                 ancestors,
             };
         }
+        // A JetBrains IDE starts each terminal tab's shell itself (#329).
+        if let Some(ide) = jetbrains::ide_name(&name) {
+            return Located {
+                host: Host::JetBrains {
+                    ide: ide.into(),
+                    ide_pid: entry.pid,
+                },
+                ancestors,
+            };
+        }
         if let Some((_, terminal)) = TERMINALS.iter().find(|(exe, _)| *exe == name) {
             return Located {
                 host: Host::App {
@@ -277,7 +296,20 @@ pub fn locate(pid: u32) -> Option<Located> {
     if let Some(host) = zellij_host(&chain, &process::environment_values(pid, &ZELLIJ_VARIABLES)) {
         located.host = host;
     }
+    named_jetbrains(&mut located);
     Some(located)
+}
+
+/// A JetBrains IDE's own name, from its install ("IntelliJ IDEA" for
+/// `idea64.exe` whichever edition), once its image can be read (#329).
+pub fn named_jetbrains(located: &mut Located) {
+    if let Host::JetBrains { ide, ide_pid } = &mut located.host
+        && let Some(found) = process::image_path(*ide_pid)
+            .as_deref()
+            .and_then(jetbrains::Ide::of_image)
+    {
+        *ide = found.name;
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -296,7 +328,7 @@ pub fn deliver(
     images: &[String],
 ) -> Result<(), DeliveryError> {
     match &located.host {
-        Host::Vscode { .. } => {
+        Host::Vscode { .. } | Host::JetBrains { .. } => {
             bridge::send(&located.ancestors, text, images).map_err(|_| DeliveryError::Unreachable)
         }
         Host::WindowsTerminal { .. } | Host::Conhost => console_type(pid, text, images),
@@ -416,6 +448,8 @@ pub fn takes_keys(host: &Host) -> bool {
         Host::WindowsTerminal { .. } | Host::Conhost => cfg!(windows),
         Host::Wezterm { .. } | Host::Zellij { .. } => true,
         Host::Tmux { .. } | Host::Kitty { .. } => cfg!(target_os = "linux"),
+        // The JetBrains bridge types keys as they are (#329).
+        Host::JetBrains { ide_pid, .. } => jetbrains::listening(*ide_pid),
         Host::Vscode { .. } | Host::App { .. } | Host::Unknown => false,
     }
 }
@@ -453,6 +487,11 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
             },
         )
         .map(|_| ())
+        .map_err(|_| DeliveryError::Unreachable),
+        (_, Host::JetBrains { .. }) => bridge::steps(
+            &located.ancestors,
+            vec![serde_json::json!({ "text": key.bytes() })],
+        )
         .map_err(|_| DeliveryError::Unreachable),
         (Key::Enter, _) => deliver(pid, located, "", &[]),
         (
@@ -532,6 +571,7 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
             // not the process owning the editor's top-level windows.
             platform_raise_host(&located.ancestors, cwd)
         }
+        Host::JetBrains { ide_pid, .. } => focus_jetbrains(*ide_pid, &located.ancestors, cwd),
         Host::WindowsTerminal { .. } | Host::Conhost => {
             console_focus(pid) || platform_raise_host(&located.ancestors, cwd)
         }
@@ -622,17 +662,60 @@ pub fn shown(pid: u32, located: &Located) -> Option<bool> {
         }
         #[cfg(target_os = "linux")]
         Host::Tmux { .. } | Host::Kitty { .. } => crate::linux::hosts::shown(pid, located),
+        // Only the bridge plugin knows which tab is selected (#329).
+        Host::JetBrains { ide_pid, .. } if jetbrains::listening(*ide_pid) => {
+            if !in_front(*ide_pid) {
+                return Some(false);
+            }
+            bridge::shown(&located.ancestors)
+        }
         _ => None,
     }
 }
+
+/// A JetBrains IDE's window (#329): the bridge plugin raises the tab's
+/// project window and selects the tab. Without it, the project window
+/// Claude Code's JetBrains plugin says holds the session's folder, which
+/// the IDE's launcher brings forward (an open project is never opened
+/// twice), else the IDE's window whose title names the folder.
+fn focus_jetbrains(ide_pid: u32, ancestors: &[u32], cwd: &str) -> bool {
+    // The island is in front when Open is pressed; it lets the IDE come forward.
+    allow_foreground(ide_pid);
+    if bridge::focus(ancestors).is_ok() {
+        return true;
+    }
+    let homes = crate::hooks::installer::home_dir()
+        .map(|home| crate::sessions::registry::homes(&home))
+        .unwrap_or_default();
+    if let Some(folder) = jetbrains::open_project(cwd, ide_pid, &homes)
+        && let Some(ide) = process::image_path(ide_pid)
+            .as_deref()
+            .and_then(jetbrains::Ide::of_image)
+        && jetbrains::show_project(&ide, &folder)
+    {
+        return true;
+    }
+    platform_raise_host(ancestors, cwd)
+}
+
+#[cfg(windows)]
+fn allow_foreground(pid: u32) {
+    use windows::Win32::UI::WindowsAndMessaging::AllowSetForegroundWindow;
+    let _ = unsafe { AllowSetForegroundWindow(pid) };
+}
+
+#[cfg(not(windows))]
+fn allow_foreground(_pid: u32) {}
 
 /// Brings forward the terminal of a multiplexer's client `client`.
 fn focus_client(client: u32, outer: &Located, cwd: &str) -> bool {
     match &outer.host {
         // A multiplexer inside another, or a terminal that knows its tabs.
-        Host::Tmux { .. } | Host::Zellij { .. } | Host::Kitty { .. } | Host::Wezterm { .. } => {
-            focus(client, outer, cwd)
-        }
+        Host::Tmux { .. }
+        | Host::Zellij { .. }
+        | Host::Kitty { .. }
+        | Host::Wezterm { .. }
+        | Host::JetBrains { .. } => focus(client, outer, cwd),
         _ => {
             let mut pids = vec![client];
             pids.extend(outer.ancestors.iter().copied());
@@ -1322,6 +1405,41 @@ mod tests {
                 ide_pid: 102
             }
         );
+    }
+
+    #[test]
+    fn jetbrains_ides_are_hosts() {
+        // ConPTY may put a console host between the IDE and the shell.
+        let l = classify(&chain(&[
+            "claude.exe",
+            "powershell.exe",
+            "OpenConsole.exe",
+            "pycharm64.exe",
+        ]));
+        assert_eq!(
+            l.host,
+            Host::JetBrains {
+                ide: "PyCharm".into(),
+                ide_pid: 103
+            }
+        );
+        assert_eq!(l.host.display_name().as_deref(), Some("PyCharm"));
+        assert_eq!(l.ancestors, vec![100, 101, 102, 103]);
+        // Without the plugin registered for that IDE process, no replies or keys.
+        assert!(!l.host.accepts_replies());
+        assert!(!takes_keys(&l.host));
+        let l = classify(&chain(&["claude.exe", "cmd.exe", "idea64.exe"]));
+        assert!(
+            matches!(l.host, Host::JetBrains { ref ide, ide_pid: 102 } if ide == "IntelliJ IDEA")
+        );
+        // A terminal opened from the IDE is that terminal.
+        let l = classify(&chain(&[
+            "claude.exe",
+            "pwsh.exe",
+            "WindowsTerminal.exe",
+            "pycharm64.exe",
+        ]));
+        assert!(matches!(l.host, Host::WindowsTerminal { .. }));
     }
 
     #[test]

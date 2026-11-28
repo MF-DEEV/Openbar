@@ -20,6 +20,7 @@ import {
   CircleX,
   Pencil,
   PanelRight,
+  Settings,
   TriangleAlert,
   X,
 } from "lucide-react";
@@ -693,6 +694,8 @@ function unavailable(session: Session): string | null {
     // The Claude app has no terminal to type into (#246).
     if (session.origin) return tf("windows.sessions.replyInAgent", CLAUDE_DESKTOP);
     if (session.remote) return isContainer(session.remote) ? S.containerReplyNeedsTmux : S.replyNeedsTmux;
+    // A JetBrains IDE takes replies through its bridge plugin (#329).
+    if (session.host === "jetbrains") return S.replyJetBrainsBridge;
     return session.hostName ? S.replyUnavailableIn(session.hostName) : S.replyUnavailable;
   }
   return null;
@@ -885,6 +888,12 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
         </div>
       ) : null}
       <VoiceProblem session={session} />
+      {session.host === "jetbrains" && reason === S.replyJetBrainsBridge ? (
+        <button type="button" className="s-bridge-link" onClick={() => void bridge.sessions.openBridgeSettings()}>
+          <Settings size={10} />
+          {S.openBridgeSettings}
+        </button>
+      ) : null}
     </div>
   );
 }

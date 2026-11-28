@@ -491,6 +491,12 @@ export const S = {
   get replyNeedsTmux() {
     return t("windows.sessions.replyNeedsTmux");
   },
+  get replyJetBrainsBridge() {
+    return t("windows.sessions.replyJetBrainsBridge");
+  },
+  get openBridgeSettings() {
+    return t("windows.sessions.openBridgeSettings");
+  },
   get backgroundHelp() {
     return t("windows.sessions.backgroundHelp");
   },
