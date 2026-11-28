@@ -118,7 +118,7 @@
   flex: none;
 }
 
-.mx-track {
+.mx-desk .u-slider.is-vertical.mx-track {
   flex: none;
   height: var(--mx-track);
 }

@@ -450,6 +450,9 @@ export async function checkIslandPosition({ send, evaluate, base }) {
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
   for (const selected of ["controls", "mixer", "music", "clipboard", "captures", "files", "system", "tools",
     "calendar", "notifications", "timer", "camera", "downloads", "scratchpad", "agents", "sessions", "watch"]) {
+    if (selected === "mixer") await evaluate(`(async()=>{
+      const {fillDemo}=await import('/src/controls/demo.ts'); fillDemo();
+    })()`);
     const result = await evaluate(`(async () => {
       const {useIsland}=await import('/src/island/store.ts');
       useIsland.setState(s => ({expanded:true,selected:'${selected}',showingSections:false,
@@ -471,6 +474,14 @@ export async function checkIslandPosition({ send, evaluate, base }) {
     assert((!result.controls || result.controls.bottom <= result.page.top) &&
       (!result.footer || result.page.bottom <= result.footer.top),
       `Portrait page overlaps controls: ${selected}`);
+    if (selected === "mixer") {
+      const tracks = await evaluate(`[...document.querySelectorAll('.mx-desk .mx-track .u-slider-track')]
+        .map(el=>el.getBoundingClientRect().height)`);
+      assert(tracks.length >= 2 && tracks.every(height => height >= 32),
+        `Portrait mixer faders have no visible tracks: ${JSON.stringify(tracks)}`);
+      const mixerShot = await send("Page.captureScreenshot", { format: "png" });
+      await writeFile(resolve("../build/island-position-side-mixer-page.png"), Buffer.from(mixerShot.data, "base64"));
+    }
     if(selected==='music') {
       const musicPageShot=await send("Page.captureScreenshot",{format:"png"});
       await writeFile(resolve("../build/island-position-side-music-page.png"),Buffer.from(musicPageShot.data,"base64"));
