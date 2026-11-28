@@ -107,6 +107,10 @@ it("names the tmux or zellij a local session's pane belongs to (#235)", () => {
   expect(zellij).toContain('class="s-multiplexer-mark"');
   expect(zellij).toContain("In a zellij pane");
   expect(rows([{ ...quiet, id: "t", host: "tmux", hostName: "tmux" }])).toContain(">tmux</span>");
+  // #328: Herdr's pane, named as Herdr names itself.
+  const herdr = rows([{ ...quiet, id: "h", host: "herdr", hostName: "Herdr" }]);
+  expect(herdr).toContain("In a Herdr pane");
+  expect(herdr).toContain(">Herdr</span>");
   expect(rows([quiet])).not.toContain("s-multiplexer-mark");
   // A remote host's row names the host instead.
   expect(rows([{ ...quiet, id: "far", host: "remote", remote: "box" }])).not.toContain("s-multiplexer-mark");

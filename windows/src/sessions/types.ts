@@ -24,6 +24,7 @@ export type HostKind =
   | "wezterm"
   | "tmux"
   | "zellij"
+  | "herdr"
   | "kitty"
   | "app"
   | "background"

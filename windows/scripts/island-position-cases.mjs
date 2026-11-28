@@ -650,6 +650,10 @@ export async function checkIslandPosition({ send, evaluate, base }) {
     "sessions",
     "watch",
   ]) {
+    if (selected === "mixer")
+      await evaluate(`(async()=>{
+      const {fillDemo}=await import('/src/controls/demo.ts'); fillDemo();
+    })()`);
     const result = await evaluate(`(async () => {
       const {useIsland}=await import('/src/island/store.ts');
       useIsland.setState(s => ({expanded:true,selected:'${selected}',showingSections:false,
@@ -679,6 +683,16 @@ export async function checkIslandPosition({ send, evaluate, base }) {
       !result.row || (result.row.top >= result.frame.top + 14 - 1 && result.row.bottom <= result.page.top + 1),
       `Side page overlaps its row: ${selected}`,
     );
+    if (selected === "mixer") {
+      const tracks = await evaluate(`[...document.querySelectorAll('.mx-desk .mx-track .u-slider-track')]
+        .map(el=>el.getBoundingClientRect().height)`);
+      assert(
+        tracks.length >= 2 && tracks.every((height) => height >= 32),
+        `Side mixer faders have no visible tracks: ${JSON.stringify(tracks)}`,
+      );
+      const mixerShot = await send("Page.captureScreenshot", { format: "png" });
+      await writeFile(resolve("../build/island-position-side-mixer-page.png"), Buffer.from(mixerShot.data, "base64"));
+    }
     if (selected === "music") {
       const musicPageShot = await send("Page.captureScreenshot", { format: "png" });
       await writeFile(

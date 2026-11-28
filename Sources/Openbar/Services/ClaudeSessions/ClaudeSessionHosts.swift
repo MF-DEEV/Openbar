@@ -37,6 +37,13 @@ enum ClaudeSessionHosts {
     static func classify(bundle: String?, tty: String?, port: Int?, environment: [String: String] = [:],
                          owner: String? = nil) -> ClaudeSessionHost {
         let program = environment["TERM_PROGRAM"]
+        // Herdr names its pane and socket in every pane (#328). Its server
+        // runs apart from the terminal, so a tmux or zellij started in a pane
+        // has the variables too; the process tree settles whether the pane
+        // is the session's (`host(of:)`).
+        if let target = ClaudeHerdrPane(environment: environment) {
+            return .herdr(target)
+        }
         // zellij leaves the outer terminal's TERM_PROGRAM alone, so its own
         // variables come first; whether the pane is the session's, and so
         // which of two nested multiplexers is the inner one, is checked
@@ -152,6 +159,7 @@ enum ClaudeSessionHosts {
     static let hostKeys: Set<String> = [
         "__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT", "TERM", "TERM_PROGRAM", "TERMINAL_EMULATOR", "TMUX", "TMUX_PANE",
         "ZELLIJ", "ZELLIJ_SESSION_NAME", "ZELLIJ_PANE_ID",
+        "HERDR_ENV", "HERDR_PANE_ID", "HERDR_SOCKET_PATH", "HERDR_SESSION",
         "WEZTERM_PANE", "WEZTERM_UNIX_SOCKET", "KITTY_WINDOW_ID", "KITTY_LISTEN_ON",
     ]
 

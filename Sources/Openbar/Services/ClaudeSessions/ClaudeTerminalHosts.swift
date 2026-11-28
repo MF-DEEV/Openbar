@@ -62,6 +62,9 @@ extension ClaudeSessionHost {
         if case .zellij(let target) = self {
             return target.outer.map { "zellij in " + ClaudeTerminalApps.name(of: $0) } ?? "zellij"
         }
+        if case .herdr(let target) = self {
+            return target.outer.map { "Herdr in " + ClaudeTerminalApps.name(of: $0) } ?? "Herdr"
+        }
         if case .remote(let alias, let tmux) = self {
             let title = RemoteHostName.title(alias)
             if RemoteHostName.isContainer(alias) { return tmux ? "tmux in " + title : title }
@@ -240,7 +243,7 @@ enum ClaudeTyping {
     /// Return and Ctrl-C, as Grok CLI's prompt wants them (#243).
     static func takesKeys(_ host: ClaudeSessionHost) -> Bool {
         switch host {
-        case .terminal, .iterm, .tmux, .zellij, .wezterm: return true
+        case .terminal, .iterm, .tmux, .zellij, .herdr, .wezterm: return true
         case .kitty(_, let socket): return socket != nil
         // The JetBrains bridge types keys as they are (#329).
         case .jetbrains(_, let ide): return ide.map { ClaudeJetBrains.listening(ide: $0) } ?? false

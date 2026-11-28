@@ -585,7 +585,7 @@ const TERMINALS: [(&str, &str); 5] = [
     ("tmux", "tmux"),
 ];
 #[cfg(not(windows))]
-const TERMINALS: [(&str, &str); 14] = [
+const TERMINALS: [(&str, &str); 15] = [
     ("gnome-terminal", "GNOME Terminal"),
     ("kgx", "Console"),
     ("konsole", "Konsole"),
@@ -599,6 +599,7 @@ const TERMINALS: [(&str, &str); 14] = [
     ("xterm", "XTerm"),
     ("tmux", "tmux"),
     ("zellij", "zellij"),
+    ("herdr", "Herdr"),
     ("screen", "screen"),
 ];
 
