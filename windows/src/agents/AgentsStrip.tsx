@@ -7,7 +7,7 @@
 
 import { useLocale } from "../i18n";
 
-import { edgeInset, type Geometry } from "../island/geometry";
+import { edgeInset, type Geometry, stripMarkRoom } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
 import { PROVIDER_NAMES, PROVIDER_TINTS } from "./format";
@@ -86,9 +86,11 @@ export function AgentsStrip({ geometry, size }: { geometry: Geometry; size: Size
   const textSize = portrait
     ? Math.min(PORTRAIT_TEXT, (PORTRAIT_TEXT * (size.width - 6)) / Math.max(1, readingWidth(line, PORTRAIT_TEXT)))
     : stripTextSize(geometry.stripHeight);
-  const icon = portrait
-    ? Math.min(stripIconSize(working.length, geometry.stripHeight), Math.floor(size.width - 9))
-    : stripIconSize(working.length, geometry.stripHeight);
+  // A glyph draws in a frame of 1.45 × its size, which stays inside the silhouette.
+  const icon = Math.min(
+    stripIconSize(working.length, geometry.stripHeight),
+    Math.floor((stripMarkRoom(geometry, size) - 1) / 1.45),
+  );
   const capsule = geometry.floatingGap !== null;
   const iconInset = capsule ? 0 : edgeInset(size, icon + 4, (icon + 4) / 2, 5, geometry.input);
   const textInset = capsule ? 0 : edgeInset(size, textSize * 0.72, 0, 5, geometry.input);

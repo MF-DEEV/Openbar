@@ -387,10 +387,7 @@ input:focus-visible {
   line-height: 1;
 }
 /* The tasks ring keeps the same margin from the strip's sides as the mark. */
-.n-activity-portrait .p-strip-ring {
-  width: 15px;
-  height: 15px;
-}
+
 /* Two digits are wider than the strip beside their icon. */
 .n-activity-portrait .s-strip-count.is-stacked {
   flex-direction: column;
@@ -940,4 +937,14 @@ input:focus-visible {
 }
 .n-search.is-open input {
   width: min(150px, 28cqi);
+}
+
+/* The tasks ring around a strip's mark fits the silhouette like the mark (SessionsStrip). */
+.s-strip .p-strip-ring {
+  width: var(--strip-ring, 18px);
+  height: var(--strip-ring, 18px);
+}
+.s-strip-stack-fit {
+  display: inline-flex;
+  transform-origin: 0 50%;
 }

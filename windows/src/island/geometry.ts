@@ -500,6 +500,31 @@ export function activityPickerLayout(geometry: Geometry, strips: Size[]) {
   };
 }
 
+/** Space a compact strip's mark keeps from the silhouette across the strip. */
+export const STRIP_MARK_MARGIN = 3.5;
+/** How much of the strip's thickness a mark may take. */
+export const STRIP_MARK_SHARE = 0.64;
+
+/**
+ * The largest mark a compact strip of `size` can draw across its thickness
+ * and still keep STRIP_MARK_MARGIN from the outline, at the same share of
+ * the thickness in every shape: a capsule's body is
+ * thinner than its frame, and a strip standing on a side edge is as wide as
+ * the island is thick elsewhere.
+ */
+export function stripMarkRoom(geometry: Geometry, size: Size): number {
+  const portrait = size.height > size.width;
+  const body =
+    geometry.floatingGap !== null
+      ? capsuleBody(portrait ? size.height : size.width, portrait ? size.width : size.height, geometry.floatingGap)
+          .height
+      : portrait
+        ? size.width
+        : size.height;
+  // About the share of the strip the Mac's mark takes (20 of 32), never closer than the margin.
+  return Math.max(6, Math.min(Math.floor(body - 2 * STRIP_MARK_MARGIN), Math.round(body * STRIP_MARK_SHARE)));
+}
+
 /**
  * How far in from the strip's end a vertically centred box of `boxHeight`,
  * rounded by `radius`, sits an even `gap` from the silhouette's bottom

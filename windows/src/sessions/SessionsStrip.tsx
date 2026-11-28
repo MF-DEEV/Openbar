@@ -7,9 +7,10 @@
 // on the first waiting session when there is one.
 
 import { useLocale } from "../i18n";
+import type { CSSProperties } from "react";
 
 import { CheckCircleFill, GaugeFill, HandFill, MARK_SCALE, markOf, SparkleFill } from "./glyphs";
-import { edgeInset, type Geometry } from "../island/geometry";
+import { edgeInset, type Geometry, stripMarkRoom } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
 import { useAgents } from "../agents/store";
@@ -25,9 +26,8 @@ import { type Counts, PROVIDERS, type Provider, workingOf } from "./types";
 /** min(15, strip − 7): 15 pt in the Windows bar's 24 pt strip. */
 export const stripTextSize = (stripHeight: number) => Math.min(15, stripHeight - 7);
 const MARK = 14;
-/** On a side edge: the counts' size, and the room the mark keeps from either side. */
+/** On a side edge: the counts' size. */
 const PORTRAIT_TEXT = 12;
-const PORTRAIT_MARGIN = 4.5;
 
 /** Waiting, then each agent at work, then the ones a plan limit stopped,
  * then finished. The mark of who works shows once, beside the camera; the
@@ -130,7 +130,9 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
   // stay readable, one per line beneath it.
   const portrait = size.height > size.width;
   const textSize = portrait ? PORTRAIT_TEXT : stripTextSize(geometry.stripHeight);
-  const portraitMark = Math.max(8, Math.floor(size.width - 2 * PORTRAIT_MARGIN));
+  // The mark, its tasks ring and the stacked pair keep a margin inside the
+  // silhouette in every shape and on every edge.
+  const room = stripMarkRoom(geometry, size);
   const capsule = geometry.floatingGap !== null;
   const iconInset = capsule ? 0 : edgeInset(size, 18, 9, 5, geometry.input);
   const textInset = capsule ? 0 : edgeInset(size, textSize * 0.72, 0, 5, geometry.input);
@@ -160,7 +162,14 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
     <button
       type="button"
       className={`s-strip${capsule ? " is-capsule" : ""}`}
-      style={{ width: size.width, height: size.height, padding: capsule ? "0 14px" : undefined }}
+      style={
+        {
+          width: size.width,
+          height: size.height,
+          padding: capsule ? "0 14px" : undefined,
+          "--strip-ring": `${Math.min(18, room + 1)}px`,
+        } as CSSProperties
+      }
       aria-label={S.title}
       onClick={open}
     >
@@ -170,11 +179,16 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
       >
         {/* The strip is too narrow for two marks side by side; the counts name both agents. */}
         {stacked && !portrait ? (
-          <StackedMarks front={agents[0]!} behind={agents[1]!} />
+          <span
+            className="s-strip-stack-fit"
+            style={{ transform: `scale(${Math.min(1, room / (markSize(agents[0]!) + 2))})` }}
+          >
+            <StackedMarks front={agents[0]!} behind={agents[1]!} />
+          </span>
         ) : (
           <StripTasksRing off={counts.waiting > 0 || !working}>
             <Mark
-              size={portrait ? Math.min(Math.round(MARK * markScale), portraitMark) : Math.round(MARK * markScale)}
+              size={Math.min(Math.round(MARK * markScale), room)}
               strokeWidth={2.5}
               style={markTint ? { color: markTint } : undefined}
               working={working}
