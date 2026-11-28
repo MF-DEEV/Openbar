@@ -107,14 +107,27 @@ input:focus-visible {
 
 /* Keep WebView2's default arrowed scrollbar out of scrollable island content.
    Explicit scrollbar-width/color rules suppress the WebKit thumb styling. */
-.island-root :is(
-  .sy-grid.is-portrait, .sy-detail-body, .nt-rail, .ag-page,
-  .m-source-list, .m-preferred-menu, .m-volume-popover, .m-lyrics-empty,
-  .mx-options, .s-details-sidebar, .s-conversation.is-large,
-  .s-full-command, .s-card:has(.s-command-notice) > .s-detail,
-  .clawd-parts, .sp-editor, .sp-preview, .cal-agenda,
-  .cal-editor-fields, .cb-list
-) {
+.island-root
+  :is(
+    .sy-detail-body,
+    .nt-rail,
+    .ag-page,
+    .m-source-list,
+    .m-preferred-menu,
+    .m-volume-popover,
+    .m-lyrics-empty,
+    .mx-options,
+    .s-details-sidebar,
+    .s-conversation.is-large,
+    .s-full-command,
+    .s-card:has(.s-command-notice) > .s-detail,
+    .clawd-parts,
+    .sp-editor,
+    .sp-preview,
+    .cal-agenda,
+    .cal-editor-fields,
+    .cb-list
+  ) {
   scrollbar-width: auto;
   scrollbar-color: auto;
 }
