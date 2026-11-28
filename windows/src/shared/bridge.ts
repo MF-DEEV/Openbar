@@ -311,9 +311,9 @@ export const bridge = {
     clipboardImages: () => call<ReplyAttachment[]>("sessions_clipboard_images"),
     /** Settings › Sessions, where the JetBrains bridge plugin goes in (#329). */
     openBridgeSettings: () => call("sessions_open_bridge_settings"),
-    /** What Open came to: "detached" when the session's tmux or zellij has no terminal attached (#235). */
+    /** What Open came to: "detached" when the session's tmux, zellij or Herdr has no terminal attached (#235, #328). */
     open: (sessionId: string) => call<"opened" | "missing" | "detached">("sessions_open", { sessionId }),
-    /** Attaches that tmux or zellij in a new terminal window. */
+    /** Attaches that tmux, zellij or Herdr in a new terminal window. */
     attach: (sessionId: string) => call<boolean>("sessions_attach", { sessionId }),
     /** Whether every one of these sessions shows in front in its own terminal tab (#210). */
     terminalShown: (sessionIds: string[]) => call<boolean>("sessions_terminal_shown", { sessionIds }),

@@ -154,6 +154,14 @@ fn locate_with(pid: u32, tmux_program: &str, kitten_program: &str) -> Option<Loc
     ) {
         located.host = host;
     }
+    // A pane of Herdr wins over the terminal around it, once its server runs
+    // the session with no zellij or tmux server between (#328).
+    if let Some(host) = crate::hosts::herdr_host(
+        &chain,
+        &process::environment_values(pid, &crate::hosts::herdr::VARIABLES),
+    ) {
+        located.host = host;
+    }
     // A pane of tmux wins over the terminal around it, once it is on the session's terminal.
     if let Some(host) = tmux_in(
         process::terminal_of(pid).as_deref(),
@@ -286,7 +294,10 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
             // A client inside zellij or another tmux comes forward through it.
             for &client in &pids {
                 if let Some(outer) = locate(client)
-                    && matches!(outer.host, Host::Tmux { .. } | Host::Zellij { .. })
+                    && matches!(
+                        outer.host,
+                        Host::Tmux { .. } | Host::Zellij { .. } | Host::Herdr { .. }
+                    )
                 {
                     return crate::hosts::focus(client, &outer, cwd);
                 }
@@ -328,7 +339,8 @@ pub fn shown(pid: u32, located: &Located) -> Option<bool> {
                 Host::Kitty { .. }
                 | Host::Wezterm { .. }
                 | Host::Tmux { .. }
-                | Host::Zellij { .. } => crate::hosts::shown(client, &outer),
+                | Host::Zellij { .. }
+                | Host::Herdr { .. } => crate::hosts::shown(client, &outer),
                 _ => None,
             }
         }

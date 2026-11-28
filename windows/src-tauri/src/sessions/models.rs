@@ -169,6 +169,8 @@ pub enum HostKind {
     Tmux,
     /// A zellij pane, reached through zellij's command line (#235).
     Zellij,
+    /// A Herdr pane, reached through Herdr's socket API (#328).
+    Herdr,
     /// A kitty window with remote control on.
     Kitty,
     App,

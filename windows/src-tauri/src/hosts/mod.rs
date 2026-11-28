@@ -14,6 +14,7 @@ pub mod bridge;
 pub mod bridge_installer;
 #[cfg(windows)]
 pub mod console;
+pub mod herdr;
 pub mod jetbrains;
 pub mod process;
 pub mod wezterm;
@@ -60,6 +61,17 @@ pub enum Host {
         server: u32,
         program: String,
     },
+    /// A Herdr pane (#328), by the pane id and API socket Herdr put in the
+    /// environment, the named session (None for the default one), the
+    /// server the session runs under and that server's own program (Linux).
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    Herdr {
+        socket: String,
+        pane: String,
+        session: Option<String>,
+        server: u32,
+        program: String,
+    },
     /// A kitty window with remote control on (Linux).
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Kitty {
@@ -84,16 +96,18 @@ impl Host {
                 | Host::Wezterm { .. }
                 | Host::Tmux { .. }
                 | Host::Zellij { .. }
+                | Host::Herdr { .. }
                 | Host::Kitty { .. }
         ) || matches!(self, Host::JetBrains { ide_pid, .. } if jetbrains::listening(*ide_pid))
     }
 
-    /// The tmux or zellij the session's pane belongs to, for the chip on
-    /// its row (#235).
+    /// The tmux, zellij or Herdr the session's pane belongs to, for the
+    /// chip on its row (#235, #328).
     pub fn multiplexer(&self) -> Option<&'static str> {
         match self {
             Host::Tmux { .. } => Some("tmux"),
             Host::Zellij { .. } => Some("zellij"),
+            Host::Herdr { .. } => Some("Herdr"),
             _ => None,
         }
     }
@@ -117,6 +131,7 @@ impl Host {
             Host::Wezterm { .. } => Some("WezTerm".into()),
             Host::Tmux { .. } => Some("tmux".into()),
             Host::Zellij { .. } => Some("zellij".into()),
+            Host::Herdr { .. } => Some("Herdr".into()),
             Host::Kitty { .. } => Some("kitty".into()),
             Host::App { name } => Some(name.clone()),
             Host::Conhost | Host::Unknown => None,
@@ -173,6 +188,30 @@ pub fn zellij_host(
 
 /// The zellij variables a session is told by.
 pub const ZELLIJ_VARIABLES: [&str; 3] = [zellij::ZELLIJ, zellij::SESSION, zellij::PANE];
+
+/// A Herdr pane, when the session's own environment names one and a Herdr
+/// server runs it with no zellij or tmux server between (#328).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn herdr_host(
+    chain: &[process::Entry],
+    environment: &std::collections::HashMap<String, String>,
+) -> Option<Host> {
+    let pane = herdr::pane_of(environment)?;
+    let server = herdr::server_of(chain, herdr::is_server)?;
+    Some(Host::Herdr {
+        socket: pane.socket,
+        pane: pane.pane,
+        session: pane.session,
+        server,
+        program: herdr::program_of(process::image_path(server).as_deref()),
+    })
+}
+
+/// The session still runs under that Herdr server.
+fn herdr_holds(pid: u32, server: u32) -> bool {
+    process::ancestors(pid)
+        .is_some_and(|chain| herdr::server_of(&chain, herdr::is_server) == Some(server))
+}
 
 /// The session still runs under that zellij server.
 fn zellij_holds(pid: u32, server: u32) -> bool {
@@ -354,6 +393,18 @@ pub fn deliver(
             };
             zellij::send(&target, *pane, text, images).map_err(|_| DeliveryError::Unreachable)
         }
+        Host::Herdr {
+            socket,
+            pane,
+            server,
+            ..
+        } => {
+            if !herdr_holds(pid, *server) {
+                return Err(DeliveryError::Unreachable);
+            }
+            herdr::send(&herdr::Target { socket, pane }, text, images)
+                .map_err(|_| DeliveryError::Unreachable)
+        }
         #[cfg(target_os = "linux")]
         Host::Tmux { .. } | Host::Kitty { .. } => {
             crate::linux::hosts::deliver(pid, located, text, images)
@@ -417,6 +468,20 @@ impl Key {
         }
     }
 
+    /// Its name for Herdr's `pane.send_keys` (#328).
+    pub fn herdr_name(self) -> String {
+        match self {
+            Key::Enter => "enter".into(),
+            Key::Interrupt => "ctrl+c".into(),
+            Key::Down => "down".into(),
+            Key::Space => "space".into(),
+            Key::Escape => "esc".into(),
+            Key::Tab => "tab".into(),
+            Key::Digit(n) => n.to_string(),
+            Key::Letter(c) => c.to_string(),
+        }
+    }
+
     /// Its name for kitty's `send-key`.
     #[cfg(target_os = "linux")]
     pub fn kitty_name(self) -> String {
@@ -446,7 +511,7 @@ pub fn press_all(pid: u32, located: &Located, keys: &[Key]) -> Result<(), Delive
 pub fn takes_keys(host: &Host) -> bool {
     match host {
         Host::WindowsTerminal { .. } | Host::Conhost => cfg!(windows),
-        Host::Wezterm { .. } | Host::Zellij { .. } => true,
+        Host::Wezterm { .. } | Host::Zellij { .. } | Host::Herdr { .. } => true,
         Host::Tmux { .. } | Host::Kitty { .. } => cfg!(target_os = "linux"),
         // The JetBrains bridge types keys as they are (#329).
         Host::JetBrains { ide_pid, .. } => jetbrains::listening(*ide_pid),
@@ -521,6 +586,27 @@ pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError>
                 server: *server,
             };
             zellij::keys(&target, *pane, &key.zellij_name()).map_err(|_| DeliveryError::Unreachable)
+        }
+        (
+            Key::Down
+            | Key::Space
+            | Key::Escape
+            | Key::Tab
+            | Key::Digit(_)
+            | Key::Letter(_)
+            | Key::Interrupt,
+            Host::Herdr {
+                socket,
+                pane,
+                server,
+                ..
+            },
+        ) => {
+            if !herdr_holds(pid, *server) {
+                return Err(DeliveryError::Unreachable);
+            }
+            herdr::keys(&herdr::Target { socket, pane }, &key.herdr_name())
+                .map_err(|_| DeliveryError::Unreachable)
         }
         #[cfg(target_os = "linux")]
         (
@@ -611,6 +697,34 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
                 None => true,
             }
         }
+        Host::Herdr {
+            socket,
+            pane,
+            server,
+            ..
+        } => {
+            if !herdr_holds(pid, *server) {
+                return false;
+            }
+            let target = herdr::Target { socket, pane };
+            if !herdr::has_pane(&target) {
+                return false;
+            }
+            let clients = herdr::clients(*server, socket);
+            // No terminal attached: Open tells so and offers to attach it.
+            if clients.as_ref().is_some_and(Vec::is_empty) || !herdr::focus(&target) {
+                return false;
+            }
+            // The terminal of the client used last comes forward the way a
+            // session in it would, a multiplexer showing it included.
+            match clients.and_then(|clients| clients.first().copied()) {
+                Some(client) => {
+                    locate(client).is_some_and(|outer| focus_client(client, &outer, cwd))
+                }
+                // Focused in Herdr, though which terminal shows it isn't known.
+                None => true,
+            }
+        }
         #[cfg(target_os = "linux")]
         Host::Tmux { .. } | Host::Kitty { .. } => crate::linux::hosts::focus(pid, located, cwd),
         #[cfg(not(target_os = "linux"))]
@@ -657,6 +771,26 @@ pub fn shown(pid: u32, located: &Located) -> Option<bool> {
             // Every attached client shows the pane; the terminal of the one
             // used last decides the rest.
             let client = *zellij::clients(*server, session).first()?;
+            let outer = locate(client)?;
+            shown(client, &outer)
+        }
+        Host::Herdr {
+            socket,
+            pane,
+            server,
+            ..
+        } => {
+            if !herdr_holds(pid, *server) {
+                return None;
+            }
+            // Herdr keeps one focus, which every attached terminal shows.
+            if !herdr::focused(&herdr::Target { socket, pane })? {
+                return Some(false);
+            }
+            let Some(&client) = herdr::clients(*server, socket)?.first() else {
+                // No terminal shows it at all.
+                return Some(false);
+            };
             let outer = locate(client)?;
             shown(client, &outer)
         }
@@ -713,6 +847,7 @@ fn focus_client(client: u32, outer: &Located, cwd: &str) -> bool {
         // A multiplexer inside another, or a terminal that knows its tabs.
         Host::Tmux { .. }
         | Host::Zellij { .. }
+        | Host::Herdr { .. }
         | Host::Kitty { .. }
         | Host::Wezterm { .. }
         | Host::JetBrains { .. } => focus(client, outer, cwd),
@@ -734,9 +869,9 @@ fn platform_raise_client(_client: u32, pids: &[u32], cwd: &str) -> bool {
     platform_raise_host(pids, cwd)
 }
 
-/// What attaches the session's tmux or zellij in a new terminal window,
-/// when no terminal shows it, however deep in other multiplexers it sits
-/// (#235): a program and its arguments.
+/// What attaches the session's tmux, zellij or Herdr in a new terminal
+/// window, when no terminal shows it, however deep in other multiplexers it
+/// sits (#235, #328): a program and its arguments.
 pub fn detached(pid: u32, located: &Located) -> Option<(String, Vec<String>)> {
     detached_at(pid, located, 0)
 }
@@ -765,6 +900,21 @@ fn detached_at(pid: u32, located: &Located, depth: u32) -> Option<(String, Vec<S
             }
             let client = *zellij::clients(*server, session).first()?;
             detached_at(client, &locate(client)?, depth + 1)
+        }
+        Host::Herdr {
+            socket,
+            pane,
+            session,
+            server,
+            program,
+        } => {
+            if !herdr_holds(pid, *server) || !herdr::has_pane(&herdr::Target { socket, pane }) {
+                return None;
+            }
+            match herdr::clients(*server, socket)?.first() {
+                None => Some((program.clone(), herdr::attach_arguments(session.as_deref()))),
+                Some(&client) => detached_at(client, &locate(client)?, depth + 1),
+            }
         }
         #[cfg(target_os = "linux")]
         Host::Tmux { socket, pane } => {
@@ -835,7 +985,11 @@ pub fn types_codex(host: &Host) -> bool {
     } else {
         matches!(
             host,
-            Host::Tmux { .. } | Host::Zellij { .. } | Host::Kitty { .. } | Host::Wezterm { .. }
+            Host::Tmux { .. }
+                | Host::Zellij { .. }
+                | Host::Herdr { .. }
+                | Host::Kitty { .. }
+                | Host::Wezterm { .. }
         )
     }
 }
