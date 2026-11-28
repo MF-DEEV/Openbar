@@ -24,6 +24,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use super::containers;
 use super::models::{HostKind, SessionRecord};
 use super::registry;
 use crate::hooks::installer;
@@ -171,6 +172,8 @@ pub enum Client {
     Nc(String),
     Socat(String),
     Python3(String),
+    /// A container's hooks go through its relay (issue #330).
+    Relay,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -183,6 +186,8 @@ pub struct HostInfo {
     pub hooks_installed: bool,
     /// Where Codex's app-server socket is on the host, there or not yet.
     pub codex_socket: Option<String>,
+    /// The container this is, as the link found it (issue #330).
+    pub container: Option<containers::Info>,
 }
 
 pub fn probe(lines: &[String]) -> Option<HostInfo> {
@@ -234,6 +239,8 @@ pub struct Snapshot {
     pub gone: Vec<String>,
     /// Codex's app-server socket is on the host: its daemon runs.
     pub codex_live: bool,
+    /// The tmux socket and pane each session runs in, by session id.
+    pub panes: HashMap<String, (String, String)>,
 }
 
 /// A record from the host, which checked its process itself: Linux and
@@ -254,7 +261,14 @@ pub fn record(data: &[u8], alias: &str, tmux: bool) -> Option<SessionRecord> {
     record.job = None;
     record.host = HostKind::Remote;
     record.accepts_replies = tmux;
-    record.host_name = Some(if tmux {
+    record.host_name = Some(if containers::is_container(alias) {
+        let title = containers::title_of(alias);
+        if tmux {
+            format!("tmux in {title}")
+        } else {
+            title
+        }
+    } else if tmux {
         format!("tmux on {alias}")
     } else {
         alias.to_string()
@@ -278,6 +292,10 @@ pub fn snapshot(lines: &[String], alias: &str) -> Snapshot {
                 let tmux =
                     decode(socket).is_some() && decode(tty).is_some() && pane.starts_with('%');
                 if let Some(record) = record(&data, alias, tmux).filter(|r| r.pid == pid) {
+                    if tmux && let Some(socket) = decode(socket) {
+                        out.panes
+                            .insert(record.session_id.clone(), (socket, pane.to_string()));
+                    }
                     out.records.push(record);
                 }
             }
@@ -426,6 +444,11 @@ pub fn hook_command(client: &Client, socket: &str, app: &str) -> String {
                         [sys.stdout.buffer.write(c) for c in iter(lambda:s.recv(65536),b\"\")]";
             format!("{} -c {} {}", quoted(path), quoted(code), quoted(socket))
         }
+        Client::Relay => {
+            // `socket` is <home>/.openbar/<name>; the relay's hook is beside it.
+            let home = socket.rsplitn(3, '/').nth(2).unwrap_or("");
+            return containers::hook_command(home, app);
+        }
     };
     format!("{run} 2>/dev/null; exit 0 {}", marker(app))
 }
@@ -467,7 +490,16 @@ pub fn removal(
     backup: Option<&Backup>,
     app: &str,
 ) -> Result<Removal, installer::Failure> {
-    let without = installer::removing_marked(&parse_settings(current)?, &marker(app));
+    removal_marked(current, backup, &marker(app))
+}
+
+/// The hooks carrying `marker` out: an SSH host's or a container's.
+pub fn removal_marked(
+    current: Option<&[u8]>,
+    backup: Option<&Backup>,
+    marker: &str,
+) -> Result<Removal, installer::Failure> {
+    let without = installer::removing_marked(&parse_settings(current)?, marker);
     if let Some(backup) = backup {
         let before = match backup {
             Backup::None => Some(json!({})),
@@ -477,7 +509,9 @@ pub fn removal(
             return Ok(Removal::Restore);
         }
     }
-    let keep = installer::has_any_marked(&without, ANY_MARKER);
+    // Another Openbar's hooks, over SSH or in a container, keep the copy.
+    let keep = installer::has_any_marked(&without, ANY_MARKER)
+        || installer::has_any_marked(&without, containers::ANY_MARKER);
     Ok(Removal::Write(serialize(&without), keep))
 }
 
@@ -498,8 +532,13 @@ pub struct Ssh {
 impl Ssh {
     pub fn spawn(args: &[String]) -> Option<Ssh> {
         let mut command = Command::new(ssh_binary());
+        command.args(args);
+        Ssh::spawn_command(command)
+    }
+
+    /// Any program that runs the loader: `docker exec` for a container.
+    pub fn spawn_command(mut command: Command) -> Option<Ssh> {
         command
-            .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -580,6 +619,22 @@ impl Ssh {
 
     pub fn close_input(&self) {
         self.stdin.lock().unwrap().take();
+    }
+
+    /// The next line as it comes, for the relay's stream, which has no
+    /// closing "."; None once standard output ends.
+    pub fn next_line(&self) -> Option<String> {
+        let (lock, ready) = &*self.lines;
+        let mut state = lock.lock().unwrap();
+        loop {
+            if let Some(line) = state.0.pop_front() {
+                return Some(line);
+            }
+            if state.1 {
+                return None;
+            }
+            state = ready.wait(state).unwrap();
+        }
     }
 
     /// The lines of one answer up to its closing "."; None when it does not
@@ -664,6 +719,41 @@ fn ssh_binary() -> String {
 /// One short ssh running a mode of the script: its answer, or why not.
 pub fn one_shot(alias: &str, mode: &str, input: &[String]) -> Result<Vec<String>, String> {
     let ssh = Ssh::spawn(&one_shot_args(alias)).ok_or("ssh could not start")?;
+    one_shot_on(ssh, mode, input)
+}
+
+/// The same through `docker exec` into a container (issue #330).
+pub fn one_shot_container(
+    engine: &containers::Engine,
+    container: &containers::Info,
+    mode: &str,
+    input: &[String],
+) -> Result<Vec<String>, String> {
+    let mut command = engine.command();
+    command.args(containers::Engine::exec_args(
+        &container.id,
+        container.user.as_deref(),
+    ));
+    let ssh =
+        Ssh::spawn_command(command).ok_or_else(|| format!("{} could not start", engine.name()))?;
+    one_shot_on(ssh, mode, input).map_err(container_reason)
+}
+
+/// What a container's `docker exec` said when it ended; ssh's words when
+/// it said nothing don't fit.
+fn container_reason(reason: String) -> String {
+    if reason.starts_with("The host can") {
+        RELAY_ENDED.into()
+    } else {
+        reason
+    }
+}
+
+pub const RELAY_ENDED: &str = "The connection into the container ended";
+pub const NOT_RUNNING: &str = "Not running. Openbar connects once it starts.";
+pub const NO_ENGINE: &str = "No docker or podman command line was found.";
+
+fn one_shot_on(ssh: Ssh, mode: &str, input: &[String]) -> Result<Vec<String>, String> {
     let mut text = preamble(mode);
     for line in input {
         text.push_str(line);
@@ -695,8 +785,25 @@ pub struct CodexPipe {
 impl CodexPipe {
     pub fn open(alias: &str) -> Result<CodexPipe, String> {
         let mut command = Command::new(ssh_binary());
+        command.args(one_shot_args(alias));
+        CodexPipe::open_command(command)
+    }
+
+    /// The same through `docker exec` into a container (issue #330).
+    pub fn open_container(
+        engine: &containers::Engine,
+        container: &containers::Info,
+    ) -> Result<CodexPipe, String> {
+        let mut command = engine.command();
+        command.args(containers::Engine::exec_args(
+            &container.id,
+            container.user.as_deref(),
+        ));
+        CodexPipe::open_command(command)
+    }
+
+    fn open_command(mut command: Command) -> Result<CodexPipe, String> {
         command
-            .args(one_shot_args(alias))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -786,6 +893,9 @@ pub enum State {
     Connected {
         has_client: bool,
         hooks_installed: bool,
+        /// The container's ID, to tell a rebuilt one (issue #330).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        container: Option<String>,
     },
     Disconnected {
         reason: String,
@@ -798,6 +908,14 @@ pub struct Link {
     pub alias: String,
     app: String,
     target: String,
+    /// The container picked, for a container's link (issue #330).
+    pub container_target: Option<containers::Target>,
+    /// Its CLI and the container found last.
+    engine: Mutex<Option<containers::Engine>>,
+    found: Mutex<Option<containers::Info>>,
+    /// The relay carrying the container's hooks.
+    relay: Mutex<Option<Arc<Ssh>>>,
+    on_hook: Option<HookSink>,
     ssh: Mutex<Option<Arc<Ssh>>>,
     /// One request at a time on the connection.
     busy: Mutex<()>,
@@ -811,6 +929,9 @@ pub struct Link {
     codex_live: Mutex<bool>,
 }
 
+/// Where a container's relayed hooks go: the service's handler.
+pub type HookSink = Arc<dyn Fn(crate::hooks::transport::HookConnection) + Send + Sync>;
+
 impl Link {
     /// `target` is what the host's socket is forwarded to; `on_snapshot`
     /// and `on_state` run on the link's thread.
@@ -821,10 +942,48 @@ impl Link {
         on_snapshot: impl Fn(&str, Snapshot) + Send + 'static,
         on_state: impl Fn(&str, &State) + Send + 'static,
     ) -> Arc<Link> {
+        Link::launch(alias, app, target, None, None, on_snapshot, on_state)
+    }
+
+    /// A container's link: `docker exec -i` for the agent and for the relay,
+    /// whose hooks go to `on_hook` (issue #330).
+    pub fn start_container(
+        target: containers::Target,
+        app: &str,
+        on_hook: HookSink,
+        on_snapshot: impl Fn(&str, Snapshot) + Send + 'static,
+        on_state: impl Fn(&str, &State) + Send + 'static,
+    ) -> Arc<Link> {
+        let alias = target.alias();
+        Link::launch(
+            &alias,
+            app,
+            String::new(),
+            Some(target),
+            Some(on_hook),
+            on_snapshot,
+            on_state,
+        )
+    }
+
+    fn launch(
+        alias: &str,
+        app: &str,
+        target: String,
+        container_target: Option<containers::Target>,
+        on_hook: Option<HookSink>,
+        on_snapshot: impl Fn(&str, Snapshot) + Send + 'static,
+        on_state: impl Fn(&str, &State) + Send + 'static,
+    ) -> Arc<Link> {
         let link = Arc::new(Link {
             alias: alias.to_string(),
             app: app.to_string(),
             target,
+            container_target,
+            engine: Mutex::new(None),
+            found: Mutex::new(None),
+            relay: Mutex::new(None),
+            on_hook,
             ssh: Mutex::new(None),
             busy: Mutex::new(()),
             stopped: Mutex::new(false),
@@ -846,6 +1005,29 @@ impl Link {
         if let Some(ssh) = self.ssh.lock().unwrap().take() {
             ssh.stop();
         }
+        if let Some(relay) = self.relay.lock().unwrap().take() {
+            relay.stop();
+        }
+    }
+
+    pub fn is_container(&self) -> bool {
+        self.container_target.is_some()
+    }
+
+    /// The container found last and its CLI.
+    pub fn container(&self) -> Option<(containers::Engine, containers::Info)> {
+        let engine = self.engine.lock().unwrap().clone()?;
+        let found = self.found.lock().unwrap().clone()?;
+        Some((engine, found))
+    }
+
+    /// One mode of the agent script on the host, as Set up and Remove run it.
+    pub fn one_shot(&self, mode: &str, input: &[String]) -> Result<Vec<String>, String> {
+        if self.is_container() {
+            let (engine, found) = self.container().ok_or(NOT_RUNNING)?;
+            return one_shot_container(&engine, &found, mode, input);
+        }
+        one_shot(&self.alias, mode, input)
     }
 
     fn stopped(&self) -> bool {
@@ -855,6 +1037,9 @@ impl Link {
     /// Whether the host's Codex can be joined now: connected, the last look
     /// found its daemon, and the host has a program to bridge to its socket.
     pub fn codex_ready(&self) -> bool {
+        if self.is_container() && self.relay.lock().unwrap().is_none() {
+            return false;
+        }
         self.ssh.lock().unwrap().is_some()
             && *self.codex_live.lock().unwrap()
             && self
@@ -867,6 +1052,9 @@ impl Link {
 
     /// The ssh behind the forwarded socket, to tell this host's hooks apart.
     pub fn peer(&self) -> Option<u32> {
+        if self.is_container() {
+            return self.relay.lock().unwrap().as_ref().map(|s| s.pid);
+        }
         self.ssh.lock().unwrap().as_ref().map(|s| s.pid)
     }
 
@@ -876,6 +1064,9 @@ impl Link {
         *self.restart.lock().unwrap() = true;
         if let Some(ssh) = self.ssh.lock().unwrap().as_ref() {
             ssh.stop();
+        }
+        if let Some(relay) = self.relay.lock().unwrap().as_ref() {
+            relay.stop();
         }
     }
 
@@ -901,6 +1092,7 @@ impl Link {
                         State::Connected {
                             has_client: info.client.is_some(),
                             hooks_installed: info.hooks_installed,
+                            container: info.container.as_ref().map(|c| c.id.clone()),
                         },
                         &on_state,
                     );
@@ -910,6 +1102,9 @@ impl Link {
             };
             if let Some(ssh) = self.ssh.lock().unwrap().take() {
                 ssh.stop();
+            }
+            if let Some(relay) = self.relay.lock().unwrap().take() {
+                relay.stop();
             }
             *self.codex_live.lock().unwrap() = false;
             if self.stopped() {
@@ -929,6 +1124,9 @@ impl Link {
     }
 
     fn connect(&self) -> Result<HostInfo, String> {
+        if let Some(target) = &self.container_target {
+            return self.connect_container(target);
+        }
         let name = socket_name(&self.app);
         let lines = one_shot(&self.alias, &format!("probe {name} {}", self.app), &[])?;
         let info = probe(&lines).ok_or("The host answered in a way Openbar didn’t expect")?;
@@ -951,9 +1149,83 @@ impl Link {
         Ok(info)
     }
 
+    /// A container, found again by its folder or name, as a rebuilt one has
+    /// a new ID; probed, then the agent and the relay started in it.
+    fn connect_container(&self, target: &containers::Target) -> Result<HostInfo, String> {
+        let engine = containers::Engine::find().ok_or(NO_ENGINE)?;
+        let found = engine
+            .running()?
+            .into_iter()
+            .find(|c| target.matches(c))
+            .ok_or(NOT_RUNNING)?;
+        *self.engine.lock().unwrap() = Some(engine.clone());
+        *self.found.lock().unwrap() = Some(found.clone());
+        let name = socket_name(&self.app);
+        let lines = one_shot_container(
+            &engine,
+            &found,
+            &format!("probe {name} {} container", self.app),
+            &[],
+        )?;
+        let mut info =
+            probe(&lines).ok_or("The container answered in a way Openbar didn’t expect")?;
+        let spawn = || {
+            let mut command = engine.command();
+            command.args(containers::Engine::exec_args(
+                &found.id,
+                found.user.as_deref(),
+            ));
+            Ssh::spawn_command(command).map(Arc::new)
+        };
+        let agent = spawn().ok_or_else(|| format!("{} could not start", engine.name()))?;
+        agent.write(&preamble("agent"));
+        match agent.answer(Duration::from_secs(20)) {
+            Some(hello) if hello.first().map(String::as_str) == Some("HELLO 1") => {}
+            _ => return Err(container_reason(agent.reason())),
+        }
+        let relay = spawn().ok_or_else(|| format!("{} could not start", engine.name()))?;
+        relay.write(&preamble(&format!(
+            "relay {}",
+            socket_name(&self.app).trim_end_matches(".sock")
+        )));
+        match relay.answer(Duration::from_secs(20)) {
+            Some(hello) if hello.first().map(String::as_str) == Some("HELLO 1") => {}
+            _ => {
+                agent.stop();
+                return Err(container_reason(relay.reason()));
+            }
+        }
+        if self.stopped() {
+            agent.stop();
+            relay.stop();
+            return Err("stopped".into());
+        }
+        if let Some(sink) = self.on_hook.clone() {
+            relay_hooks(relay.clone(), sink);
+        }
+        info.client = Some(Client::Relay);
+        info.container = Some(found);
+        *self.info.lock().unwrap() = Some(info.clone());
+        self.offsets.lock().unwrap().clear();
+        *self.ssh.lock().unwrap() = Some(agent);
+        *self.relay.lock().unwrap() = Some(relay);
+        Ok(info)
+    }
+
     /// Looks at the host's sessions until the connection ends; why it ended.
     fn poll(&self, on_snapshot: &impl Fn(&str, Snapshot)) -> String {
         while !self.stopped() {
+            // A container's hooks come only while its relay runs.
+            if self.is_container()
+                && !self
+                    .relay
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .is_some_and(|r| r.running())
+            {
+                return RELAY_ENDED.into();
+            }
             let mut request = vec!["snap".to_string()];
             for (path, offset) in self.offsets.lock().unwrap().iter() {
                 request.push(format!("t {offset} {}", encode(path)));
@@ -961,13 +1233,18 @@ impl Link {
             request.push("end".into());
             let sent = epoch();
             let Some(lines) = self.request(&request, Duration::from_secs(15)) else {
-                return self
+                let reason = self
                     .ssh
                     .lock()
                     .unwrap()
                     .as_ref()
                     .map(|s| s.reason())
                     .unwrap_or_else(|| "The connection ended".into());
+                return if self.is_container() {
+                    container_reason(reason)
+                } else {
+                    reason
+                };
             };
             let read = snapshot(&lines, &self.alias);
             let offset = clock_offset(sent, epoch(), read.host_time);
@@ -1025,6 +1302,11 @@ impl Link {
         .is_none()
     }
 
+    /// Where a session's tmux pane is, from the last look (Open, #330).
+    pub fn pane_of(snapshot: &Snapshot, session: &str) -> Option<(String, String)> {
+        snapshot.panes.get(session).cloned()
+    }
+
     pub fn mark_hooks(&self, installed: bool) {
         if let Some(info) = self.info.lock().unwrap().as_mut() {
             info.hooks_installed = installed;
@@ -1039,6 +1321,61 @@ impl Link {
     }
 }
 
+// MARK: The relay (issue #330)
+
+/// Reads the relay's lines: each `H <id> <event>` becomes a hook connection
+/// handed to the service, like one from the pipe, and its answer (or its
+/// end without one) goes back as `A <id> <answer>`.
+fn relay_hooks(relay: Arc<Ssh>, sink: HookSink) {
+    let _ = thread::Builder::new()
+        .name("container-relay".into())
+        .spawn(move || {
+            while let Some(line) = relay.next_line() {
+                let mut words = line.splitn(3, ' ');
+                let (Some("H"), Some(id)) = (words.next(), words.next()) else {
+                    continue;
+                };
+                if id.is_empty() || id.len() > 12 || !id.bytes().all(|b| b.is_ascii_digit()) {
+                    continue;
+                }
+                let id = id.to_string();
+                let answer = {
+                    let relay = relay.clone();
+                    let id = id.clone();
+                    move |reply: Vec<u8>| {
+                        let field = if reply.is_empty() {
+                            "-".to_string()
+                        } else {
+                            STANDARD.encode(reply)
+                        };
+                        relay.write(&format!("A {id} {field}\n"));
+                    }
+                };
+                let event = words
+                    .next()
+                    .and_then(|b| STANDARD.decode(b).ok())
+                    .filter(|e| {
+                        e.len() <= crate::hooks::transport::MAX_MESSAGE
+                            && crate::hooks::transport::is_complete(e)
+                    });
+                let Some(event) = event else {
+                    answer(Vec::new());
+                    continue;
+                };
+                let connection = crate::hooks::transport::HookConnection::relayed(
+                    event,
+                    Some(relay.pid),
+                    Box::new(answer),
+                );
+                let sink = sink.clone();
+                // A permission holds its hook while the island asks; others go on.
+                let _ = thread::Builder::new()
+                    .name("container-hook".into())
+                    .spawn(move || sink(connection));
+            }
+        });
+}
+
 // MARK: Setup
 
 struct Settings {
@@ -1047,8 +1384,11 @@ struct Settings {
     sum: String,
 }
 
-fn read_settings(alias: &str) -> Result<Settings, String> {
-    let lines = one_shot(alias, "read", &[])?;
+/// Runs one mode of the agent script on the host: ssh's or a container's.
+pub type Runner<'a> = &'a dyn Fn(&str, &[String]) -> Result<Vec<String>, String>;
+
+fn read_settings(run: Runner) -> Result<Settings, String> {
+    let lines = run("read", &[])?;
     let mut settings = Settings {
         current: None,
         backup: None,
@@ -1075,21 +1415,32 @@ const UNREADABLE: &str = "The host’s ~/.claude/settings.json isn’t JSON, so 
 const BUSY: &str = "Claude Code kept changing its settings; try again";
 
 pub fn install(alias: &str, info: &HostInfo, app: &str) -> Result<(), String> {
+    install_with(
+        &|mode: &str, input: &[String]| one_shot(alias, mode, input),
+        info,
+        app,
+    )
+}
+
+pub fn install_with(run: Runner, info: &HostInfo, app: &str) -> Result<(), String> {
     let client = info
         .client
         .as_ref()
         .ok_or("The host has none of nc, socat or python3 for the hooks to write with")?;
-    let socket = format!("{}/.openbar/{}", info.home, socket_name(app));
-    let command = hook_command(client, &socket, app);
+    let (command, marker) = if *client == Client::Relay {
+        (
+            containers::hook_command(&info.home, app),
+            containers::marker(app),
+        )
+    } else {
+        let socket = format!("{}/.openbar/{}", info.home, socket_name(app));
+        (hook_command(client, &socket, app), marker(app))
+    };
     for _ in 0..3 {
-        let settings = read_settings(alias)?;
+        let settings = read_settings(run)?;
         let parsed = parse_settings(settings.current.as_deref()).map_err(|_| UNREADABLE)?;
-        let new = serialize(&installer::installing_marked(
-            &parsed,
-            &command,
-            &marker(app),
-        ));
-        let lines = one_shot(alias, "install", &[settings.sum, STANDARD.encode(new)])?;
+        let new = serialize(&installer::installing_marked(&parsed, &command, &marker));
+        let lines = run("install", &[settings.sum, STANDARD.encode(new)])?;
         if lines.iter().any(|l| l == "O") {
             return Ok(());
         }
@@ -1101,10 +1452,23 @@ pub fn install(alias: &str, info: &HostInfo, app: &str) -> Result<(), String> {
 }
 
 pub fn remove(alias: &str, app: &str) -> Result<(), String> {
+    remove_with(
+        &|mode: &str, input: &[String]| one_shot(alias, mode, input),
+        &marker(app),
+        app,
+    )
+}
+
+/// Takes the hooks carrying `marker` out; `app` names what `~/.openbar` held.
+pub fn remove_with(run: Runner, marker: &str, app: &str) -> Result<(), String> {
     for _ in 0..3 {
-        let settings = read_settings(alias)?;
-        let plan = removal(settings.current.as_deref(), settings.backup.as_ref(), app)
-            .map_err(|_| UNREADABLE)?;
+        let settings = read_settings(run)?;
+        let plan = removal_marked(
+            settings.current.as_deref(),
+            settings.backup.as_ref(),
+            marker,
+        )
+        .map_err(|_| UNREADABLE)?;
         let mut input = vec![socket_name(app), settings.sum];
         match plan {
             Removal::Restore => input.push("restore".into()),
@@ -1113,7 +1477,7 @@ pub fn remove(alias: &str, app: &str) -> Result<(), String> {
                 input.push(STANDARD.encode(data));
             }
         }
-        let lines = one_shot(alias, "remove", &input)?;
+        let lines = run("remove", &input)?;
         if lines.iter().any(|l| l == "O") {
             return Ok(());
         }
@@ -1336,11 +1700,22 @@ mod tests {
         let connected = serde_json::to_value(State::Connected {
             has_client: true,
             hooks_installed: false,
+            container: None,
         })
         .unwrap();
         assert_eq!(
             connected,
             json!({"state": "connected", "hasClient": true, "hooksInstalled": false})
+        );
+        let container = serde_json::to_value(State::Connected {
+            has_client: true,
+            hooks_installed: true,
+            container: Some("e9f2".into()),
+        })
+        .unwrap();
+        assert_eq!(
+            container,
+            json!({"state": "connected", "hasClient": true, "hooksInstalled": true, "container": "e9f2"})
         );
         let gone = serde_json::to_value(State::Disconnected { reason: "x".into() }).unwrap();
         assert_eq!(gone, json!({"state": "disconnected", "reason": "x"}));
@@ -1641,5 +2016,120 @@ mod tests {
         );
         assert_eq!(std::fs::read(&settings).unwrap(), b"{\"theme\":\"dark\"}");
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// A container's relay (issue #330), run by this machine's `sh` against
+    /// a throwaway home as `docker exec -i` would run it: a hook's event
+    /// reaches the sink whole, and the answer is what the hook prints.
+    #[cfg(unix)]
+    #[test]
+    fn a_container_relay_hands_hooks_on_and_answers() {
+        use std::io::Write as _;
+        let home = std::env::temp_dir().join(format!("openbar-relay-{}", std::process::id()));
+        std::fs::create_dir_all(&home).unwrap();
+        let mut command = Command::new("/bin/sh");
+        command
+            .args(["-c", containers::LOADER])
+            .env_clear()
+            .env("HOME", &home)
+            .env("PATH", "/usr/bin:/bin");
+        let relay = Arc::new(Ssh::spawn_command(command).unwrap());
+        relay.write(&preamble("relay com.openbar.test"));
+        assert_eq!(
+            relay.answer(Duration::from_secs(5)).unwrap(),
+            vec!["HELLO 1"]
+        );
+        let (tx, rx) = std::sync::mpsc::channel();
+        relay_hooks(
+            relay.clone(),
+            Arc::new(move |connection: crate::hooks::transport::HookConnection| {
+                tx.send(connection.payload.clone()).unwrap();
+                let _ = connection.reply(b"{\"decision\":\"allow\"}");
+            }),
+        );
+        let hook = containers::hook_path(home.to_str().unwrap(), "com.openbar.test");
+        let event = format!(
+            "{{\"hook_event_name\":\"PermissionRequest\",\"pad\":\"{}\"}}",
+            "x".repeat(70_000)
+        );
+        let mut child = Command::new("/bin/sh")
+            .arg(&hook)
+            .env("HOME", &home)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(event.as_bytes())
+            .unwrap();
+        let printed = child.wait_with_output().unwrap();
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            event.as_bytes()
+        );
+        assert_eq!(printed.stdout, b"{\"decision\":\"allow\"}");
+        // The island goes: the relay ends and a hook doesn't wait on it.
+        relay.close_input();
+        let until = Instant::now() + Duration::from_secs(5);
+        while relay.running() && Instant::now() < until {
+            thread::sleep(Duration::from_millis(50));
+        }
+        let started = Instant::now();
+        let late = Command::new("/bin/sh")
+            .arg(&hook)
+            .env("HOME", &home)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(
+            !relay.running() && late.status.success() && started.elapsed() < Duration::from_secs(2)
+        );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn both_kinds_of_hooks_keep_the_copy_for_each_other() {
+        let original = b"{\"theme\": \"dark\"}\n".to_vec();
+        let ssh = hook_command(
+            &Client::Nc("/usr/bin/nc".into()),
+            "/home/n/.openbar/a.sock",
+            "app",
+        );
+        let inside = containers::hook_command("/home/n", "app");
+        let both = installer::installing_marked(
+            &installer::installing_marked(
+                &parse_settings(Some(&original)).unwrap(),
+                &ssh,
+                &marker("app"),
+            ),
+            &inside,
+            &containers::marker("app"),
+        );
+        let data = serialize(&both);
+        let backup = Backup::File(original.clone());
+        assert!(matches!(
+            removal_marked(Some(&data), Some(&backup), &containers::marker("app")),
+            Ok(Removal::Write(_, true))
+        ));
+        assert!(matches!(
+            removal(Some(&data), Some(&backup), "app"),
+            Ok(Removal::Write(_, true))
+        ));
+        let only = serialize(&installer::installing_marked(
+            &parse_settings(Some(&original)).unwrap(),
+            &inside,
+            &containers::marker("app"),
+        ));
+        assert_eq!(
+            removal_marked(Some(&only), Some(&backup), &containers::marker("app")),
+            Ok(Removal::Restore)
+        );
+        assert_eq!(
+            hook_command(&Client::Relay, "/home/n/.openbar/app.sock", "app"),
+            inside
+        );
     }
 }

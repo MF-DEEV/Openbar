@@ -445,7 +445,9 @@ struct NotchClaudeSessionStrings {
     /// terminal, naming that terminal when the island knows it.
     func replyUnavailable(for host: ClaudeSessionHost) -> String {
         if case .kitty = host { return replyKittyRemote }
-        if case .remote = host { return RemoteHostStrings.replyNeedsTmux }
+        if case .remote(let alias, _) = host {
+            return RemoteHostName.isContainer(alias) ? ContainerStrings.replyNeedsTmux : RemoteHostStrings.replyNeedsTmux
+        }
         // The bridge plugin is in the IDE but waits for it to restart (#329).
         if case .jetbrains(let bundle, let ide) = host {
             return ClaudeJetBrains.installed(bundle: bundle) ? replyJetBrainsRestart(ClaudeJetBrains.name(bundle: bundle, ide: ide)) : replyJetBrainsBridge

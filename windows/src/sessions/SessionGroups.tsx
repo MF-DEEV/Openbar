@@ -114,7 +114,7 @@ export function GroupHeader({ group, collapsed }: { group: SessionGroup; collaps
   const reduce = useReducedMotion();
   const tint = group.kind === "agent" && group.provider ? providerTint(group.provider) : projectColor(group.title);
   const parts = [group.title, S.groupCount(group.sessions.length)];
-  if (group.remote) parts.push(S.remoteHelp(group.remote));
+  if (group.remote) parts.push(S.hostHelp(group.remote));
   if (group.waiting > 0) parts.push(S.groupWaiting(group.waiting));
   return (
     <button

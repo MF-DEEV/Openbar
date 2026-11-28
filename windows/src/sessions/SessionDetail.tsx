@@ -76,6 +76,7 @@ import {
   type Session,
 } from "./types";
 import { VoiceButton, VoiceProblem } from "./VoiceReply";
+import { isContainer } from "./containers";
 import { isActive as voiceActive, showsMicrophone, useVoice, voiceWanted } from "./voice";
 
 function storedNumber(key: string, fallback: number) {
@@ -431,6 +432,11 @@ function Conversation({
   const section = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const last = session.chat.at(-1);
+  // A waiting ask's card sits above the conversation in the compact page and
+  // keeps itself in sight; following the conversation down would push its
+  // buttons out of the island.
+  const asking = !enlarged && isWaiting(session.phase);
+  const asked = useRef(false);
   useEffect(() => {
     const scroll = enlarged ? section.current : section.current?.closest(".s-scroll");
     if (!scroll) return;
@@ -444,9 +450,18 @@ function Conversation({
     following.current = true;
   }, [session.id, previews]);
   useEffect(() => {
+    if (asking) {
+      asked.current = true;
+      return;
+    }
+    // Answered: the page follows the conversation again.
+    if (asked.current) {
+      asked.current = false;
+      following.current = true;
+    }
     const scroll = enlarged ? section.current : section.current?.closest(".s-scroll");
     if (scroll && following.current) scroll.scrollTop = scroll.scrollHeight;
-  }, [session.id, previews, last?.id, last?.text, enlarged, session.phase, layoutKey]);
+  }, [session.id, previews, last?.id, last?.text, enlarged, session.phase, layoutKey, asking]);
 
   const enable = async () => {
     setEnabling(true);
@@ -678,7 +693,7 @@ function unavailable(session: Session): string | null {
     if (session.editor) return S.replyIn(session.provider);
     // The Claude app has no terminal to type into (#246).
     if (session.origin) return tf("windows.sessions.replyInAgent", CLAUDE_DESKTOP);
-    if (session.remote) return S.replyNeedsTmux;
+    if (session.remote) return isContainer(session.remote) ? S.containerReplyNeedsTmux : S.replyNeedsTmux;
     // A JetBrains IDE takes replies through its bridge plugin (#329).
     if (session.host === "jetbrains") return S.replyJetBrainsBridge;
     return session.hostName ? S.replyUnavailableIn(session.hostName) : S.replyUnavailable;

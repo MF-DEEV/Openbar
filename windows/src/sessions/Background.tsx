@@ -20,6 +20,7 @@ import {
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { t, tf, useLocale } from "../i18n";
 import { useIsland } from "../island/store";
+import { hostTitle, isContainer } from "./containers";
 import { bridge } from "../shared/bridge";
 import { canRemoveBackground, canStopBackground, problemText } from "./format";
 import { S } from "./strings";
@@ -46,21 +47,36 @@ export function BackgroundMark() {
 }
 
 /** The SSH host a session runs on, beside its name, so a remote session
- * never passes for one on this PC (sessions/remote.rs). */
+ * never passes for one on this PC (sessions/remote.rs); or the container,
+ * with a box (#330). */
 export function RemoteHostMark({ alias }: { alias: string }) {
   useLocale();
-  const shown = alias.length > 22 ? alias.slice(0, 21) + "…" : alias;
+  const title = hostTitle(alias);
+  const shown = title.length > 22 ? title.slice(0, 21) + "…" : title;
+  const help = S.hostHelp(alias);
   return (
-    <span className="s-remote-mark" title={S.remoteHelp(alias)} aria-label={S.remoteHelp(alias)}>
-      <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden>
-        <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-        <path
-          d="M1.8 8h12.4M8 1.8c2 2 2 10.4 0 12.4M8 1.8c-2 2-2 10.4 0 12.4"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.3"
-        />
-      </svg>
+    <span className="s-remote-mark" title={help} aria-label={help}>
+      {isContainer(alias) ? (
+        <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden>
+          <path
+            d="M8 1.6 14 4.8v6.4L8 14.4 2 11.2V4.8zM2 4.8l6 3.2 6-3.2M8 8v6.4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden>
+          <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path
+            d="M1.8 8h12.4M8 1.8c2 2 2 10.4 0 12.4M8 1.8c-2 2-2 10.4 0 12.4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+        </svg>
+      )}
       {shown}
     </span>
   );

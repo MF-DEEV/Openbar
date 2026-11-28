@@ -17,6 +17,7 @@ import {
 } from "./types";
 import { getLanguage, pluralForm, t, tf } from "../i18n";
 import { EXPAND_STEP } from "./diffGaps";
+import { containerTitle, isContainer } from "./containers";
 
 export const S = {
   get stepProject() {
@@ -453,6 +454,11 @@ export const S = {
     return t("windows.sessions.backgroundMark");
   },
   remoteHelp: (alias: string) => tf("windows.sessions.remoteHelp", alias),
+  /** "On box, over SSH", or "In the container shop" (#330). */
+  hostHelp: (alias: string) =>
+    isContainer(alias)
+      ? tf("windows.sessions.containerHelp", containerTitle(alias))
+      : tf("windows.sessions.remoteHelp", alias),
   // #235: the tmux or zellij a session's pane belongs to, and one with no terminal attached.
   multiplexerHelp: (name: string) => tf("windows.sessions.multiplexerHelp", name),
   /** "Cline in VS Code": an agent that runs in an editor's own panel (#241). */
@@ -479,6 +485,9 @@ export const S = {
   },
   groupCount: (n: number) => tf("windows.sessions.groupCount", String(n)),
   groupWaiting: (n: number) => tf("windows.sessions.groupWaiting", String(n)),
+  get containerReplyNeedsTmux() {
+    return t("windows.sessions.containerReplyNeedsTmux");
+  },
   get replyNeedsTmux() {
     return t("windows.sessions.replyNeedsTmux");
   },

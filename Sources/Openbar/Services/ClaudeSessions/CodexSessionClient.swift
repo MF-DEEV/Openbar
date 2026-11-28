@@ -57,6 +57,9 @@ final class CodexSessionClient {
 
     /// The daemon's socket: Codex's own, or one `ssh` forwards from a host.
     private let socket: URL?
+    /// Or a connection opened each time: a container's Codex, reached
+    /// through `docker exec` (issue #330).
+    private let connector: (() throws -> CodexSocket)?
     private var inspection = PermissionInspectionGate()
     /// The SSH alias of the host whose Codex this is; nil for this Mac's.
     let remoteAlias: String?
@@ -100,9 +103,24 @@ final class CodexSessionClient {
 
     /// Codex on a remote host, through the socket its connection forwards
     /// (docs/remote-hosts.md).
-    init(socket: URL?, remoteAlias: String?, ready: @escaping () -> Bool,
-         clientVersion: String = CodexSessionClient.appVersion, retry: TimeInterval = CodexSessionClient.retry) {
+    convenience init(socket: URL?, remoteAlias: String?, ready: @escaping () -> Bool,
+                     clientVersion: String = CodexSessionClient.appVersion, retry: TimeInterval = CodexSessionClient.retry) {
+        self.init(socket: socket, connector: nil, remoteAlias: remoteAlias, ready: ready, clientVersion: clientVersion,
+                  retry: retry)
+    }
+
+    /// Codex in a container, through a connection `connect` opens while
+    /// `ready` says its daemon runs (docs/containers.md).
+    convenience init(connect: @escaping () throws -> CodexSocket, remoteAlias: String, ready: @escaping () -> Bool,
+                     clientVersion: String = CodexSessionClient.appVersion, retry: TimeInterval = CodexSessionClient.retry) {
+        self.init(socket: nil, connector: connect, remoteAlias: remoteAlias, ready: ready, clientVersion: clientVersion,
+                  retry: retry)
+    }
+
+    private init(socket: URL?, connector: (() throws -> CodexSocket)?, remoteAlias: String?, ready: @escaping () -> Bool,
+                 clientVersion: String, retry: TimeInterval) {
         self.socket = socket
+        self.connector = connector
         self.remoteAlias = remoteAlias
         self.ready = ready
         self.clientVersion = clientVersion
@@ -457,8 +475,8 @@ final class CodexSessionClient {
 
     private func run(changed: @escaping () -> Void) {
         while !isStopped {
-            if let socket, ready(), FileManager.default.fileExists(atPath: socket.path) {
-                try? session(path: socket, changed: changed)
+            if ready(), let opened = try? open() {
+                try? session(opened, changed: changed)
                 let unanswered = lock.withLock { () -> [(String?) -> Void] in
                     let starts = waiting.values.compactMap { kind -> ((String?) -> Void)? in
                         if case .started(_, _, _, let done) = kind { return done }
@@ -492,9 +510,15 @@ final class CodexSessionClient {
         while read(wakeRead, &buffer, buffer.count) > 0 {}
     }
 
+    /// The daemon's socket, if it is there to connect to.
+    private func open() throws -> CodexSocket? {
+        if let connector { return try connector() }
+        guard let socket, FileManager.default.fileExists(atPath: socket.path) else { return nil }
+        return try CodexSocket(path: socket.path)
+    }
+
     /// One connection, from handshake to the daemon going away.
-    private func session(path: URL, changed: () -> Void) throws {
-        let socket = try CodexSocket(path: path.path)
+    private func session(_ socket: CodexSocket, changed: () -> Void) throws {
         defer { socket.close() }
         var decoder = CodexWebSocket.Decoder()
         decoder.append(try CodexWebSocket.handshake(socket, deadline: Date().addingTimeInterval(5)))
@@ -615,12 +639,18 @@ final class CodexSocket {
         }
     }
 
-    /// Wraps a descriptor already connected, as a test's socket pair.
-    init(fd: Int32) {
+    /// Wraps a descriptor already connected, as a test's socket pair or a
+    /// container's `docker exec`; `closed` runs once it is closed.
+    init(fd: Int32, closed: (() -> Void)? = nil) {
         self.fd = fd
+        self.closed = closed
         var on: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+        var timeout = timeval(tv_sec: 5, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
     }
+
+    private var closed: (() -> Void)?
 
     deinit { close() }
 
@@ -641,6 +671,8 @@ final class CodexSocket {
         guard fd >= 0 else { return }
         Darwin.close(fd)
         fd = -1
+        closed?()
+        closed = nil
     }
 
     func write(_ data: Data) throws {

@@ -98,12 +98,16 @@ struct RemoteHostInfo: Equatable {
     var hooksInstalled: Bool? = nil
     /// Where Codex's app-server socket is on the host, there or not yet.
     var codexSocket: String? = nil
+    /// The container this is, as the connection found it (issue #330).
+    var container: ContainerInfo? = nil
 }
 
 enum RemoteHookClient: Equatable {
     case nc(String)
     case socat(String)
     case python3(String)
+    /// A container's hooks go through its relay (`ContainerRelay`).
+    case relay
 }
 
 /// Waits between tries to reach a host that went away.
@@ -250,6 +254,7 @@ enum RemoteAnswer {
                     pane = RemoteTmuxPane(socket: socket, pane: words[5], tty: tty)
                 }
                 record.host = .remote(alias: alias, tmux: pane != nil)
+                if let pane { snapshot.panes[record.sessionID] = pane }
                 snapshot.records.append(record)
             case "J" where words.count >= 3:
                 if let path = decode(words[2]) { snapshot.transcripts[words[1]] = path }
@@ -299,6 +304,8 @@ struct RemoteSnapshot: Equatable {
     var transcripts: [String: String] = [:]
     var chunks: [RemoteChunk] = []
     var gone: [String] = []
+    /// The tmux pane each session runs in, by session ID.
+    var panes: [String: RemoteTmuxPane] = [:]
     /// Codex's app-server socket is on the host: its daemon runs.
     var codexLive = false
 }
@@ -398,8 +405,35 @@ enum RemoteHookInstaller {
                 + "s.sendall(sys.stdin.buffer.read());s.shutdown(socket.SHUT_WR);"
                 + "[sys.stdout.buffer.write(c) for c in iter(lambda:s.recv(65536),b\"\")]"
             run = "\(quoted(path)) -c \(quoted(code)) \(quoted(socket))"
+        case .relay:
+            // `socket` is <home>/.openbar/<name>; the relay's hook sits next to it.
+            let home = ((socket as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
+            return containerCommand(home: home, bundle: bundle)
         }
         return "\(run) 2>/dev/null; exit 0 \(marker(bundle: bundle))"
+    }
+
+    // MARK: In a container (issue #330)
+
+    /// A container's hooks carry a marker of their own, so a host reached
+    /// both ways never takes one kind for the other.
+    static func containerMarker(bundle: String) -> String { "# openbar-container-hook \(bundle)" }
+
+    /// The hook the relay writes at each connection, run with the container's `sh`.
+    static func containerHook(home: String, bundle: String) -> String {
+        home + "/.openbar/" + RemoteSSH.socketName(bundle: bundle).dropLast(".sock".count) + ".hook"
+    }
+
+    static func containerCommand(home: String, bundle: String) -> String {
+        "sh \(quoted(containerHook(home: home, bundle: bundle))) 2>/dev/null; exit 0 \(containerMarker(bundle: bundle))"
+    }
+
+    /// The command and marker for a host's hooks, by how they reach the island.
+    static func hook(info: RemoteHostInfo, bundle: String) -> (command: String, marker: String)? {
+        guard let client = info.client else { return nil }
+        if client == .relay { return (containerCommand(home: info.home, bundle: bundle), containerMarker(bundle: bundle)) }
+        let socket = info.home + "/.openbar/" + RemoteSSH.socketName(bundle: bundle)
+        return (command(client: client, socket: socket, bundle: bundle), marker(bundle: bundle))
     }
 
     static func installing(into settings: [String: Any], command: String, bundle: String) -> [String: Any] {
@@ -444,11 +478,17 @@ enum RemoteHookInstaller {
         case write(Data, keepBackup: Bool)
     }
 
-    /// Any Openbar's remote hooks, this build's or another's.
+    /// Any Openbar's remote hooks, this build's or another's, over SSH or in
+    /// a container: while one is left, the copy stays for its removal.
     static let anyMarker = "# openbar-remote-hook "
+    static let anyContainerMarker = "# openbar-container-hook "
 
     static func removal(current: Data?, backup: Backup?, bundle: String) throws -> Removal {
-        let without = removing(from: try parse(current), bundle: bundle)
+        try removal(current: current, backup: backup, marker: marker(bundle: bundle))
+    }
+
+    static func removal(current: Data?, backup: Backup?, marker: String) throws -> Removal {
+        let without = ClaudeHookInstaller.removing(from: try parse(current), marker: marker)
         if let backup {
             let before: [String: Any]
             switch backup {
@@ -457,6 +497,7 @@ enum RemoteHookInstaller {
             }
             if NSDictionary(dictionary: without).isEqual(to: before) { return .restore }
         }
-        return .write(try serialize(without), keepBackup: ClaudeHookInstaller.hasAny(in: without, marker: anyMarker))
+        return .write(try serialize(without), keepBackup: ClaudeHookInstaller.hasAny(in: without, marker: anyMarker)
+            || ClaudeHookInstaller.hasAny(in: without, marker: anyContainerMarker))
     }
 }

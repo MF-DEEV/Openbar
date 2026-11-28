@@ -61,6 +61,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             bridge
             jetbrains
             RemoteHostsSettings()
+            ContainersSettings()
         }
         .onAppear {
             service.checkHooks()
